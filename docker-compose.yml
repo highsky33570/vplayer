@@ -1,0 +1,28 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: vplayer-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: vplayer
+      MYSQL_USER: vplayer
+      MYSQL_PASSWORD: vplayer
+    ports:
+      - "3306:3306"
+    volumes:
+      - vplayer_mysql:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7-alpine
+    container_name: vplayer-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - vplayer_redis:/data
+
+volumes:
+  vplayer_mysql:
+  vplayer_redis:

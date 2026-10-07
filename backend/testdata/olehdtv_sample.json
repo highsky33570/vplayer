@@ -1,0 +1,315 @@
+{
+  "categories": [
+    { "source_id": "1", "name": "电影", "slug": "movie", "sort": 10 },
+    { "source_id": "2", "name": "连续剧", "slug": "tv", "sort": 20 },
+    { "source_id": "3", "name": "综艺", "slug": "variety", "sort": 30 },
+    { "source_id": "4", "name": "动漫", "slug": "anime", "sort": 40 },
+    { "source_id": "5", "name": "午夜影院", "slug": "midnight", "sort": 50 },
+    { "source_id": "6", "name": "VIP蓝光影院", "slug": "vip-bluray", "sort": 60 }
+  ],
+  "videos": [
+    {
+      "source_id": "82861",
+      "source_category_id": "1",
+      "title": "功夫女足",
+      "description": "“至尊无敌杯”开赛在即，一众顶尖球队即将展开一场前所未有的巅峰对决！",
+      "year": "2026",
+      "area": "香港",
+      "director": "周星驰",
+      "actors": "张小斐,迪丽热巴,张艺兴",
+      "rating": 9.2,
+      "poster_url": "https://picsum.photos/seed/vplayer-82861/640/360",
+      "view_count": 267555,
+      "duration_sec": 6120,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "正片",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "90001",
+      "source_category_id": "1",
+      "title": "示例电影 · Big Buck Bunny",
+      "description": "本地联调电影分类 · 开源示例片",
+      "year": "2008",
+      "area": "荷兰",
+      "director": "Sacha Goedegebure",
+      "actors": "Big Buck Bunny",
+      "rating": 8.1,
+      "poster_url": "https://picsum.photos/seed/vplayer-90001/640/360",
+      "view_count": 128000,
+      "duration_sec": 596,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "正片",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "90002",
+      "source_category_id": "1",
+      "title": "示例电影 · Sintel",
+      "description": "本地联调电影分类 · Blender 开源短片",
+      "year": "2010",
+      "area": "荷兰",
+      "director": "Colin Levy",
+      "actors": "Sintel",
+      "rating": 8.4,
+      "poster_url": "https://picsum.photos/seed/vplayer-90002/640/360",
+      "view_count": 96000,
+      "duration_sec": 888,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "正片",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "90003",
+      "source_category_id": "1",
+      "title": "示例电影 · Tears of Steel",
+      "description": "本地联调电影分类 · Blender 开源短片",
+      "year": "2012",
+      "area": "荷兰",
+      "director": "Ian Hubert",
+      "actors": "Cast",
+      "rating": 7.9,
+      "poster_url": "https://picsum.photos/seed/vplayer-90003/640/360",
+      "view_count": 54000,
+      "duration_sec": 734,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "正片",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "91001",
+      "source_category_id": "2",
+      "title": "示例剧集 · 第一季",
+      "description": "本地联调连续剧分类 · 多集播放列表",
+      "year": "2024",
+      "area": "中国大陆",
+      "director": "Demo Director",
+      "actors": "Actor A, Actor B",
+      "rating": 8.0,
+      "poster_url": "https://picsum.photos/seed/vplayer-91001/640/360",
+      "view_count": 210000,
+      "duration_sec": 2700,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "第1集",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        },
+        {
+          "sid": 1,
+          "nid": 2,
+          "title": "第2集",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        },
+        {
+          "sid": 1,
+          "nid": 3,
+          "title": "第3集",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "91002",
+      "source_category_id": "2",
+      "title": "示例剧集 · 都市物语",
+      "description": "本地联调连续剧分类",
+      "year": "2025",
+      "area": "中国大陆",
+      "director": "Demo Director",
+      "actors": "Actor C, Actor D",
+      "rating": 7.6,
+      "poster_url": "https://picsum.photos/seed/vplayer-91002/640/360",
+      "view_count": 88000,
+      "duration_sec": 2400,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "第1集",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        },
+        {
+          "sid": 1,
+          "nid": 2,
+          "title": "第2集",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "92001",
+      "source_category_id": "4",
+      "title": "示例动漫 · 星空旅人",
+      "description": "本地联调动漫分类",
+      "year": "2023",
+      "area": "日本",
+      "director": "Anime Demo",
+      "actors": "Voice A, Voice B",
+      "rating": 8.8,
+      "poster_url": "https://picsum.photos/seed/vplayer-92001/640/360",
+      "view_count": 156000,
+      "duration_sec": 1440,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "第1话",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        },
+        {
+          "sid": 1,
+          "nid": 2,
+          "title": "第2话",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "92002",
+      "source_category_id": "4",
+      "title": "示例动漫 · 机甲纪元",
+      "description": "本地联调动漫分类",
+      "year": "2022",
+      "area": "日本",
+      "director": "Anime Demo",
+      "actors": "Voice C",
+      "rating": 8.2,
+      "poster_url": "https://picsum.photos/seed/vplayer-92002/640/360",
+      "view_count": 72000,
+      "duration_sec": 1380,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "第1话",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "93001",
+      "source_category_id": "3",
+      "title": "示例综艺 · 周末现场",
+      "description": "本地联调综艺分类",
+      "year": "2026",
+      "area": "中国大陆",
+      "director": "Variety Demo",
+      "actors": "Host A, Guest B",
+      "rating": 7.5,
+      "poster_url": "https://picsum.photos/seed/vplayer-93001/640/360",
+      "view_count": 43000,
+      "duration_sec": 5400,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "2026-10-01期",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "94001",
+      "source_category_id": "5",
+      "title": "示例午夜 · 夜色影厅",
+      "description": "本地联调午夜影院分类",
+      "year": "2021",
+      "area": "美国",
+      "director": "Demo",
+      "actors": "Cast",
+      "rating": 6.8,
+      "poster_url": "https://picsum.photos/seed/vplayer-94001/640/360",
+      "view_count": 19000,
+      "duration_sec": 5400,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "正片",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    },
+    {
+      "source_id": "95001",
+      "source_category_id": "6",
+      "title": "示例VIP · 蓝光示范片",
+      "description": "本地联调 VIP 蓝光影院分类",
+      "year": "2020",
+      "area": "美国",
+      "director": "Demo",
+      "actors": "Cast",
+      "rating": 9.0,
+      "poster_url": "https://picsum.photos/seed/vplayer-95001/640/360",
+      "view_count": 31000,
+      "duration_sec": 7200,
+      "source_updated_at": "2026-10-06T00:00:00Z",
+      "is_active": true,
+      "episodes": [
+        {
+          "sid": 1,
+          "nid": 1,
+          "title": "正片",
+          "playback_source": "demo",
+          "playback_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        }
+      ]
+    }
+  ]
+}
