@@ -48,7 +48,7 @@ func (m *enrichMemStore) ReleaseAdvisoryLock(name string) error {
 	return nil
 }
 
-func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, fetchLimit int) ([]store.PendingEnrichmentEpisode, error) {
+func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]store.PendingEnrichmentEpisode, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []store.PendingEnrichmentEpisode
@@ -84,7 +84,26 @@ func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, fetchLimit
 		}
 		return a.ID < b.ID
 	})
-	if fetchLimit > 0 && len(out) > fetchLimit {
+	// Mirror SQL ROW_NUMBER() PARTITION BY video_id: keep ≤3 pending per video
+	// before applying the global LIMIT so one series cannot fill the window alone.
+	perVideo := map[uint64]int{}
+	diversified := make([]store.PendingEnrichmentEpisode, 0, len(out))
+	for _, e := range out {
+		if perVideo[e.VideoID] >= EnrichPendingMaxPerVideo {
+			continue
+		}
+		perVideo[e.VideoID]++
+		diversified = append(diversified, e)
+	}
+	out = diversified
+	fetchLimit := finalLimit + 6
+	if finalLimit <= 0 {
+		fetchLimit = 20
+	}
+	if fetchLimit > 60 {
+		fetchLimit = 60
+	}
+	if len(out) > fetchLimit {
 		out = out[:fetchLimit]
 	}
 	return out, nil
@@ -105,9 +124,7 @@ func (m *enrichMemStore) ApplyPlaybackEnrichment(id uint64, playbackURL, playbac
 		e.PlaybackSource = playbackSource
 	}
 	e.PlaybackStatus = status
-	if status == "ok" && playbackURL != "" {
-		e.IsActive = true
-	}
+	// Intentionally do not modify is_active — enrichment must not reactivate inactive rows.
 	m.writes++
 	return true, nil
 }
@@ -172,6 +189,192 @@ func TestSelectFairPendingBatch_prioritizesZeroOk(t *testing.T) {
 	}
 	if zero != 3 {
 		t.Fatalf("expected 3 from zero-ok video, got %d (%+v)", zero, got)
+	}
+}
+
+func TestSelectFairPendingBatch_fillsLimitAcrossVideos(t *testing.T) {
+	// Reproduce production bug shape: video A has many pending (zero-ok), B/C also eligible.
+	var cands []store.PendingEnrichmentEpisode
+	id := uint64(1)
+	for nid := 1; nid <= 100; nid++ {
+		cands = append(cands, store.PendingEnrichmentEpisode{
+			ID: id, VideoID: 10, OkEpisodeCount: 0, NID: nid, SourceVideoID: "A",
+		})
+		id++
+	}
+	for nid := 1; nid <= 50; nid++ {
+		cands = append(cands, store.PendingEnrichmentEpisode{
+			ID: id, VideoID: 20, OkEpisodeCount: 0, NID: nid, SourceVideoID: "B",
+		})
+		id++
+	}
+	for nid := 1; nid <= 20; nid++ {
+		cands = append(cands, store.PendingEnrichmentEpisode{
+			ID: id, VideoID: 30, OkEpisodeCount: 0, NID: nid, SourceVideoID: "C",
+		})
+		id++
+	}
+
+	got5 := SelectFairPendingBatch(cands, 5)
+	if len(got5) != 5 {
+		t.Fatalf("limit=5: want 5 got %d (%+v)", len(got5), got5)
+	}
+	counts5 := map[uint64]int{}
+	for _, g := range got5 {
+		counts5[g.VideoID]++
+	}
+	for vid, n := range counts5 {
+		if n > EnrichPendingMaxPerVideo {
+			t.Fatalf("limit=5: video %d contributed %d > %d", vid, n, EnrichPendingMaxPerVideo)
+		}
+	}
+	if counts5[10] != 3 || counts5[20] != 2 {
+		t.Fatalf("limit=5: want A:3 B:2, got %v", counts5)
+	}
+
+	// Add more videos so limit=15 can be filled under the ≤3/video rule.
+	for vid := uint64(40); vid <= 60; vid++ {
+		for nid := 1; nid <= 10; nid++ {
+			cands = append(cands, store.PendingEnrichmentEpisode{
+				ID: id, VideoID: vid, OkEpisodeCount: 0, NID: nid, SourceVideoID: fmt.Sprintf("V%d", vid),
+			})
+			id++
+		}
+	}
+	got15 := SelectFairPendingBatch(cands, 15)
+	if len(got15) != 15 {
+		t.Fatalf("limit=15: want 15 got %d", len(got15))
+	}
+	counts15 := map[uint64]int{}
+	for _, g := range got15 {
+		counts15[g.VideoID]++
+		if counts15[g.VideoID] > EnrichPendingMaxPerVideo {
+			t.Fatalf("limit=15: video %d contributed >%d", g.VideoID, EnrichPendingMaxPerVideo)
+		}
+	}
+	if counts15[10] != 3 || counts15[20] != 3 || counts15[30] != 3 {
+		t.Fatalf("limit=15: zero-ok priority should take A/B/C first at 3 each; got %v", counts15)
+	}
+}
+
+func TestSelectFairPendingBatch_noVideoAboveMaxPerVideo(t *testing.T) {
+	var cands []store.PendingEnrichmentEpisode
+	for i := 1; i <= 40; i++ {
+		cands = append(cands, store.PendingEnrichmentEpisode{
+			ID: uint64(i), VideoID: uint64((i-1)/10 + 1), OkEpisodeCount: 0, NID: i,
+		})
+	}
+	got := SelectFairPendingBatch(cands, 20)
+	if len(got) != 12 { // 4 videos × 3
+		t.Fatalf("want 12 got %d", len(got))
+	}
+	per := map[uint64]int{}
+	for _, g := range got {
+		per[g.VideoID]++
+	}
+	for vid, n := range per {
+		if n > EnrichPendingMaxPerVideo {
+			t.Fatalf("video %d has %d", vid, n)
+		}
+	}
+}
+
+func TestEnrichPending_listDiversifiesAndFillsLimit(t *testing.T) {
+	st := newEnrichMemStore()
+	pages := map[string]string{}
+	// Video A: 100 pending zero-ok; B: 50; C: 20 — all eligible.
+	add := func(videoID uint64, source string, n int) {
+		st.okCounts[videoID] = 0
+		for nid := 1; nid <= n; nid++ {
+			id := videoID*1000 + uint64(nid)
+			url := fmt.Sprintf("https://src/%s/%d", source, nid)
+			st.episodes[id] = &store.PendingEnrichmentEpisode{
+				ID: id, VideoID: videoID, SourceSystem: olehdtv.SourceSystem, SourceVideoID: source,
+				SID: 1, NID: nid, PlaybackStatus: "pending_enrichment", PlayPageURL: url,
+			}
+			pages[url] = playHTML(fmt.Sprintf("https://cdn.example/%s/%d.m3u8", source, nid))
+		}
+	}
+	add(10, "A", 100)
+	add(20, "B", 50)
+	add(30, "C", 20)
+
+	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// After ≤3/video diversification, fetchLimit=11 → many videos present; none >3.
+	per := map[uint64]int{}
+	for _, e := range list {
+		per[e.VideoID]++
+	}
+	for vid, n := range per {
+		if n > EnrichPendingMaxPerVideo {
+			t.Fatalf("list returned %d from video %d", n, vid)
+		}
+	}
+	if per[10] == 0 || per[20] == 0 {
+		t.Fatalf("list must include multiple videos, got %v", per)
+	}
+
+	sum, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 5, true, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Selected != 5 {
+		t.Fatalf("selected=%d want 5 actions=%+v", sum.Selected, sum.Actions)
+	}
+	selPer := map[string]int{}
+	for _, a := range sum.Actions {
+		selPer[a.SourceVideoID]++
+	}
+	for _, n := range selPer {
+		if n > EnrichPendingMaxPerVideo {
+			t.Fatalf("selected per-video >3: %v", selPer)
+		}
+	}
+	if selPer["A"] != 3 || selPer["B"] != 2 {
+		t.Fatalf("want A:3 B:2, got %v", selPer)
+	}
+
+	add(40, "D", 20)
+	add(50, "E", 20)
+	sum15, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 15, true, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum15.Selected != 15 {
+		t.Fatalf("limit=15 selected=%d want 15", sum15.Selected)
+	}
+	sel15 := map[string]int{}
+	for _, a := range sum15.Actions {
+		sel15[a.SourceVideoID]++
+		if sel15[a.SourceVideoID] > EnrichPendingMaxPerVideo {
+			t.Fatalf("limit=15 per-video >3: %v", sel15)
+		}
+	}
+}
+
+func TestEnrichPending_doesNotChangeIsActive(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
+		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+		IsActive: false,
+	}
+	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Enriched != 1 {
+		t.Fatalf("%+v", sum)
+	}
+	if st.episodes[1].IsActive {
+		t.Fatal("enrichment must not set is_active=1 on intentionally inactive episode")
+	}
+	if st.episodes[1].PlaybackStatus != "ok" || st.episodes[1].PlaybackURL == "" {
+		t.Fatalf("playback fields not updated: %+v", st.episodes[1])
 	}
 }
 

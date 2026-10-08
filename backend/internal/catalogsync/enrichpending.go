@@ -25,7 +25,7 @@ const (
 type EnrichPendingStore interface {
 	TryAdvisoryLock(name string, timeoutSec int) (bool, error)
 	ReleaseAdvisoryLock(name string) error
-	ListPendingEnrichmentEpisodes(system string, fetchLimit int) ([]store.PendingEnrichmentEpisode, error)
+	ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]store.PendingEnrichmentEpisode, error)
 	ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status string) (updated bool, err error)
 }
 
@@ -109,8 +109,13 @@ func ClampEnrichPendingHTTPSettings(delayMs, concurrency, retries int) (delayOut
 	return delayOut, concOut, retriesOut
 }
 
-// SelectFairPendingBatch picks up to limit rows, prioritizing videos with zero
-// playable episodes, then applying a per-video cap for backlog fairness.
+// SelectFairPendingBatch picks up to limit rows:
+//  1) videos with zero playable episodes first
+//  2) then any remaining eligible rows (other videos / already-ok videos)
+//  3) never more than EnrichPendingMaxPerVideo from one video
+//  4) never more than EnrichPendingMaxLimit globally
+// Candidates should already be diversified by ListPendingEnrichmentEpisodes
+// (≤3 pending rows/video); this pass re-applies the same fairness rules.
 func SelectFairPendingBatch(cands []store.PendingEnrichmentEpisode, limit int) []store.PendingEnrichmentEpisode {
 	if limit <= 0 {
 		return nil
@@ -122,7 +127,7 @@ func SelectFairPendingBatch(cands []store.PendingEnrichmentEpisode, limit int) [
 	perVideo := map[uint64]int{}
 	seen := map[uint64]bool{}
 
-	take := func(allowZeroOnly bool) {
+	take := func(zeroOkOnly bool) {
 		for _, c := range cands {
 			if len(out) >= limit {
 				return
@@ -130,10 +135,7 @@ func SelectFairPendingBatch(cands []store.PendingEnrichmentEpisode, limit int) [
 			if seen[c.ID] {
 				continue
 			}
-			if allowZeroOnly && c.OkEpisodeCount > 0 {
-				continue
-			}
-			if !allowZeroOnly && c.OkEpisodeCount == 0 {
+			if zeroOkOnly && c.OkEpisodeCount > 0 {
 				continue
 			}
 			if perVideo[c.VideoID] >= EnrichPendingMaxPerVideo {
@@ -144,7 +146,10 @@ func SelectFairPendingBatch(cands []store.PendingEnrichmentEpisode, limit int) [
 			out = append(out, c)
 		}
 	}
+	// Pass 1: prefer videos with no playable episodes yet.
 	take(true)
+	// Pass 2: fill remaining slots from any video still under the per-video cap
+	// (including other zero-ok videos if the candidate window still has them).
 	take(false)
 	return out
 }
@@ -194,11 +199,8 @@ func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, c
 	sum.LockAcquired = true
 	defer func() { _ = w.Store.ReleaseAdvisoryLock(w.LockName) }()
 
-	fetchLimit := limit * 4
-	if fetchLimit < limit {
-		fetchLimit = limit
-	}
-	cands, err := w.Store.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, fetchLimit)
+	// Store diversifies (≤3/video) then LIMITs; pass the worker --limit directly.
+	cands, err := w.Store.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, limit)
 	if err != nil {
 		sum.Failures++
 		sum.Error = "list pending: " + err.Error()

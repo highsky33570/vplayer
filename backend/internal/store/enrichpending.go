@@ -31,35 +31,62 @@ type PendingEnrichmentEpisode struct {
 	OkEpisodeCount int
 }
 
-// ListPendingEnrichmentEpisodes returns candidate backlog rows (caller applies fair batching).
-// fetchLimit should be modestly larger than the final batch size (e.g. limit*4).
-func (m *MySQL) ListPendingEnrichmentEpisodes(system string, fetchLimit int) ([]PendingEnrichmentEpisode, error) {
-	if fetchLimit <= 0 {
-		fetchLimit = 20
+// ListPendingEnrichmentEpisodes returns diversified candidate backlog rows.
+// At most 3 pending episodes per video are returned (pending_rank), then ordered by
+// zero-ok priority so a single huge series cannot fill the entire LIMIT alone.
+// finalLimit is the worker --limit (1–20); we fetch enough multi-video rows to fill it.
+func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]PendingEnrichmentEpisode, error) {
+	if finalLimit <= 0 {
+		finalLimit = 20
 	}
-	if fetchLimit > 80 {
-		fetchLimit = 80
+	if finalLimit > 20 {
+		finalLimit = 20
 	}
+	// Enough for finalLimit with ≤3/video, plus a small cushion for Go-side filtering.
+	fetchLimit := finalLimit + 6
+	if fetchLimit > 60 {
+		fetchLimit = 60
+	}
+	const maxPerVideo = 3
+	// ROW_NUMBER caps each video at 3 pending rows before the global LIMIT, so a
+	// single zero-ok series cannot monopolize the candidate window.
 	rows, err := m.DB.Query(`
-		SELECT e.id, e.video_id, COALESCE(e.source_system,''), COALESCE(e.source_video_id,''),
-		       e.sid, e.nid, COALESCE(e.title,''),
-		       COALESCE(e.playback_source,''), COALESCE(e.playback_url,''), COALESCE(e.play_page_url,''),
-		       COALESCE(e.playback_status,''), COALESCE(e.hls_object_key,''), COALESCE(e.storage_provider,''),
-		       COALESCE(e.migration_status,''), e.is_active, e.created_at,
-		       (
-		         SELECT COUNT(*)
-		         FROM video_episodes o
-		         WHERE o.video_id = e.video_id
-		           AND LOWER(COALESCE(o.playback_status,'')) = 'ok'
-		           AND COALESCE(o.playback_url,'') <> ''
-		       ) AS ok_count
-		FROM video_episodes e
-		WHERE e.source_system = ?
-		  AND LOWER(COALESCE(e.playback_status,'')) = 'pending_enrichment'
-		  AND COALESCE(e.playback_url,'') = ''
-		  AND COALESCE(e.play_page_url,'') <> ''
-		ORDER BY ok_count ASC, e.video_id ASC, e.nid ASC, e.id ASC
-		LIMIT ?`, system, fetchLimit)
+		SELECT id, video_id, source_system, source_video_id, sid, nid, title,
+		       playback_source, playback_url, play_page_url, playback_status,
+		       hls_object_key, storage_provider, migration_status, is_active, created_at, ok_count
+		FROM (
+		  SELECT e.id, e.video_id,
+		         COALESCE(e.source_system,'') AS source_system,
+		         COALESCE(e.source_video_id,'') AS source_video_id,
+		         e.sid, e.nid, COALESCE(e.title,'') AS title,
+		         COALESCE(e.playback_source,'') AS playback_source,
+		         COALESCE(e.playback_url,'') AS playback_url,
+		         COALESCE(e.play_page_url,'') AS play_page_url,
+		         COALESCE(e.playback_status,'') AS playback_status,
+		         COALESCE(e.hls_object_key,'') AS hls_object_key,
+		         COALESCE(e.storage_provider,'') AS storage_provider,
+		         COALESCE(e.migration_status,'') AS migration_status,
+		         e.is_active, e.created_at,
+		         (
+		           SELECT COUNT(*)
+		           FROM video_episodes o
+		           WHERE o.video_id = e.video_id
+		             AND LOWER(COALESCE(o.playback_status,'')) = 'ok'
+		             AND COALESCE(o.playback_url,'') <> ''
+		         ) AS ok_count,
+		         ROW_NUMBER() OVER (
+		           PARTITION BY e.video_id
+		           ORDER BY e.nid ASC, e.id ASC
+		         ) AS pending_rank
+		  FROM video_episodes e
+		  WHERE e.source_system = ?
+		    AND LOWER(COALESCE(e.playback_status,'')) = 'pending_enrichment'
+		    AND COALESCE(e.playback_url,'') = ''
+		    AND COALESCE(e.play_page_url,'') <> ''
+		) ranked
+		WHERE pending_rank <= ?
+		ORDER BY ok_count ASC, video_id ASC, nid ASC, id ASC
+		LIMIT ?`, system, maxPerVideo, fetchLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +112,7 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, fetchLimit int) ([]
 }
 
 // ApplyPlaybackEnrichment sets playback_url/status only when the row is still pending+empty.
-// Never touches hls_object_key, storage_provider, migration_status, or other migration fields.
+// Never touches hls_object_key, storage_provider, migration_status, is_active, or other migration fields.
 // Returns true when a row was updated.
 func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status string) (bool, error) {
 	playbackURL = strings.TrimSpace(playbackURL)
@@ -99,7 +126,6 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 		  playback_url = ?,
 		  playback_source = CASE WHEN ? <> '' THEN ? ELSE playback_source END,
 		  playback_status = ?,
-		  is_active = CASE WHEN ? = 'ok' AND ? <> '' THEN 1 ELSE is_active END,
 		  last_synced_at = ?,
 		  sync_status = 'ok'
 		WHERE id = ?
@@ -108,7 +134,6 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 		playbackURL,
 		playbackSource, playbackSource,
 		status,
-		status, playbackURL,
 		now,
 		id,
 	)
