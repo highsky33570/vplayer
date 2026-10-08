@@ -320,13 +320,16 @@ func (e *Engine) enrichEpisodesBounded(
 		used++
 		perVideo++
 		if err != nil {
-			out[i].Available = false
+			// Retryable — do not mark terminal unavailable.
+			out[i].EnrichmentSkipped = true
 			continue
 		}
 		if p, ok := ParsePlayerAAAA(body); ok {
 			ApplyPlayerToEpisode(&out[i], p)
+			// Successful parse with encrypt!=0 / empty URL leaves Available=false (explicit).
 		} else {
-			out[i].Available = false
+			// Parse miss is retryable (e.g. previously required trailing ';').
+			out[i].EnrichmentSkipped = true
 		}
 	}
 	return out, skipped, used

@@ -15,7 +15,7 @@ var (
 	reDataSrc      = reAttr("data-src")
 	reDataPic      = reAttr("data-pic")
 	reSrc          = reAttr("src")
-	reBgImage = regexp.MustCompile(`(?i)background(?:-image)?\s*:\s*url\(["']?([^)"']+)["']?\)`)
+	reBgImage      = regexp.MustCompile(`(?i)background(?:-image)?\s*:\s*url\(["']?([^)"']+)["']?\)`)
 )
 
 // ExtractPosters returns candidate poster URLs from HTML, filtering chrome assets.
@@ -55,13 +55,24 @@ func BestPoster(html, baseURL string) string {
 		return ""
 	}
 	for _, c := range cands {
-		low := strings.ToLower(c)
-		if strings.Contains(low, "/upload/vod/") || strings.Contains(low, "/vod/") ||
-			strings.Contains(low, "poster") || strings.Contains(low, "cover") {
+		if IsValidContentPoster(c) && strings.Contains(strings.ToLower(c), "/upload/vod/") {
 			return c
 		}
 	}
-	return cands[0]
+	for _, c := range cands {
+		if IsValidContentPoster(c) {
+			low := strings.ToLower(c)
+			if strings.Contains(low, "/vod/") || strings.Contains(low, "poster") || strings.Contains(low, "cover") {
+				return c
+			}
+		}
+	}
+	for _, c := range cands {
+		if IsValidContentPoster(c) {
+			return c
+		}
+	}
+	return ""
 }
 
 // ExtractPosterNear finds a poster near a detail URL occurrence.
@@ -87,11 +98,50 @@ func ExtractPosterNear(html, detailURL string) string {
 	return BestPoster(html[start:end], detailURL)
 }
 
+// IsPlaceholderPoster reports site default / UI art that must not become cover URLs.
+func IsPlaceholderPoster(u string) bool {
+	return isChromeAsset(u)
+}
+
+// IsValidContentPoster is true for a non-empty, non-placeholder poster URL.
+func IsValidContentPoster(u string) bool {
+	u = strings.TrimSpace(u)
+	return u != "" && !IsPlaceholderPoster(u)
+}
+
+// ChooseContentPoster prefers a real detail poster; otherwise keeps a real catalog poster.
+func ChooseContentPoster(detailPoster, catalogPoster string) string {
+	if IsValidContentPoster(detailPoster) && !IsPlaceholderPoster(detailPoster) {
+		// Prefer detail when it looks like a real vod asset.
+		if strings.Contains(strings.ToLower(detailPoster), "/upload/vod/") {
+			return detailPoster
+		}
+		if !IsValidContentPoster(catalogPoster) {
+			return detailPoster
+		}
+		// Detail is non-placeholder but catalog has /upload/vod/ — prefer catalog.
+		if strings.Contains(strings.ToLower(catalogPoster), "/upload/vod/") &&
+			!strings.Contains(strings.ToLower(detailPoster), "/upload/vod/") {
+			return catalogPoster
+		}
+		return detailPoster
+	}
+	if IsValidContentPoster(catalogPoster) {
+		return catalogPoster
+	}
+	return ""
+}
+
 func isChromeAsset(u string) bool {
-	low := strings.ToLower(u)
+	low := strings.ToLower(strings.TrimSpace(u))
+	if low == "" {
+		return true
+	}
 	for _, bad := range []string{
 		"logo", "favicon", "icon", "avatar", "qrcode", "qr.png",
-		"banner_ad", "/ads/", "sprite", "loading.gif", "placeholder",
+		"banner_ad", "/ads/", "sprite", "loading.gif", "load.gif",
+		"placeholder", "/static/images/img/hd.png", "hd.png",
+		"/static/images/img/",
 	} {
 		if strings.Contains(low, bad) {
 			return true

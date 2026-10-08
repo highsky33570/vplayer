@@ -132,9 +132,7 @@ func MergeDetailWithCatalog(card CatalogItem, detail DetailMeta) DetailMeta {
 		out.DetailURL = card.DetailURL
 	}
 	out.Title = ChooseContentTitle(detail.Title, card.Title)
-	if out.PosterURL == "" {
-		out.PosterURL = card.PosterURL
-	}
+	out.PosterURL = ChooseContentPoster(detail.PosterURL, card.PosterURL)
 	if out.Title == "" {
 		out.Title = card.Title
 	}
@@ -359,7 +357,14 @@ func isValidDescription(d string) bool {
 func extractDetailPoster(html, detailURL string) string {
 	if m := reOGImage.FindStringSubmatch(html); len(m) > 0 {
 		u := AbsoluteURL(detailURL, firstGroup(m[1], m[2]))
-		if u != "" && !isChromeAsset(u) {
+		if IsValidContentPoster(u) && strings.Contains(strings.ToLower(u), "/upload/vod/") {
+			return u
+		}
+		// Non-placeholder og:image is a candidate, but prefer scoped BestPoster when available.
+		if IsValidContentPoster(u) {
+			if p := BestPoster(detailContentScope(html), detailURL); IsValidContentPoster(p) {
+				return p
+			}
 			return u
 		}
 	}

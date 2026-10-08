@@ -321,14 +321,14 @@ func (s *IncrementalSync) processEpisode(sum *IncrementalSummary, videoID uint64
 		return err
 	}
 
-	// Partial / capped observation: never infer disappearance, never wipe stream, never deactivate.
-	if existing != nil && ep.PlaybackURL == "" && (status == "pending_enrichment" || status == "observed") {
+	// Never wipe good playback / migrated R2 state with a partial or failed observation.
+	if existing != nil && mustPreserveExistingPlayback(existing, ep) {
 		titleOrPage := existing.Title != ep.Title || (ep.PlayPageURL != "" && existing.PlayPageURL != ep.PlayPageURL)
 		if !titleOrPage {
 			sum.UnchangedEpisodes++
 			sum.Actions = append(sum.Actions, ItemAction{
 				Action: "UNCHANGED", SourceID: sourceVideoID, SID: ep.SID, NID: ep.NID, Title: ep.Title,
-				Detail: "episode_partial_observation",
+				Detail: "preserve_existing_playback",
 			})
 			return nil
 		}
@@ -348,7 +348,7 @@ func (s *IncrementalSync) processEpisode(sum *IncrementalSummary, videoID uint64
 		sum.UpdatedEpisodes++
 		sum.Actions = append(sum.Actions, ItemAction{
 			Action: "UPDATE EPISODE", SourceID: sourceVideoID, SID: ep.SID, NID: ep.NID, Title: ep.Title,
-			Detail: "metadata_only_partial_observation",
+			Detail: "metadata_only_preserve_playback",
 		})
 		if dryRun {
 			return nil
@@ -415,6 +415,33 @@ func (s *IncrementalSync) processEpisode(sum *IncrementalSummary, videoID uint64
 		in.VideoID = videoID
 	}
 	return s.Store.UpdateEpisodeCatalog(existing.ID, in)
+}
+
+// mustPreserveExistingPlayback is true when the DB episode already has usable
+// playback (URL and/or migrated HLS) and the incoming observation would clear it.
+func mustPreserveExistingPlayback(existing *store.EpisodeSyncRow, ep olehdtv.SourceEpisode) bool {
+	if existing == nil {
+		return false
+	}
+	hasGood := strings.TrimSpace(existing.PlaybackURL) != "" || episodeHasMigratedMedia(existing)
+	if !hasGood {
+		return false
+	}
+	incomingEmpty := strings.TrimSpace(ep.PlaybackURL) == ""
+	st := strings.ToLower(strings.TrimSpace(ep.PlaybackStatus))
+	destructive := incomingEmpty || st == "unavailable" || st == "pending_enrichment" || st == "pending_player_parse" || st == "observed"
+	return destructive
+}
+
+func episodeHasMigratedMedia(existing *store.EpisodeSyncRow) bool {
+	if existing == nil {
+		return false
+	}
+	if strings.TrimSpace(existing.HlsObjectKey) != "" {
+		return true
+	}
+	st := strings.ToLower(strings.TrimSpace(existing.MigrationStatus))
+	return st == "done" || st == "migrated"
 }
 
 func firstNonEmptyStr(a, b string) string {

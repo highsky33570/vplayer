@@ -390,6 +390,75 @@ func TestIncremental_neverCallsDeactivate(t *testing.T) {
 	}
 }
 
+func TestIncremental_neverWipesGoodPlaybackOrMigrated(t *testing.T) {
+	st := newMemStore()
+	if _, err := st.InsertVideoCatalog(store.VideoUpsert{
+		SourceSystem: olehdtv.SourceSystem, SourceID: "keep1", Title: "K", CategoryID: 1,
+		IsActive: true, Status: "ready", PlaybackURL: "https://keep.example/1.m3u8",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	key := epKey(olehdtv.SourceSystem, "keep1", 1, 1)
+	st.episodes[key] = &store.EpisodeSyncRow{
+		ID: 1, VideoID: 1, SID: 1, NID: 1, Title: "正片",
+		PlaybackURL: "https://keep.example/1.m3u8", PlaybackStatus: "ok", IsActive: true,
+		HlsObjectKey: "videos/1/1/index.m3u8", StorageProvider: "r2", MigrationStatus: "done",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	src := &memSource{
+		cats: []olehdtv.SourceCategory{{SourceID: "1", Name: "电影", Slug: "movie"}},
+		videos: []olehdtv.SourceVideo{{
+			SourceID: "keep1", SourceCategoryID: "1", Title: "K", IsActive: true,
+			Episodes: []olehdtv.SourceEpisode{
+				{SID: 1, NID: 1, Title: "正片", PlaybackStatus: "unavailable", PlaybackURL: ""},
+			},
+		}},
+	}
+	svc := NewIncrementalSync(st, src)
+	if _, err := svc.Run(context.Background(), 5, false); err != nil {
+		t.Fatal(err)
+	}
+	ep := st.episodes[key]
+	if ep.PlaybackURL != "https://keep.example/1.m3u8" || ep.PlaybackStatus != "ok" || !ep.IsActive {
+		t.Fatalf("good playback wiped: %+v", ep)
+	}
+	if ep.HlsObjectKey != "videos/1/1/index.m3u8" || ep.MigrationStatus != "done" {
+		t.Fatalf("migration touched: %+v", ep)
+	}
+}
+
+func TestIncremental_pendingEnrichmentDoesNotWipeURL(t *testing.T) {
+	st := newMemStore()
+	if _, err := st.InsertVideoCatalog(store.VideoUpsert{
+		SourceSystem: olehdtv.SourceSystem, SourceID: "keep2", Title: "K2", CategoryID: 1,
+		IsActive: true, Status: "ready",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	key := epKey(olehdtv.SourceSystem, "keep2", 1, 2)
+	st.episodes[key] = &store.EpisodeSyncRow{
+		ID: 2, VideoID: 1, SID: 1, NID: 2, Title: "第2集",
+		PlaybackURL: "https://keep.example/2.m3u8", PlaybackStatus: "ok", IsActive: true,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	src := &memSource{
+		cats: []olehdtv.SourceCategory{{SourceID: "1", Name: "连续剧", Slug: "tv"}},
+		videos: []olehdtv.SourceVideo{{
+			SourceID: "keep2", SourceCategoryID: "1", Title: "K2", IsActive: true,
+			Episodes: []olehdtv.SourceEpisode{
+				{SID: 1, NID: 2, Title: "第2集", PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p2"},
+			},
+		}},
+	}
+	if _, err := NewIncrementalSync(st, src).Run(context.Background(), 5, false); err != nil {
+		t.Fatal(err)
+	}
+	ep := st.episodes[key]
+	if ep.PlaybackURL != "https://keep.example/2.m3u8" || ep.PlaybackStatus != "ok" {
+		t.Fatalf("%+v", ep)
+	}
+}
+
 func TestIncremental_partialEpisodeObservationDoesNotDeactivate(t *testing.T) {
 	st := newMemStore()
 	if _, err := st.InsertVideoCatalog(store.VideoUpsert{

@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	rePlayerAAAA = regexp.MustCompile(`(?is)var\s+player_aaaa\s*=\s*(\{.*?\});`)
-	rePlayerJSON = regexp.MustCompile(`(?is)player_aaaa\s*=\s*(\{.*?\});`)
+	// Locates the start of a player_aaaa object assignment (opening brace).
+	rePlayerAAAAAssign = regexp.MustCompile(`(?is)(?:var\s+)?player_aaaa\s*=\s*\{`)
 )
 
 // PlayerAAAA is the standard MacCMS frontend player config object.
@@ -66,7 +66,6 @@ func ParsePlayerAAAA(html string) (*PlayerAAAA, bool) {
 	}
 	var p PlayerAAAA
 	if err := json.Unmarshal([]byte(raw), &p); err != nil {
-		// MacCMS often uses unquoted keys — try a light fix is out of scope; require JSON-ish.
 		return nil, false
 	}
 	if p.URL == "" && int(p.ID) == 0 {
@@ -75,10 +74,58 @@ func ParsePlayerAAAA(html string) (*PlayerAAAA, bool) {
 	return &p, true
 }
 
+// ExtractPlayerAAAAJSON finds the player_aaaa object via brace-balanced scan.
+// Accepts terminators: semicolon, </script>, or end of input (no required ';').
 func ExtractPlayerAAAAJSON(html string) (string, bool) {
-	for _, re := range []*regexp.Regexp{rePlayerAAAA, rePlayerJSON} {
-		if m := re.FindStringSubmatch(html); len(m) == 2 {
-			return sanitizeJSObject(m[1]), true
+	loc := rePlayerAAAAAssign.FindStringIndex(html)
+	if loc == nil {
+		return "", false
+	}
+	start := loc[1] - 1 // index of '{'
+	raw, ok := extractBalancedJSObject(html, start)
+	if !ok {
+		return "", false
+	}
+	return sanitizeJSObject(raw), true
+}
+
+// extractBalancedJSObject returns the {...} slice starting at start, respecting
+// string quotes/escapes so nested braces inside strings are ignored.
+func extractBalancedJSObject(s string, start int) (string, bool) {
+	if start < 0 || start >= len(s) || s[start] != '{' {
+		return "", false
+	}
+	depth := 0
+	inStr := false
+	escape := false
+	var quote byte
+	for i := start; i < len(s); i++ {
+		c := s[i]
+		if inStr {
+			if escape {
+				escape = false
+				continue
+			}
+			if c == '\\' {
+				escape = true
+				continue
+			}
+			if c == quote {
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			inStr = true
+			quote = c
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return s[start : i+1], true
+			}
 		}
 	}
 	return "", false
