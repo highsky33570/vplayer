@@ -37,10 +37,6 @@ function readStoredTheme(): Theme | null {
   return null;
 }
 
-function systemTheme(): Theme {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof document !== 'undefined') {
@@ -48,7 +44,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (document.documentElement.dataset.theme === 'dark') return 'dark';
       if (document.documentElement.dataset.theme === 'light') return 'light';
     }
-    return readStoredTheme() ?? systemTheme();
+    return readStoredTheme() ?? 'dark';
   });
 
   useEffect(() => {
@@ -59,17 +55,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, [theme]);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => {
-      if (readStoredTheme() == null) {
-        setThemeState(mq.matches ? 'dark' : 'light');
-      }
-    };
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);

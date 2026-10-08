@@ -10,12 +10,7 @@
         try {
           var key = 'vplayer-theme';
           var stored = localStorage.getItem(key);
-          var theme =
-            stored === 'light' || stored === 'dark'
-              ? stored
-              : window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light';
+          var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
           var root = document.documentElement;
           root.dataset.theme = theme;
           root.style.colorScheme = theme;

@@ -68,20 +68,30 @@ func (s *LocalStore) PublicURL(key string) string {
 
 // R2Store is an S3-compatible uploader. Without credentials it returns clear errors.
 type R2Store struct {
-	Endpoint   string
-	Bucket     string
-	AccessKey  string
-	SecretKey  string
-	PublicBase string
+	Endpoint      string
+	Bucket        string
+	AccessKey     string
+	SecretKey     string
+	Region        string
+	PublicBase    string
 	LocalFallback *LocalStore
+	putAttemptLog PutAttemptLogger
 }
 
 func NewR2Store(endpoint, bucket, access, secret, publicBase string, fallback *LocalStore) *R2Store {
+	return NewR2StoreRegion(endpoint, bucket, access, secret, "auto", publicBase, fallback)
+}
+
+func NewR2StoreRegion(endpoint, bucket, access, secret, region, publicBase string, fallback *LocalStore) *R2Store {
+	if region == "" {
+		region = "auto"
+	}
 	return &R2Store{
 		Endpoint:      strings.TrimRight(endpoint, "/"),
 		Bucket:        bucket,
 		AccessKey:     access,
 		SecretKey:     secret,
+		Region:        region,
 		PublicBase:    strings.TrimRight(publicBase, "/"),
 		LocalFallback: fallback,
 	}
@@ -92,17 +102,32 @@ func (s *R2Store) configured() bool {
 }
 
 func (s *R2Store) Exists(ctx context.Context, key string) (bool, error) {
+	_, exists, err := s.Head(ctx, key)
+	return exists, err
+}
+
+// Head returns remote object size when present (R2/S3 HEAD).
+func (s *R2Store) Head(ctx context.Context, key string) (size int64, exists bool, err error) {
 	if !s.configured() {
 		if s.LocalFallback != nil {
-			return s.LocalFallback.Exists(ctx, key)
+			p := s.LocalFallback.pathFor(key)
+			st, err := os.Stat(p)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return 0, false, nil
+				}
+				return 0, false, err
+			}
+			return st.Size(), true, nil
 		}
-		return false, nil
+		return 0, false, nil
 	}
-	// Lightweight HEAD via fallback for now; full S3 client can replace this.
-	if s.LocalFallback != nil {
-		return s.LocalFallback.Exists(ctx, key)
-	}
-	return false, nil
+	return HeadObjectSize(ctx, s.Endpoint, s.Bucket, s.AccessKey, s.SecretKey, s.Region, key)
+}
+
+// SetPutAttemptLogger receives sanitized per-attempt Put failures during retries.
+func (s *R2Store) SetPutAttemptLogger(l PutAttemptLogger) {
+	s.putAttemptLog = l
 }
 
 func (s *R2Store) Put(ctx context.Context, key string, body []byte, contentType string) error {
@@ -119,7 +144,7 @@ func (s *R2Store) Put(ctx context.Context, key string, body []byte, contentType 
 			return err
 		}
 	}
-	return putS3Compatible(ctx, s.Endpoint, s.Bucket, s.AccessKey, s.SecretKey, key, body, contentType)
+	return putS3CompatibleRegionWithRetry(ctx, s.Endpoint, s.Bucket, s.AccessKey, s.SecretKey, s.Region, key, body, contentType, defaultS3PutMaxAttempts, s.putAttemptLog)
 }
 
 func (s *R2Store) PublicURL(key string) string {

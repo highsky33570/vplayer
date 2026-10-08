@@ -32,15 +32,22 @@ export function Watch() {
         }
 
         playerRef.current?.destroy();
-        playerRef.current = new Player({
+        playerRef.current = null;
+        const isHls = playback.type === 'hls' || playback.url.includes('.m3u8');
+        const player = new Player({
           el: rootRef.current,
           url: playback.url,
           autoplay: true,
           playsinline: true,
           fluid: true,
           lang: 'zh-cn',
-          plugins: playback.type === 'hls' || playback.url.includes('.m3u8') ? [HlsPlugin] : [],
+          isLive: false,
+          plugins: isHls ? [HlsPlugin] : [],
         });
+        player.on('error', () => {
+          if (!cancelled) setError('播放失败，请稍后重试');
+        });
+        playerRef.current = player;
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : '播放失败');
       } finally {

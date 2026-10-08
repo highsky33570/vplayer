@@ -48,7 +48,7 @@ func New(cfg config.Config) (*Server, error) {
 	}
 	objStore := media.ObjectStore(localStore)
 	if cfg.R2Endpoint != "" && cfg.R2AccessKey != "" {
-		objStore = media.NewR2Store(cfg.R2Endpoint, cfg.R2Bucket, cfg.R2AccessKey, cfg.R2SecretKey, cfg.R2PublicBase, localStore)
+		objStore = media.NewR2StoreRegion(cfg.R2Endpoint, cfg.R2Bucket, cfg.R2AccessKey, cfg.R2SecretKey, cfg.R2Region, cfg.R2PublicBase, localStore)
 	}
 	posters := media.NewPosterSyncer(objStore, cfg.OleHdTvFetchPosters)
 

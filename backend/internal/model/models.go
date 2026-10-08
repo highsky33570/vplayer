@@ -29,6 +29,7 @@ type Video struct {
 	Rating           float64    `json:"rating,omitempty"`
 	CoverKey         string     `json:"-"`
 	CoverR2Key       string     `json:"-"`
+	StorageProvider  string     `json:"storage_provider,omitempty"`
 	PosterSourceURL  string     `json:"poster_source_url,omitempty"`
 	CoverURL         string     `json:"cover_url"`
 	DurationSec      int        `json:"duration_sec"`
@@ -47,14 +48,20 @@ type Video struct {
 }
 
 type Episode struct {
-	ID             uint64 `json:"id"`
-	VideoID        uint64 `json:"video_id"`
-	SID            int    `json:"sid"`
-	NID            int    `json:"nid"`
-	Title          string `json:"title"`
-	PlaybackSource string `json:"playback_source"`
-	PlaybackURL    string `json:"-"`
-	IsActive       bool   `json:"is_active"`
+	ID               uint64     `json:"id"`
+	VideoID          uint64     `json:"video_id"`
+	SID              int        `json:"sid"`
+	NID              int        `json:"nid"`
+	Title            string     `json:"title"`
+	PlaybackSource   string     `json:"playback_source"`
+	PlaybackURL      string     `json:"-"`
+	HLSObjectKey     string     `json:"-"`
+	StorageProvider  string     `json:"storage_provider,omitempty"`
+	MigrationStatus  string     `json:"migration_status,omitempty"`
+	MigrationError   string     `json:"migration_error,omitempty"`
+	MigratedAt       *time.Time `json:"migrated_at,omitempty"`
+	PlaybackStatus   string     `json:"playback_status,omitempty"`
+	IsActive         bool       `json:"is_active"`
 }
 
 type PlaySession struct {

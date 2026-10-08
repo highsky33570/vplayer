@@ -13,16 +13,81 @@ import (
 	"time"
 )
 
+const defaultS3PutMaxAttempts = 5
+
 // Minimal SigV4 PutObject for Cloudflare R2 / S3-compatible endpoints.
 func putS3Compatible(ctx context.Context, endpoint, bucket, accessKey, secretKey, key string, body []byte, contentType string) error {
+	return putS3CompatibleRegionWithRetry(ctx, endpoint, bucket, accessKey, secretKey, "auto", key, body, contentType, defaultS3PutMaxAttempts, nil)
+}
+
+func putS3CompatibleRegion(ctx context.Context, endpoint, bucket, accessKey, secretKey, region, key string, body []byte, contentType string) error {
+	return putS3CompatibleRegionWithRetry(ctx, endpoint, bucket, accessKey, secretKey, region, key, body, contentType, defaultS3PutMaxAttempts, nil)
+}
+
+// PutAttemptLogger receives sanitized per-attempt Put failures (optional).
+type PutAttemptLogger func(key string, attempt int, statusCode int, category, message string)
+
+func putS3CompatibleRegionWithRetry(ctx context.Context, endpoint, bucket, accessKey, secretKey, region, key string, body []byte, contentType string, maxAttempts int, log PutAttemptLogger) error {
+	return retryS3Op(ctx, key, maxAttempts, log, func() error {
+		return putS3CompatibleRegionOnce(ctx, endpoint, bucket, accessKey, secretKey, region, key, body, contentType)
+	}, 0)
+}
+
+func retryS3Op(ctx context.Context, key string, maxAttempts int, log PutAttemptLogger, op func() error, baseBackoff time.Duration) error {
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+	if baseBackoff <= 0 {
+		baseBackoff = 500 * time.Millisecond
+	}
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		lastErr = op()
+		if lastErr == nil {
+			return nil
+		}
+		status := 0
+		msg := SanitizeS3Message(lastErr.Error())
+		if api, ok := AsS3APIError(lastErr); ok {
+			status = api.StatusCode
+			msg = api.Message
+		} else {
+			status = parseStatusFromLegacyPutErr(lastErr.Error())
+		}
+		category := "permanent"
+		if IsRetryableS3Error(lastErr) {
+			category = "transient"
+		}
+		if log != nil {
+			log(key, attempt, status, category, msg)
+		}
+		if !IsRetryableS3Error(lastErr) || attempt == maxAttempts {
+			return lastErr
+		}
+		backoff := baseBackoff * time.Duration(1<<(attempt-1))
+		if backoff > 8*time.Second {
+			backoff = 8 * time.Second
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return lastErr
+}
+
+func putS3CompatibleRegionOnce(ctx context.Context, endpoint, bucket, accessKey, secretKey, region, key string, body []byte, contentType string) error {
 	key = strings.TrimLeft(key, "/")
+	if region == "" {
+		region = "auto"
+	}
 	host := strings.TrimPrefix(strings.TrimPrefix(endpoint, "https://"), "http://")
 	url := fmt.Sprintf("%s/%s/%s", strings.TrimRight(endpoint, "/"), bucket, key)
 	payloadHash := sha256Hex(body)
 	now := time.Now().UTC()
 	amzDate := now.Format("20060102T150405Z")
 	dateStamp := now.Format("20060102")
-	region := "auto"
 	service := "s3"
 
 	canonicalURI := "/" + bucket + "/" + key
@@ -58,19 +123,24 @@ func putS3Compatible(ctx context.Context, endpoint, bucket, accessKey, secretKey
 		contentType = "application/octet-stream"
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Host", host)
+	req.Host = host
 	req.Header.Set("x-amz-content-sha256", payloadHash)
 	req.Header.Set("x-amz-date", amzDate)
 	req.Header.Set("Authorization", auth)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := s3HTTPClient().Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 	if resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("s3 put %s: %s: %s", key, resp.Status, string(b))
+		return &S3APIError{
+			Op:         "put",
+			Key:        key,
+			StatusCode: resp.StatusCode,
+			Message:    SanitizeS3Message(string(b)),
+		}
 	}
 	return nil
 }
@@ -84,6 +154,15 @@ func hmacSHA256(key, data []byte) []byte {
 	m := hmac.New(sha256.New, key)
 	m.Write(data)
 	return m.Sum(nil)
+}
+
+func s3HTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 120 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+	}
 }
 
 func aws4SigningKey(secret, dateStamp, region, service string) []byte {

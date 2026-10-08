@@ -399,14 +399,14 @@ func (m *MySQL) InsertSyncRun(system, trigger string, sum model.SyncSummary, err
 	return err
 }
 
-func (m *MySQL) GetDefaultEpisode(videoID uint64) (*model.Episode, error) {
+func (m *MySQL) GetEpisodeBySource(system, sourceVideoID string, sid, nid int) (*model.Episode, error) {
 	var e model.Episode
 	var active int
 	err := m.DB.QueryRow(`
 		SELECT id, video_id, sid, nid, title, playback_source, playback_url, is_active
 		FROM video_episodes
-		WHERE video_id=? AND is_active=1
-		ORDER BY sid ASC, nid ASC LIMIT 1`, videoID).
+		WHERE source_system=? AND source_video_id=? AND sid=? AND nid=?`,
+		system, sourceVideoID, sid, nid).
 		Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &active)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -415,6 +415,141 @@ func (m *MySQL) GetDefaultEpisode(videoID uint64) (*model.Episode, error) {
 		return nil, err
 	}
 	e.IsActive = active == 1
+	return &e, nil
+}
+
+func (m *MySQL) GetDefaultEpisode(videoID uint64) (*model.Episode, error) {
+	var e model.Episode
+	var active int
+	var hlsKey sql.NullString
+	err := m.DB.QueryRow(`
+		SELECT id, video_id, sid, nid, title, playback_source, playback_url,
+		       COALESCE(hls_object_key,''), is_active
+		FROM video_episodes
+		WHERE video_id=? AND is_active=1
+		ORDER BY sid ASC, nid ASC LIMIT 1`, videoID).
+		Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &hlsKey, &active)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		err = m.DB.QueryRow(`
+			SELECT id, video_id, sid, nid, title, playback_source, playback_url, is_active
+			FROM video_episodes
+			WHERE video_id=? AND is_active=1
+			ORDER BY sid ASC, nid ASC LIMIT 1`, videoID).
+			Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &active)
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		e.HLSObjectKey = hlsKey.String
+	}
+	e.IsActive = active == 1
+	return &e, nil
+}
+
+// MigratableEpisode is a candidate for R2/CDN media migration (authorized streams only).
+type MigratableEpisode struct {
+	ID              uint64
+	VideoID         uint64
+	SID             int
+	NID             int
+	Title           string
+	PlaybackSource  string
+	PlaybackURL     string
+	PlaybackStatus  string
+	HLSObjectKey    string
+	MigrationStatus string
+}
+
+func (m *MySQL) ListMigratableEpisodes(limit int, episodeID uint64) ([]MigratableEpisode, error) {
+	if limit <= 0 {
+		limit = 1
+	}
+	q := `
+		SELECT e.id, e.video_id, e.sid, e.nid, e.title, e.playback_source, e.playback_url,
+		       COALESCE(e.playback_status,'ok'), COALESCE(e.hls_object_key,''), COALESCE(e.migration_status,'')
+		FROM video_episodes e
+		INNER JOIN videos v ON v.id = e.video_id
+		WHERE e.is_active=1
+		  AND COALESCE(v.is_active,1)=1
+		  AND v.status IN ('ready','demo')
+		  AND TRIM(e.playback_url) <> ''
+		  AND LOWER(COALESCE(e.playback_status,'ok')) IN ('ok','available','')
+		  AND LOWER(COALESCE(e.migration_status,'')) NOT IN ('done','migrated')
+		  AND LOWER(COALESCE(e.playback_status,'')) NOT IN ('unavailable','member','vip','restricted','forbidden')`
+	args := []any{}
+	if episodeID > 0 {
+		q += ` AND e.id=?`
+		args = append(args, episodeID)
+	}
+	q += ` ORDER BY e.id ASC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := m.DB.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]MigratableEpisode, 0, limit)
+	for rows.Next() {
+		var e MigratableEpisode
+		if err := rows.Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL,
+			&e.PlaybackStatus, &e.HLSObjectKey, &e.MigrationStatus); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (m *MySQL) MarkEpisodeMigrated(id uint64, objectKey, provider string) error {
+	_, err := m.DB.Exec(`
+		UPDATE video_episodes
+		SET hls_object_key=?, storage_provider=?, migration_status='done',
+		    migration_error=NULL, migrated_at=?
+		WHERE id=?`, objectKey, provider, time.Now(), id)
+	return err
+}
+
+func (m *MySQL) MarkEpisodeMigrationFailed(id uint64, msg string) error {
+	_, err := m.DB.Exec(`
+		UPDATE video_episodes
+		SET migration_status='failed', migration_error=?
+		WHERE id=?`, msg, id)
+	return err
+}
+
+func (m *MySQL) GetEpisodeMigrationState(id uint64) (hlsKey, migrationStatus, playbackURL string, err error) {
+	err = m.DB.QueryRow(`
+		SELECT COALESCE(hls_object_key,''), COALESCE(migration_status,''), COALESCE(playback_url,'')
+		FROM video_episodes WHERE id=?`, id).Scan(&hlsKey, &migrationStatus, &playbackURL)
+	if err == sql.ErrNoRows {
+		return "", "", "", fmt.Errorf("episode %d not found", id)
+	}
+	return hlsKey, migrationStatus, playbackURL, err
+}
+
+// GetMigratableEpisodeByID loads one episode for planning/migration (includes already-migrated).
+func (m *MySQL) GetMigratableEpisodeByID(id uint64) (*MigratableEpisode, error) {
+	var e MigratableEpisode
+	err := m.DB.QueryRow(`
+		SELECT e.id, e.video_id, e.sid, e.nid, e.title, e.playback_source, e.playback_url,
+		       COALESCE(e.playback_status,'ok'), COALESCE(e.hls_object_key,''), COALESCE(e.migration_status,'')
+		FROM video_episodes e
+		WHERE e.id=?`, id).
+		Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL,
+			&e.PlaybackStatus, &e.HLSObjectKey, &e.MigrationStatus)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
 	return &e, nil
 }
 

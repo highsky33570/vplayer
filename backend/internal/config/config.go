@@ -52,11 +52,17 @@ type Config struct {
 	R2SecretKey   string
 	R2Bucket      string
 	R2Endpoint    string
+	R2Region      string
 	R2PublicBase  string
-	CDNBaseURL    string
-	CDNSignSecret string
-	PlayTicketTTL int
-	HLSKeySecret  string
+	// MediaCDNBaseURL is the browser-facing TYCDN/CDNfly host (no trailing slash).
+	// Falls back to CDNBaseURL when empty.
+	MediaCDNBaseURL string
+	CDNBaseURL      string
+	// CDNURLAuthMode: none (default; CDNfly origin auth to private R2) | legacy_hmac
+	CDNURLAuthMode string
+	CDNSignSecret  string
+	PlayTicketTTL  int
+	HLSKeySecret   string
 
 	AdminAPIToken string
 
@@ -77,9 +83,17 @@ type Config struct {
 	OleHdTvMaxRetries        int
 }
 
+// loadEnvFiles applies dotenv files without overriding keys already present in
+// the process environment. Among files, backend/.env wins over the repo-root
+// .env so local backend credentials are not shadowed by root placeholders.
+func loadEnvFiles() {
+	loadDotEnv(filepathJoin("backend", ".env")) // when cwd is the repo root
+	loadDotEnv(".env")                          // backend/.env when cwd is backend/
+	loadDotEnv(filepathJoin("..", ".env"))      // repo-root fallback when cwd is backend/
+}
+
 func Load() Config {
-	loadDotEnv(".env")
-	loadDotEnv(filepathJoin("backend", ".env"))
+	loadEnvFiles()
 	return Config{
 		AppEnv:        getenv("APP_ENV", "local"),
 		HTTPAddr:      getenv("HTTP_ADDR", ":8080"),
@@ -88,16 +102,19 @@ func Load() Config {
 		RedisAddr:     getenv("REDIS_ADDR", "127.0.0.1:6379"),
 		RedisPassword: getenv("REDIS_PASSWORD", ""),
 		RedisDB:       getenvInt("REDIS_DB", 0),
-		R2AccountID:   getenv("R2_ACCOUNT_ID", ""),
-		R2AccessKey:   getenv("R2_ACCESS_KEY_ID", ""),
-		R2SecretKey:   getenv("R2_SECRET_ACCESS_KEY", ""),
-		R2Bucket:      getenv("R2_BUCKET", "vplayer"),
-		R2Endpoint:    getenv("R2_ENDPOINT", ""),
-		R2PublicBase:  strings.TrimRight(getenv("R2_PUBLIC_BASE", ""), "/"),
-		CDNBaseURL:    strings.TrimRight(getenv("CDN_BASE_URL", "http://localhost:8080"), "/"),
-		CDNSignSecret: getenv("CDN_SIGN_SECRET", "dev-cdn-secret"),
-		PlayTicketTTL: getenvInt("PLAY_TICKET_TTL_SEC", 300),
-		HLSKeySecret:  getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
+		R2AccountID:     getenv("R2_ACCOUNT_ID", ""),
+		R2AccessKey:     getenv("R2_ACCESS_KEY_ID", ""),
+		R2SecretKey:     getenv("R2_SECRET_ACCESS_KEY", ""),
+		R2Bucket:        getenv("R2_BUCKET", "dongman"),
+		R2Endpoint:      getenv("R2_ENDPOINT", ""),
+		R2Region:        getenv("R2_REGION", "auto"),
+		R2PublicBase:    strings.TrimRight(getenv("R2_PUBLIC_BASE", ""), "/"),
+		MediaCDNBaseURL: strings.TrimRight(firstNonEmpty(getenv("MEDIA_CDN_BASE_URL", ""), getenv("CDN_BASE_URL", "http://localhost:8080")), "/"),
+		CDNBaseURL:      strings.TrimRight(getenv("CDN_BASE_URL", "http://localhost:8080"), "/"),
+		CDNURLAuthMode:  strings.ToLower(getenv("CDN_URL_AUTH_MODE", "none")),
+		CDNSignSecret:   getenv("CDN_SIGN_SECRET", "dev-cdn-secret"),
+		PlayTicketTTL:   getenvInt("PLAY_TICKET_TTL_SEC", 300),
+		HLSKeySecret:    getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
 
 		AdminAPIToken: getenv("ADMIN_API_TOKEN", "dev-admin-token"),
 
@@ -144,4 +161,13 @@ func getenvBool(k string, def bool) bool {
 		return def
 	}
 	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }

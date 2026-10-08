@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tycdn/vplayer/internal/config"
+	"github.com/tycdn/vplayer/internal/media"
 	"github.com/tycdn/vplayer/internal/model"
 	"github.com/tycdn/vplayer/internal/play"
 	"github.com/tycdn/vplayer/internal/scheduler"
@@ -187,17 +188,22 @@ func (a *API) withCoverURL(v model.Video) model.Video {
 	if key == "" {
 		key = v.CoverKey
 	}
+	cdn := media.OptionsFromEnv(a.Cfg.MediaCDNBaseURL, a.Cfg.CDNBaseURL, a.Cfg.R2Bucket)
 	switch {
 	case key != "" && (strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://")):
 		v.CoverURL = key
-	case key != "" && a.MediaBase != "" && strings.HasPrefix(key, "posters/"):
+	case key != "" && a.MediaBase != "" && strings.HasPrefix(key, "posters/") &&
+		(a.Cfg.MediaCDNBaseURL == "" || a.Cfg.MediaCDNBaseURL == "http://localhost:8080" || strings.Contains(a.Cfg.MediaCDNBaseURL, "localhost")):
+		// Local object store for development when no production media CDN is configured.
 		v.CoverURL = strings.TrimRight(a.MediaBase, "/") + "/" + strings.TrimLeft(key, "/")
-	case key != "" && a.Cfg.R2PublicBase != "":
-		v.CoverURL = strings.TrimRight(a.Cfg.R2PublicBase, "/") + "/" + strings.TrimLeft(key, "/")
 	case key != "":
-		v.CoverURL = play.SignURL(a.Cfg.CDNBaseURL, a.Cfg.CDNSignSecret, key, a.Cfg.PlayTicketTTL)
+		url := media.BuildMediaURL(cdn, key)
+		if a.Cfg.CDNURLAuthMode == "legacy_hmac" {
+			url = play.SignURL(cdn.BaseURL, a.Cfg.CDNSignSecret, media.ObjectPathWithBucket(cdn.Bucket, key), a.Cfg.PlayTicketTTL)
+		}
+		v.CoverURL = url
 	case v.PosterSourceURL != "":
-		// Until poster is imported to R2/local, show authorized source poster URL.
+		// Until poster is imported to R2/CDN, keep the authorized external source URL.
 		v.CoverURL = v.PosterSourceURL
 	default:
 		v.CoverURL = play.CoverPlaceholder(v.Title)

@@ -6,23 +6,24 @@ Browser (React + xgplayer)
     ▼
 Go API (Gin) ── Redis (sessions, play tickets, hot lists)
     │
-    ├── MySQL (users, videos, categories, play history)
+    ├── MySQL (users, videos, episodes, categories)
     │
-    ├── R2 (encrypted objects: source / HLS / covers)
-    │
-    └── TYCDN ←── origin pull / signed URLs ──→ R2
+    └── MEDIA_CDN_BASE_URL (TYCDN/CDNfly)
+              └── origin auth ──→ private R2 bucket (path must include /{bucket}/…)
 ```
+
+See [MEDIA_CDN.md](./MEDIA_CDN.md) for object keys, `/dongman/` path rule, migration dry-run, cache/CORS/DNS.
 
 ## Play flow
 
-1. Client requests play URL for `video_id` (auth optional/required by config).
-2. API issues short-lived ticket + signed m3u8 URL (CDN).
-3. xgplayer loads HLS; segments prebuffer while playing.
-4. HLS media may use AES-128 keys served only with valid ticket.
+1. Client requests play URL for `video_id` (+ optional `sid`/`nid`).
+2. API resolves episode: prefer `hls_object_key` → CDN URL under `/{R2_BUCKET}/…`; else legacy absolute `playback_url`.
+3. xgplayer (+ hls plugin) loads the m3u8 from the CDN host.
+4. Optional VPlayer play ticket remains in the JSON response for future auth; CDN URL auth defaults to `CDN_URL_AUTH_MODE=none` (CDNfly↔R2 origin auth).
 
 ## Cover protection
 
-Covers stored privately on R2; delivered via short-lived signed CDN/R2 URLs (not permanent public links).
+Posters: prefer `cover_r2_key` → CDN URL; else `poster_source_url` until migrated. R2 stays private; browsers never receive R2 credentials.
 
 ## Admin
 
