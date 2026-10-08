@@ -283,16 +283,7 @@ func (e *Engine) Crawl(ctx context.Context) (categories []NavCategory, items []D
 					mu.Unlock()
 					continue
 				}
-				meta := ParseDetailPage(body, durl)
-				if meta.TypeID == "" {
-					meta.TypeID = j.card.TypeID
-				}
-				if meta.Title == "" {
-					meta.Title = j.card.Title
-				}
-				if meta.PosterURL == "" {
-					meta.PosterURL = j.card.PosterURL
-				}
+				meta := MergeDetailWithCatalog(j.card, ParseDetailPage(body, durl))
 				if e.FetchPlay {
 					meta.Episodes = e.enrichEpisodes(ctx, meta.Episodes, &stats)
 				}

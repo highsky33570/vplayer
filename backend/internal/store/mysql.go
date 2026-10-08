@@ -105,7 +105,8 @@ func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query string, limit, 
 		q += ` AND (title LIKE ? OR COALESCE(description,'') LIKE ? OR COALESCE(actors,'') LIKE ?)`
 		args = append(args, like, like, like)
 	}
-	q += ` ORDER BY id DESC LIMIT ? OFFSET ?`
+	// Newest-added first: created_at (insert time), then id as stable tie-breaker.
+	q += ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 	rows, err := m.DB.Query(q, args...)
 	if err != nil {

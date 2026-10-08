@@ -45,14 +45,9 @@ func ParseNavigationCategories(html, baseURL string) []NavCategory {
 	return out
 }
 
+// cleanText returns visible text from an HTML fragment (script/style/noscript/template ignored).
 func cleanText(s string) string {
-	s = reStripTags.ReplaceAllString(s, "")
-	s = strings.ReplaceAll(s, "&nbsp;", " ")
-	s = strings.ReplaceAll(s, "&amp;", "&")
-	s = strings.ReplaceAll(s, "&lt;", "<")
-	s = strings.ReplaceAll(s, "&gt;", ">")
-	s = reWS.ReplaceAllString(s, " ")
-	return strings.TrimSpace(s)
+	return VisibleText(s)
 }
 
 func isChromeLabel(name string) bool {

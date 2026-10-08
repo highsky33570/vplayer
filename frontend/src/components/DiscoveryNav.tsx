@@ -6,16 +6,14 @@ type Props = {
   onSelect: (slug: string) => void;
 };
 
-/** OLEHDTV top-level categories in display order (source type IDs). */
+/** Homepage category buttons in display order (matched from API by name/slug/id). */
 const CANONICAL: { names: string[]; slug: string; id: number }[] = [
-  { names: ['电影'], slug: 'movie', id: 1 },
-  { names: ['连续剧', '剧集'], slug: 'tv', id: 2 },
-  { names: ['综艺'], slug: 'variety', id: 3 },
+  { names: ['电影'], slug: 'movie', id: 2 },
+  { names: ['连续剧', '剧集'], slug: 'tv', id: 3 },
+  { names: ['综艺'], slug: 'variety', id: 13 },
   { names: ['动漫'], slug: 'anime', id: 4 },
-  { names: ['午夜影院'], slug: 'midnight', id: 5 },
-  { names: ['VIP蓝光影院'], slug: 'vip-bluray', id: 6 },
-  { names: ['体育直播'], slug: 'ti-yu-zhi-bo', id: 13 },
-  { names: ['短剧'], slug: 'duan-ju', id: 14 },
+  { names: ['午夜影院'], slug: 'midnight', id: 16 },
+  { names: ['VIP蓝光影院'], slug: 'vip-bluray', id: 17 },
 ];
 
 function resolveCategories(api: Category[]): Category[] {
@@ -35,13 +33,6 @@ function resolveCategories(api: Category[]): Category[] {
         ...match,
         name: entry.names[0], // prefer OLEHDTV label (连续剧 over 剧集)
       });
-    } else {
-      out.push({
-        id: entry.id,
-        name: entry.names[0],
-        slug: entry.slug,
-        sort: entry.id * 10,
-      });
     }
   }
 
@@ -58,25 +49,10 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
           type="button"
           role="tab"
           aria-selected={active === 'home'}
-          className={`category-btn entry-rec${active === 'home' ? ' is-active' : ''}`}
+          className={`category-btn${active === 'home' ? ' is-active' : ''}`}
           onClick={() => onSelect('home')}
         >
-          <span className="entry-icon" aria-hidden>
-            <RecIcon />
-          </span>
-          <span className="category-label">推荐</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={active === 'home'}
-          className={`category-btn entry-hot${active === 'home' ? ' is-active' : ''}`}
-          onClick={() => onSelect('home')}
-        >
-          <span className="entry-icon" aria-hidden>
-            <HotIcon />
-          </span>
-          <span className="category-label">热门</span>
+          <span className="category-label">首页</span>
         </button>
 
         {cats.map((c) => (
@@ -93,21 +69,5 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
         ))}
       </div>
     </div>
-  );
-}
-
-function RecIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12 2l2.4 7.2H22l-6 4.4 2.3 7.2L12 16.2 5.7 20.8 8 13.6 2 9.2h7.6L12 2z" />
-    </svg>
-  );
-}
-
-function HotIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12 2c2 3.5 1.2 5.5 0 7 2.5-1 5 1 5 4.5A5.5 5.5 0 0 1 11.5 19 5.5 5.5 0 0 1 6 13.5C6 9 9 6.5 12 2z" />
-    </svg>
   );
 }

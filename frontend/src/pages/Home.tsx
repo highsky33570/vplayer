@@ -1,19 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { listCategories, listVideosPage, type Category, type Video } from '../api';
-import { ContentSection } from '../components/ContentSection';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { FeaturedGrid } from '../components/FeaturedGrid';
 import { VideoCard } from '../components/VideoCard';
 
 const PAGE_SIZE = 30;
-const SECTION_SIZE = 6;
 
 export function Home() {
   const [params, setParams] = useSearchParams();
   const [cats, setCats] = useState<Category[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
-  const [homePool, setHomePool] = useState<Video[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
@@ -24,6 +21,7 @@ export function Home() {
   const offsetRef = useRef(0);
 
   const activeCat = cats.find((c) => c.slug === active);
+  // 首页 is not a category filter — omit category_id entirely.
   const categoryId = active === 'home' || searchQ ? undefined : activeCat?.id;
 
   const catById = useMemo(() => {
@@ -40,21 +38,6 @@ export function Home() {
       })
       .catch((e: Error) => {
         if (!cancelled) setError(e.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Prefetch a larger pool for home sections
-  useEffect(() => {
-    let cancelled = false;
-    listVideosPage({ limit: 48, offset: 0 })
-      .then((page) => {
-        if (!cancelled) setHomePool(page.data);
-      })
-      .catch(() => {
-        /* ignore — main load handles errors */
       });
     return () => {
       cancelled = true;
@@ -123,22 +106,13 @@ export function Home() {
   }
 
   const isSearch = Boolean(searchQ);
-  const pool = !isSearch && active === 'home' ? (homePool.length ? homePool : videos) : videos;
-  const featured = !isSearch ? pool.slice(0, 5) : [];
+  const featured = !isSearch && active === 'home' ? videos.slice(0, 5) : [];
   const emptyCategory = !loading && videos.length === 0;
-
-  const sections = useMemo(() => {
-    if (isSearch || active !== 'home') return [];
-    const source = homePool.length ? homePool : videos;
-    const out: { title: string; slug: string; items: Video[] }[] = [
-      { title: '热门推荐', slug: 'home', items: source.slice(0, SECTION_SIZE) },
-    ];
-    for (const c of cats.filter((x) => x.slug !== 'home')) {
-      const items = source.filter((v) => v.category_id === c.id).slice(0, SECTION_SIZE);
-      if (items.length) out.push({ title: c.name, slug: c.slug, items });
-    }
-    return out;
-  }, [active, cats, homePool, videos, isSearch]);
+  const listTitle = isSearch
+    ? `搜索：${searchQ}`
+    : active === 'home'
+      ? '最新上架'
+      : activeCat?.name || '片库';
 
   if (error && videos.length === 0 && !loading) {
     return (
@@ -172,92 +146,52 @@ export function Home() {
           <>
             {featured.length > 0 && <FeaturedGrid videos={featured} />}
 
-            {isSearch ? (
-              <>
-                <div className="section-head">
-                  <div className="section-title-row">
-                    <span className="section-accent" aria-hidden />
-                    <h2>搜索：{searchQ}</h2>
-                  </div>
-                  <p className="section-count">
-                    {emptyCategory ? '未找到相关内容' : `共 ${total} 部 · 已加载 ${videos.length}`}
-                  </p>
-                </div>
-                {emptyCategory ? (
-                  <p className="section-empty">没有匹配「{searchQ}」的视频，试试其他关键词。</p>
-                ) : (
-                  <>
-                    <div className="video-grid">
-                      {videos.map((v) => (
-                        <VideoCard
-                          key={`search-${v.id}`}
-                          video={v}
-                          categoryName={catById.get(v.category_id)?.name}
-                        />
-                      ))}
-                    </div>
-                    {hasMore && (
-                      <div className="load-more-wrap">
-                        <button
-                          type="button"
-                          className="section-action"
-                          disabled={loadingMore}
-                          onClick={() => void loadMore()}
-                        >
-                          {loadingMore ? '加载中…' : '加载更多'}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </>
-            ) : active === 'home' ? (
-              sections.map((s) => (
-                <ContentSection
-                  key={s.title}
-                  title={s.title}
-                  moreTo={s.slug === 'home' ? undefined : `/?ch=${s.slug}`}
-                  videos={s.items}
-                />
-              ))
+            <div className="section-head">
+              <div className="section-title-row">
+                <span className="section-accent" aria-hidden />
+                <h2>{listTitle}</h2>
+              </div>
+              <p className="section-count">
+                {emptyCategory
+                  ? isSearch
+                    ? '未找到相关内容'
+                    : active === 'home'
+                      ? '暂无内容'
+                      : '该分类暂无内容'
+                  : `共 ${total} 部 · 已加载 ${videos.length}`}
+              </p>
+            </div>
+
+            {emptyCategory ? (
+              <p className="section-empty">
+                {isSearch
+                  ? `没有匹配「${searchQ}」的视频，试试其他关键词。`
+                  : active === 'home'
+                    ? '还没有可播放的视频。'
+                    : '该分类下还没有视频。同步完成后会出现在这里。'}
+              </p>
             ) : (
               <>
-                <div className="section-head">
-                  <div className="section-title-row">
-                    <span className="section-accent" aria-hidden />
-                    <h2>{activeCat?.name || '片库'}</h2>
-                  </div>
-                  <p className="section-count">
-                    {emptyCategory ? '该分类暂无内容' : `共 ${total} 部 · 已加载 ${videos.length}`}
-                  </p>
+                <div className="video-grid">
+                  {videos.map((v) => (
+                    <VideoCard
+                      key={`grid-${v.id}`}
+                      video={v}
+                      categoryName={catById.get(v.category_id)?.name}
+                    />
+                  ))}
                 </div>
-
-                {emptyCategory ? (
-                  <p className="section-empty">该分类下还没有视频。同步完成后会出现在这里。</p>
-                ) : (
-                  <>
-                    <div className="video-grid">
-                      {videos.map((v) => (
-                        <VideoCard
-                          key={`grid-${v.id}`}
-                          video={v}
-                          categoryName={catById.get(v.category_id)?.name}
-                        />
-                      ))}
-                    </div>
-                    {hasMore && (
-                      <div className="load-more-wrap">
-                        <button
-                          type="button"
-                          className="section-action"
-                          disabled={loadingMore}
-                          onClick={() => void loadMore()}
-                        >
-                          {loadingMore ? '加载中…' : '加载更多'}
-                        </button>
-                      </div>
-                    )}
-                  </>
+                {hasMore && (
+                  <div className="load-more-wrap">
+                    <button
+                      type="button"
+                      className="section-action"
+                      disabled={loadingMore}
+                      onClick={() => void loadMore()}
+                    >
+                      {loadingMore ? '加载中…' : '加载更多'}
+                    </button>
+                  </div>
                 )}
               </>
             )}
