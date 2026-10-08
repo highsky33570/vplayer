@@ -1,0 +1,14 @@
+[Unit]
+Description=Run VPlayer pending playback enrichment every 3 hours (offset after discovery)
+Requires=vplayer-enrichpending.service
+
+[Timer]
+# Discovery timer is intended at 00/3:00; enrichment follows ~20 minutes later.
+OnCalendar=*-*-* 00/3:20:00
+Persistent=false
+RandomizedDelaySec=3min
+AccuracySec=1min
+Unit=vplayer-enrichpending.service
+
+[Install]
+WantedBy=timers.target

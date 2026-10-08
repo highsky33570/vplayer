@@ -1,0 +1,39 @@
+[Unit]
+Description=VPlayer OLEHDTV deferred pending playback enrichment (bounded)
+Documentation=file:///opt/vplayer/deploy/systemd/README.md
+After=network-online.target mysql.service
+Wants=network-online.target
+# Independent of vplayer-api and discovery; do not couple restarts.
+
+[Service]
+Type=oneshot
+User=vplayer
+Group=vplayer
+WorkingDirectory=/opt/vplayer/backend
+
+# Reuse the same secrets file as the API / syncincremental — no credentials in this unit.
+# Confirm path with: systemctl show -p EnvironmentFiles vplayer-api.service
+EnvironmentFile=-/etc/vplayer/vplayer.env
+
+Environment=APP_ENV=production
+Environment=OLEHDTV_SYNC_ENABLED=false
+
+# Bounded backlog drain only (play pages already stored). Default concurrency=1.
+ExecStart=/opt/vplayer/backend/bin/enrichpending --limit 15 --concurrency 1
+
+TimeoutStartSec=25m
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vplayer-enrichpending
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
