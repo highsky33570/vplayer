@@ -1,21 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import Player from 'xgplayer';
 import HlsPlugin from 'xgplayer-hls';
 import 'xgplayer/dist/index.min.css';
-import { formatViews, getPlayback, getVideo, type Video } from '../api';
+import { ApiError, formatViews, getPlayback, getVideo, type Video } from '../api';
+import { useAuth } from '../auth/AuthContext';
+import { loginWithNext } from '../auth/paths';
 
 export function Watch() {
   const { id } = useParams();
   const videoId = Number(id);
+  const navigate = useNavigate();
+  const { user, token, ready, logout } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Gate: wait for auth hydration; guests go to login with return path.
   useEffect(() => {
-    if (!videoId) return;
+    if (!videoId || !ready) return;
+    if (!user || !token) {
+      navigate(loginWithNext(`/watch/${videoId}`), { replace: true });
+    }
+  }, [ready, user, token, videoId, navigate]);
+
+  useEffect(() => {
+    if (!videoId || !ready || !user || !token) {
+      return;
+    }
     let cancelled = false;
 
     (async () => {
@@ -25,7 +39,7 @@ export function Watch() {
         const meta = await getVideo(videoId);
         if (cancelled) return;
         setVideo(meta);
-        const playback = await getPlayback(videoId);
+        const playback = await getPlayback(videoId, 0, 0, token);
         if (cancelled || !rootRef.current) return;
         if (!playback.url) {
           throw new Error('无可用播放地址');
@@ -49,7 +63,13 @@ export function Watch() {
         });
         playerRef.current = player;
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : '播放失败');
+        if (cancelled) return;
+        if (e instanceof ApiError && e.status === 401) {
+          logout();
+          navigate(loginWithNext(`/watch/${videoId}`), { replace: true });
+          return;
+        }
+        setError(e instanceof Error ? e.message : '播放失败');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -60,7 +80,15 @@ export function Watch() {
       playerRef.current?.destroy();
       playerRef.current = null;
     };
-  }, [videoId]);
+  }, [videoId, ready, user, token, navigate, logout]);
+
+  if (!ready || !user || !token) {
+    return (
+      <div className="page watch">
+        <p style={{ padding: 24, color: 'var(--muted)' }}>正在验证登录状态…</p>
+      </div>
+    );
+  }
 
   if (error) {
     return <div className="page page-error">{error}</div>;

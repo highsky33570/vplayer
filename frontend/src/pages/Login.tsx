@@ -1,21 +1,35 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthForm } from '../components/AuthForm';
 import { useAuth } from '../auth/AuthContext';
+import { resolvePostLoginPath } from '../auth/paths';
 
 export function LoginPage() {
-  const { user } = useAuth();
+  const { user, ready } = useAuth();
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!ready || !user) return;
+    navigate(resolvePostLoginPath(params.get('next')), { replace: true });
+  }, [ready, user, params, navigate]);
+
+  if (!ready) {
+    return (
+      <div className="page auth-page">
+        <div className="auth-page-card">
+          <p>加载中…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (user) {
     return (
       <div className="page auth-page">
         <div className="auth-page-card">
-          <h1>已登录</h1>
-          <p>
-            当前账号：{user.nickname || user.email}
-          </p>
-          <Link to="/" className="auth-btn-primary auth-link-btn">
-            返回首页
-          </Link>
+          <h1>登录成功</h1>
+          <p>正在跳转…</p>
         </div>
       </div>
     );

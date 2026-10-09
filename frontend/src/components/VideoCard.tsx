@@ -1,5 +1,8 @@
-import { Link } from 'react-router-dom';
+import { type MouseEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { formatDuration, formatViews, type Video } from '../api';
+import { useAuth } from '../auth/AuthContext';
+import { videoEntryHref } from '../auth/paths';
 
 type Props = {
   video: Video;
@@ -21,11 +24,31 @@ const FALLBACK =
   );
 
 export function VideoCard({ video, compact, categoryName }: Props) {
+  const { user, ready } = useAuth();
+  const navigate = useNavigate();
+  const href = videoEntryHref(ready, Boolean(user), video.id) ?? `/watch/${video.id}`;
   const metaBits = [categoryName, video.year, video.area].filter(Boolean);
   const showDuration = video.duration_sec > 0;
 
+  function onClick(e: MouseEvent<HTMLAnchorElement>) {
+    const target = videoEntryHref(ready, Boolean(user), video.id);
+    if (target == null) {
+      e.preventDefault();
+      return;
+    }
+    if (target.startsWith('/login')) {
+      e.preventDefault();
+      navigate(target);
+    }
+  }
+
   return (
-    <Link to={`/watch/${video.id}`} className={`video-card${compact ? ' is-compact' : ''}`} title={video.title}>
+    <Link
+      to={href}
+      onClick={onClick}
+      className={`video-card${compact ? ' is-compact' : ''}`}
+      title={video.title}
+    >
       <div className="thumb">
         <img
           src={video.cover_url || FALLBACK}

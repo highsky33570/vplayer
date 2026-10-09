@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+const API_BASE = import.meta.env?.VITE_API_BASE ?? '';
 
 export type AuthUser = {
   id: number;
@@ -52,11 +52,31 @@ export type VideoPage = {
   has_more: boolean;
 };
 
-async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
-  const json = await res.json();
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+async function parseJSONResponse(res: Response): Promise<{ ok?: boolean; message?: string; data?: unknown }> {
+  return (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: unknown;
+  };
+}
+
+async function getJSON<T>(path: string, token?: string | null): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}${path}`, { headers });
+  const json = await parseJSONResponse(res);
   if (!res.ok || json.ok === false) {
-    throw new Error(json.message ?? `请求失败（${res.status}）`);
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return json.data as T;
 }
@@ -81,9 +101,17 @@ export async function listVideosPage(opts?: {
   const q = opts?.q?.trim();
   if (q) params.set('q', q);
   const res = await fetch(`${API_BASE}/api/v1/videos?${params}`);
-  const json = await res.json();
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: Video[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
   if (!res.ok || json.ok === false) {
-    throw new Error(json.message ?? `请求失败（${res.status}）`);
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return {
     data: (json.data ?? []) as Video[],
@@ -103,12 +131,23 @@ export function getVideo(id: number) {
   return getJSON<Video>(`/api/v1/videos/${id}`);
 }
 
-export async function getPlayback(id: number, sid = 0, nid = 0): Promise<PlaybackInfo> {
+/** Build Authorization header value for authenticated API calls. */
+export function bearerAuthHeader(token: string | null | undefined): Record<string, string> {
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}
+
+export async function getPlayback(
+  id: number,
+  sid = 0,
+  nid = 0,
+  token?: string | null,
+): Promise<PlaybackInfo> {
   const qs = new URLSearchParams();
   if (sid > 0) qs.set('sid', String(sid));
   if (nid > 0) qs.set('nid', String(nid));
   const suffix = qs.toString() ? `?${qs}` : '';
-  const data = await getJSON<PlaybackInfo>(`/api/v1/videos/${id}/play${suffix}`);
+  const data = await getJSON<PlaybackInfo>(`/api/v1/videos/${id}/play${suffix}`, token);
   if (!data.url && data.m3u8_url) {
     data.url = data.m3u8_url;
     data.type = data.type || 'hls';
@@ -116,8 +155,8 @@ export async function getPlayback(id: number, sid = 0, nid = 0): Promise<Playbac
   return data;
 }
 
-export async function createPlaySession(id: number) {
-  const p = await getPlayback(id);
+export async function createPlaySession(id: number, token?: string | null) {
+  const p = await getPlayback(id, 0, 0, token);
   return { ticket: p.ticket ?? '', m3u8_url: p.url, expires_in: 300 };
 }
 
@@ -138,9 +177,9 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = await res.json().catch(() => ({}));
+  const json = await parseJSONResponse(res);
   if (!res.ok || json.ok === false) {
-    throw new Error(json.message ?? `请求失败（${res.status}）`);
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return json.data as T;
 }
@@ -150,16 +189,20 @@ export function login(email: string, password: string) {
 }
 
 export function register(email: string, password: string, nickname?: string) {
-  return postJSON<AuthResult>('/api/v1/auth/register', { email, password, nickname: nickname ?? '' });
+  return postJSON<AuthResult>('/api/v1/auth/register', {
+    email,
+    password,
+    nickname: nickname ?? '',
+  });
 }
 
 export async function fetchMe(token: string): Promise<AuthUser> {
   const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  const json = await res.json().catch(() => ({}));
+  const json = await parseJSONResponse(res);
   if (!res.ok || json.ok === false) {
-    throw new Error(json.message ?? `请求失败（${res.status}）`);
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return json.data as AuthUser;
 }
