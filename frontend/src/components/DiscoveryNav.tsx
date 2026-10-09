@@ -16,7 +16,8 @@ const CANONICAL: { names: string[]; slug: string; id: number }[] = [
   { names: ['VIP蓝光影院'], slug: 'vip-bluray', id: 17 },
 ];
 
-function resolveCategories(api: Category[]): Category[] {
+/** Nav-order categories for Home sections and the discovery bar (API-matched). */
+export function resolveNavCategories(api: Category[]): Category[] {
   const usable = api.filter((c) => c.slug !== 'home' && c.name !== '推荐');
   const used = new Set<number>();
   const out: Category[] = [];
@@ -40,7 +41,7 @@ function resolveCategories(api: Category[]): Category[] {
 }
 
 export function DiscoveryNav({ categories, active, onSelect }: Props) {
-  const cats = resolveCategories(categories);
+  const cats = resolveNavCategories(categories);
 
   return (
     <div className="discovery">
