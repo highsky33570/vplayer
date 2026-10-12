@@ -103,6 +103,8 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/auth/me", api.Me)
 		v1.GET("/admin/me", api.RequireUser, api.RequireAdmin, api.AdminMe)
 		v1.GET("/admin/dashboard", api.RequireUser, api.RequireAdmin, api.AdminDashboard)
+		v1.GET("/admin/videos", api.RequireUser, api.RequireAdmin, api.AdminListVideos)
+		v1.GET("/admin/videos/:id", api.RequireUser, api.RequireAdmin, api.AdminGetVideo)
 		// Legacy ops token auth — unchanged; migrate later to RequireAdmin.
 		v1.POST("/admin/integrations/olehdtv/sync", api.AdminOleHdTvSync)
 	}

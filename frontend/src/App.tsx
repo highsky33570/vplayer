@@ -2,6 +2,8 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom
 import { AdminDashboard } from './admin/AdminDashboard';
 import { AdminGuard } from './admin/AdminGuard';
 import { AdminLayout } from './admin/AdminLayout';
+import { AdminVideoDetail } from './admin/AdminVideoDetail';
+import { AdminVideos } from './admin/AdminVideos';
 import { AuthProvider } from './auth/AuthContext';
 import { Header } from './components/Header';
 import { LoginModal } from './components/LoginModal';
@@ -31,6 +33,8 @@ export default function App() {
             <Route path="/admin" element={<AdminGuard />}>
               <Route element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
+                <Route path="videos" element={<AdminVideos />} />
+                <Route path="videos/:id" element={<AdminVideoDetail />} />
               </Route>
             </Route>
             <Route element={<ConsumerShell />}>

@@ -31,6 +31,43 @@ export type AdminDashboardData = {
   latest_sync: AdminSyncRunSummary | null;
 };
 
+export type AdminVideoListItem = {
+  id: number;
+  title: string;
+  category_id: number;
+  status: string;
+  is_active: boolean;
+  source_system: string;
+  source_id: string;
+  year: string;
+  sync_status: string;
+  created_at: string;
+  last_synced_at?: string;
+  view_count: number;
+  duration_sec: number;
+  cover_url: string;
+};
+
+export type AdminVideoDetail = AdminVideoListItem & {
+  description: string;
+  director: string;
+  actors: string;
+  rating: number;
+  source_category_id: string;
+  source_updated_at?: string;
+  playback_source: string;
+  play_sid: number;
+  play_nid: number;
+};
+
+export type AdminVideoPage = {
+  data: AdminVideoListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
 export type AuthResult = {
   token: string;
   user: AuthUser;
@@ -234,4 +271,56 @@ export async function fetchMe(token: string): Promise<AuthUser> {
 
 export function fetchAdminDashboard(token: string | null | undefined) {
   return getJSON<AdminDashboardData>('/api/v1/admin/dashboard', token);
+}
+
+export async function fetchAdminVideos(
+  token: string | null | undefined,
+  opts?: {
+    limit?: number;
+    offset?: number;
+    q?: string;
+    categoryId?: number;
+    isActive?: 'all' | '1' | '0';
+  },
+): Promise<AdminVideoPage> {
+  const limit = opts?.limit ?? 24;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  const q = opts?.q?.trim();
+  if (q) params.set('q', q);
+  if (opts?.categoryId && opts.categoryId > 0) {
+    params.set('category_id', String(opts.categoryId));
+  }
+  if (opts?.isActive === '1' || opts?.isActive === '0') {
+    params.set('is_active', opts.isActive);
+  }
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/videos?${params}`, { headers });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminVideoListItem[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    data: json.data ?? [],
+    total: Number(json.total ?? 0),
+    limit: Number(json.limit ?? limit),
+    offset: Number(json.offset ?? offset),
+    has_more: Boolean(json.has_more),
+  };
+}
+
+export function fetchAdminVideo(id: number, token: string | null | undefined) {
+  return getJSON<AdminVideoDetail>(`/api/v1/admin/videos/${id}`, token);
 }

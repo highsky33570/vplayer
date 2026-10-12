@@ -21,6 +21,8 @@ type API struct {
 	Resolver   *play.Resolver
 	SyncRunner *scheduler.OleHdTvRunner
 	MediaBase  string
+	// AdminVideos optionally overrides Store for admin video reads (tests).
+	AdminVideos adminVideoRepo
 }
 
 func (a *API) Health(c *gin.Context) {

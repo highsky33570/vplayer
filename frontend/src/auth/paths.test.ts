@@ -44,6 +44,11 @@ describe('safeInternalPath / resolvePostLoginPath', () => {
     assert.equal(resolvePostLoginPath('/admin'), '/admin');
   });
 
+  it('accepts /admin/videos paths', () => {
+    assert.equal(safeInternalPath('/admin/videos'), '/admin/videos');
+    assert.equal(resolvePostLoginPath('/admin/videos/12'), '/admin/videos/12');
+  });
+
   it('rejects external and protocol-relative redirects', () => {
     assert.equal(safeInternalPath('//example.com'), null);
     assert.equal(safeInternalPath('http://evil.test/x'), null);
