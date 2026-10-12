@@ -11,6 +11,8 @@ readonly WORKER_BIN_DIR="${PROD_ROOT}/backend/bin"
 readonly SYNC_BIN="${WORKER_BIN_DIR}/syncincremental"
 readonly ENRICH_BIN="${WORKER_BIN_DIR}/enrichpending"
 readonly FRONTEND_DIST="${PROD_ROOT}/frontend/dist"
+readonly MIGRATIONS_SRC="${REPO_DIR}/backend/migrations"
+readonly MIGRATIONS_RUNTIME="${PROD_ROOT}/backend/migrations"
 readonly BACKUP_ROOT="${PROD_ROOT}/releases/backups"
 readonly MAX_BACKUPS=5
 
@@ -96,6 +98,57 @@ backup_path_if_exists() {
   fi
 }
 
+# Normalize migrations tree permissions (dirs 755, files 644). Never keep world-writable 666.
+normalize_migrations_perms() {
+  local root="$1"
+  [[ -d "${root}" ]] || return 0
+  find "${root}" -type d -exec chmod 755 {} +
+  find "${root}" -type f -exec chmod 644 {} +
+}
+
+migrations_has_sql() {
+  local root="$1"
+  [[ -d "${root}" ]] || return 1
+  local f
+  f="$(find "${root}" -maxdepth 1 -type f -name '*.sql' -print -quit)"
+  [[ -n "${f}" ]]
+}
+
+# Stage a complete migrations tree under STAGING (does not touch runtime).
+stage_migrations() {
+  [[ -d "${MIGRATIONS_SRC}" ]] || die "missing migrations source: ${MIGRATIONS_SRC}"
+  local dest="${STAGING}/migrations"
+  rm -rf "${dest}"
+  mkdir -p "${dest}"
+  cp -a "${MIGRATIONS_SRC}/." "${dest}/"
+  normalize_migrations_perms "${dest}"
+  migrations_has_sql "${dest}" || die "staged migrations has no .sql files (${dest})"
+}
+
+# Atomically replace runtime migrations: prepare .new fully, then rename into place.
+# Never leaves a half-copied destination directory as the live path.
+atomic_install_migrations() {
+  local src="$1"
+  local dest="$2"
+  local dest_new="${dest}.new"
+  local dest_old="${dest}.old"
+
+  migrations_has_sql "${src}" || die "migrations source incomplete: ${src}"
+
+  rm -rf "${dest_new}" "${dest_old}"
+  mkdir -p "$(dirname "${dest}")"
+  mkdir -p "${dest_new}"
+  cp -a "${src}/." "${dest_new}/"
+  normalize_migrations_perms "${dest_new}"
+  migrations_has_sql "${dest_new}" || die "new migrations incomplete: ${dest_new}"
+
+  if [[ -e "${dest}" || -L "${dest}" ]]; then
+    mv -f "${dest}" "${dest_old}"
+  fi
+  mv -f "${dest_new}" "${dest}"
+  rm -rf "${dest_old}"
+}
+
 rollback_from_backup() {
   if [[ -z "${BACKUP_DIR}" || ! -d "${BACKUP_DIR}" ]]; then
     err "no backup directory for this deployment"
@@ -124,6 +177,38 @@ rollback_from_backup() {
     fi
     mv -f "${new_dist}" "${FRONTEND_DIST}" || ok=0
     rm -rf "${old_dist}"
+  fi
+
+  # Restore migration FILES only (never reverse applied DB schema).
+  if [[ -d "${BACKUP_DIR}/migrations" ]]; then
+    local new_mig="${MIGRATIONS_RUNTIME}.rollback-new"
+    local old_mig="${MIGRATIONS_RUNTIME}.rollback-old"
+    rm -rf "${new_mig}" "${old_mig}"
+    mkdir -p "${new_mig}"
+    if cp -a "${BACKUP_DIR}/migrations/." "${new_mig}/"; then
+      normalize_migrations_perms "${new_mig}"
+      if [[ -e "${MIGRATIONS_RUNTIME}" || -L "${MIGRATIONS_RUNTIME}" ]]; then
+        mv -f "${MIGRATIONS_RUNTIME}" "${old_mig}" || ok=0
+      fi
+      if mv -f "${new_mig}" "${MIGRATIONS_RUNTIME}"; then
+        rm -rf "${old_mig}"
+        log "rollback: restored migrations files from backup"
+      else
+        err "rollback: failed to restore migrations directory"
+        # Best effort: put previous live tree back if we moved it aside.
+        if [[ -d "${old_mig}" && ! -e "${MIGRATIONS_RUNTIME}" ]]; then
+          mv -f "${old_mig}" "${MIGRATIONS_RUNTIME}" || true
+        fi
+        rm -rf "${new_mig}"
+        ok=0
+      fi
+    else
+      err "rollback: failed to copy backed-up migrations"
+      rm -rf "${new_mig}"
+      ok=0
+    fi
+  else
+    log "rollback: no migrations backup present (runtime migrations left as-is)"
   fi
 
   if systemctl restart "${API_UNIT}"; then
@@ -279,6 +364,9 @@ main() {
     go build -o "${STAGING}/bin/enrichpending" ./cmd/enrichpending
   )
 
+  log "staging backend SQL migrations…"
+  stage_migrations
+
   log "frontend: npm ci && npm run build"
   (
     cd "${REPO_DIR}/frontend"
@@ -298,6 +386,9 @@ main() {
   backup_path_if_exists "${ENRICH_BIN}" "enrichpending"
   if [[ -d "${FRONTEND_DIST}" ]]; then
     cp -a "${FRONTEND_DIST}" "${BACKUP_DIR}/frontend-dist"
+  fi
+  if [[ -d "${MIGRATIONS_RUNTIME}" ]]; then
+    cp -a "${MIGRATIONS_RUNTIME}" "${BACKUP_DIR}/migrations"
   fi
 
   # --- Install (production mutation begins) ---
@@ -321,6 +412,10 @@ main() {
   fi
   mv -f "${dist_new}" "${FRONTEND_DIST}"
   rm -rf "${dist_old}"
+
+  # Migrations must be live before API restart so startup ApplyMigrationsDir can see new SQL.
+  log "deploying backend SQL migrations to ${MIGRATIONS_RUNTIME}…"
+  atomic_install_migrations "${STAGING}/migrations" "${MIGRATIONS_RUNTIME}"
 
   log "restarting ${API_UNIT} only (timers/workers untouched)…"
   systemctl restart "${API_UNIT}"
