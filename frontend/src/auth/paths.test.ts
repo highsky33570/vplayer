@@ -26,6 +26,10 @@ describe('loginWithNext', () => {
   it('encodes the next path', () => {
     assert.equal(loginWithNext('/watch/7'), '/login?next=%2Fwatch%2F7');
   });
+
+  it('supports admin return path', () => {
+    assert.equal(loginWithNext('/admin'), '/login?next=%2Fadmin');
+  });
 });
 
 describe('safeInternalPath / resolvePostLoginPath', () => {
@@ -33,6 +37,11 @@ describe('safeInternalPath / resolvePostLoginPath', () => {
     assert.equal(safeInternalPath('/watch/9'), '/watch/9');
     assert.equal(resolvePostLoginPath('/watch/9'), '/watch/9');
     assert.equal(safeInternalPath('%2Fwatch%2F9'), '/watch/9');
+  });
+
+  it('accepts /admin as post-login next', () => {
+    assert.equal(safeInternalPath('/admin'), '/admin');
+    assert.equal(resolvePostLoginPath('/admin'), '/admin');
   });
 
   it('rejects external and protocol-relative redirects', () => {

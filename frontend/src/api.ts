@@ -4,6 +4,31 @@ export type AuthUser = {
   id: number;
   email: string;
   nickname: string;
+  is_admin?: boolean;
+};
+
+export type AdminSyncRunSummary = {
+  id: number;
+  source_system: string;
+  trigger_type: string;
+  started_at: string;
+  finished_at?: string;
+  scanned: number;
+  created_count: number;
+  updated_count: number;
+  unchanged_count: number;
+  failed_count: number;
+  deactivated_count: number;
+  has_error: boolean;
+};
+
+export type AdminDashboardData = {
+  status: string;
+  users_total: number;
+  videos_total: number;
+  videos_active: number;
+  categories_total: number;
+  latest_sync: AdminSyncRunSummary | null;
 };
 
 export type AuthResult = {
@@ -205,4 +230,8 @@ export async function fetchMe(token: string): Promise<AuthUser> {
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return json.data as AuthUser;
+}
+
+export function fetchAdminDashboard(token: string | null | undefined) {
+  return getJSON<AdminDashboardData>('/api/v1/admin/dashboard', token);
 }
