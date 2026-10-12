@@ -23,6 +23,8 @@ type API struct {
 	MediaBase  string
 	// AdminVideos optionally overrides Store for admin video reads (tests).
 	AdminVideos adminVideoRepo
+	// AdminCategories optionally overrides Store for admin category reads (tests).
+	AdminCategories adminCategoryRepo
 }
 
 func (a *API) Health(c *gin.Context) {

@@ -303,6 +303,19 @@
   color: var(--danger-text);
 }
 
+.admin-alert.is-info {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.admin-detail-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
 .admin-filters {
   display: flex;
   flex-wrap: wrap;

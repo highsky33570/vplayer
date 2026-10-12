@@ -1,4 +1,6 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { AdminCategories } from './admin/AdminCategories';
+import { AdminCategoryDetail } from './admin/AdminCategoryDetail';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { AdminGuard } from './admin/AdminGuard';
 import { AdminLayout } from './admin/AdminLayout';
@@ -35,6 +37,8 @@ export default function App() {
                 <Route index element={<AdminDashboard />} />
                 <Route path="videos" element={<AdminVideos />} />
                 <Route path="videos/:id" element={<AdminVideoDetail />} />
+                <Route path="categories" element={<AdminCategories />} />
+                <Route path="categories/:id" element={<AdminCategoryDetail />} />
               </Route>
             </Route>
             <Route element={<ConsumerShell />}>

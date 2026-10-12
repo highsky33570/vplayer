@@ -9,7 +9,7 @@ type AdminNavItem =
 const NAV: AdminNavItem[] = [
   { to: '/admin', label: 'Dashboard', enabled: true, end: true },
   { to: '/admin/videos', label: 'Videos', enabled: true },
-  { to: '/admin/categories', label: 'Categories', enabled: false },
+  { to: '/admin/categories', label: 'Categories', enabled: true },
   { to: '/admin/users', label: 'Users', enabled: false },
   { to: '/admin/sync', label: 'Sync / Crawler', enabled: false },
   { to: '/admin/media', label: 'Media', enabled: false },

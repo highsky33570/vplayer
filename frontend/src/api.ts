@@ -273,6 +273,29 @@ export function fetchAdminDashboard(token: string | null | undefined) {
   return getJSON<AdminDashboardData>('/api/v1/admin/dashboard', token);
 }
 
+export type AdminCategory = {
+  id: number;
+  name: string;
+  slug: string;
+  sort: number;
+  is_active: boolean;
+  source_system: string;
+  source_id: string;
+  last_synced_at?: string;
+  sync_status: string;
+  has_error: boolean;
+  created_at: string;
+  video_count: number;
+};
+
+export function fetchAdminCategories(token: string | null | undefined) {
+  return getJSON<AdminCategory[]>('/api/v1/admin/categories', token);
+}
+
+export function fetchAdminCategory(id: number, token: string | null | undefined) {
+  return getJSON<AdminCategory>(`/api/v1/admin/categories/${id}`, token);
+}
+
 export async function fetchAdminVideos(
   token: string | null | undefined,
   opts?: {
