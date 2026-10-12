@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tycdn/vplayer/internal/auth"
+	"github.com/tycdn/vplayer/internal/model"
 	"github.com/tycdn/vplayer/internal/store"
 )
 
@@ -73,11 +74,7 @@ func (a *API) Register(c *gin.Context) {
 		"ok": true,
 		"data": gin.H{
 			"token": token,
-			"user": gin.H{
-				"id":       user.ID,
-				"email":    user.Email,
-				"nickname": auth.DisplayName(user.Nickname, user.Email),
-			},
+			"user":  authUserJSON(user),
 		},
 	})
 }
@@ -120,11 +117,7 @@ func (a *API) Login(c *gin.Context) {
 		"ok": true,
 		"data": gin.H{
 			"token": token,
-			"user": gin.H{
-				"id":       user.ID,
-				"email":    user.Email,
-				"nickname": auth.DisplayName(user.Nickname, user.Email),
-			},
+			"user":  authUserJSON(user),
 		},
 	})
 }
@@ -151,11 +144,44 @@ func (a *API) Me(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
-		"data": gin.H{
-			"id":       user.ID,
-			"email":    user.Email,
-			"nickname": auth.DisplayName(user.Nickname, user.Email),
-		},
+		"ok":   true,
+		"data": authUserJSON(user),
+	})
+}
+
+func authUserJSON(user *model.User) gin.H {
+	return gin.H{
+		"id":       user.ID,
+		"email":    user.Email,
+		"nickname": auth.DisplayName(user.Nickname, user.Email),
+		"is_admin": user.IsAdmin,
+	}
+}
+
+// AdminMe returns the authenticated admin user (RequireUser + RequireAdmin).
+func (a *API) AdminMe(c *gin.Context) {
+	repo := a.users()
+	if repo == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "message": "认证服务暂不可用"})
+		return
+	}
+	uidVal, ok := c.Get(ctxAuthUserID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "message": "未登录"})
+		return
+	}
+	userID, ok := uidVal.(uint64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "message": "未登录"})
+		return
+	}
+	user, err := repo.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "message": "用户不存在或已失效"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"ok":   true,
+		"data": authUserJSON(user),
 	})
 }

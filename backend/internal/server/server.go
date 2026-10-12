@@ -18,8 +18,8 @@ import (
 )
 
 type Server struct {
-	engine  *gin.Engine
-	runner  *scheduler.OleHdTvRunner
+	engine *gin.Engine
+	runner *scheduler.OleHdTvRunner
 }
 
 func New(cfg config.Config) (*Server, error) {
@@ -101,6 +101,8 @@ func New(cfg config.Config) (*Server, error) {
 		v1.POST("/auth/register", api.Register)
 		v1.POST("/auth/login", api.Login)
 		v1.GET("/auth/me", api.Me)
+		v1.GET("/admin/me", api.RequireUser, api.RequireAdmin, api.AdminMe)
+		// Legacy ops token auth — unchanged; migrate later to RequireAdmin.
 		v1.POST("/admin/integrations/olehdtv/sync", api.AdminOleHdTvSync)
 	}
 

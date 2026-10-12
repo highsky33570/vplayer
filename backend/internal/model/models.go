@@ -48,20 +48,20 @@ type Video struct {
 }
 
 type Episode struct {
-	ID               uint64     `json:"id"`
-	VideoID          uint64     `json:"video_id"`
-	SID              int        `json:"sid"`
-	NID              int        `json:"nid"`
-	Title            string     `json:"title"`
-	PlaybackSource   string     `json:"playback_source"`
-	PlaybackURL      string     `json:"-"`
-	HLSObjectKey     string     `json:"-"`
-	StorageProvider  string     `json:"storage_provider,omitempty"`
-	MigrationStatus  string     `json:"migration_status,omitempty"`
-	MigrationError   string     `json:"migration_error,omitempty"`
-	MigratedAt       *time.Time `json:"migrated_at,omitempty"`
-	PlaybackStatus   string     `json:"playback_status,omitempty"`
-	IsActive         bool       `json:"is_active"`
+	ID              uint64     `json:"id"`
+	VideoID         uint64     `json:"video_id"`
+	SID             int        `json:"sid"`
+	NID             int        `json:"nid"`
+	Title           string     `json:"title"`
+	PlaybackSource  string     `json:"playback_source"`
+	PlaybackURL     string     `json:"-"`
+	HLSObjectKey    string     `json:"-"`
+	StorageProvider string     `json:"storage_provider,omitempty"`
+	MigrationStatus string     `json:"migration_status,omitempty"`
+	MigrationError  string     `json:"migration_error,omitempty"`
+	MigratedAt      *time.Time `json:"migrated_at,omitempty"`
+	PlaybackStatus  string     `json:"playback_status,omitempty"`
+	IsActive        bool       `json:"is_active"`
 }
 
 type PlaySession struct {
@@ -95,6 +95,7 @@ type User struct {
 	ID        uint64    `json:"id"`
 	Email     string    `json:"email"`
 	Nickname  string    `json:"nickname"`
+	IsAdmin   bool      `json:"is_admin"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

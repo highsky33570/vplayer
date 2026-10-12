@@ -28,3 +28,35 @@ func (a *API) RequireUser(c *gin.Context) {
 	c.Set(ctxAuthEmail, claims.Email)
 	c.Next()
 }
+
+// RequireAdmin must run after RequireUser. It loads the current user from the
+// database and allows only users with is_admin=true (HTTP 403 otherwise).
+// Admin status is never taken from the client or token claims.
+func (a *API) RequireAdmin(c *gin.Context) {
+	uidVal, ok := c.Get(ctxAuthUserID)
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"ok": false, "message": "未登录"})
+		return
+	}
+	userID, ok := uidVal.(uint64)
+	if !ok || userID == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"ok": false, "message": "未登录"})
+		return
+	}
+	repo := a.users()
+	if repo == nil {
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"ok": false, "message": "认证服务暂不可用"})
+		return
+	}
+	user, err := repo.GetUserByID(userID)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"ok": false, "message": "用户不存在或已失效"})
+		return
+	}
+	if !user.IsAdmin {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"ok": false, "message": "需要管理员权限"})
+		return
+	}
+	c.Set(ctxAuthEmail, user.Email)
+	c.Next()
+}

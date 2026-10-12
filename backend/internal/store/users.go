@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	ErrUserExists       = errors.New("email already registered")
+	ErrUserExists         = errors.New("email already registered")
 	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUserNotFound     = errors.New("user not found")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 type UserRepo interface {
@@ -48,6 +48,7 @@ func (m *MySQL) CreateUser(email, password, nickname string) (*model.User, error
 		ID:        uint64(id),
 		Email:     email,
 		Nickname:  nickname,
+		IsAdmin:   false,
 		CreatedAt: time.Now(),
 	}, nil
 }
@@ -56,16 +57,18 @@ func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	var u model.User
 	var hash string
+	var isAdmin int
 	err := m.DB.QueryRow(
-		`SELECT id, email, password_hash, COALESCE(nickname,''), created_at FROM users WHERE email=? LIMIT 1`,
+		`SELECT id, email, password_hash, COALESCE(nickname,''), COALESCE(is_admin,0), created_at FROM users WHERE email=? LIMIT 1`,
 		email,
-	).Scan(&u.ID, &u.Email, &hash, &u.Nickname, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &hash, &u.Nickname, &isAdmin, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrInvalidCredentials
 	}
 	if err != nil {
 		return nil, err
 	}
+	u.IsAdmin = isAdmin == 1
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
 		return nil, ErrInvalidCredentials
 	}
@@ -74,24 +77,26 @@ func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
 
 func (m *MySQL) GetUserByID(id uint64) (*model.User, error) {
 	var u model.User
+	var isAdmin int
 	err := m.DB.QueryRow(
-		`SELECT id, email, COALESCE(nickname,''), created_at FROM users WHERE id=? LIMIT 1`,
+		`SELECT id, email, COALESCE(nickname,''), COALESCE(is_admin,0), created_at FROM users WHERE id=? LIMIT 1`,
 		id,
-	).Scan(&u.ID, &u.Email, &u.Nickname, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &u.Nickname, &isAdmin, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	u.IsAdmin = isAdmin == 1
 	return &u, nil
 }
 
 // MemoryUsers is used when MySQL is unavailable (local demo).
 type MemoryUsers struct {
-	mu    sync.Mutex
-	seq   uint64
-	byID  map[uint64]*memUser
+	mu     sync.Mutex
+	seq    uint64
+	byID   map[uint64]*memUser
 	byMail map[string]*memUser
 }
 
@@ -128,6 +133,7 @@ func (m *MemoryUsers) CreateUser(email, password, nickname string) (*model.User,
 			ID:        m.seq,
 			Email:     email,
 			Nickname:  nickname,
+			IsAdmin:   false,
 			CreatedAt: time.Now(),
 		},
 		hash: string(hash),
@@ -159,4 +165,16 @@ func (m *MemoryUsers) GetUserByID(id uint64) (*model.User, error) {
 	}
 	cp := u.user
 	return &cp, nil
+}
+
+// SetIsAdmin updates admin flag for tests / out-of-band promotion (not exposed via HTTP).
+func (m *MemoryUsers) SetIsAdmin(id uint64, isAdmin bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	u, ok := m.byID[id]
+	if !ok {
+		return ErrUserNotFound
+	}
+	u.user.IsAdmin = isAdmin
+	return nil
 }
