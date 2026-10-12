@@ -296,6 +296,70 @@ export function fetchAdminCategory(id: number, token: string | null | undefined)
   return getJSON<AdminCategory>(`/api/v1/admin/categories/${id}`, token);
 }
 
+export type AdminUser = {
+  id: number;
+  email: string;
+  nickname: string;
+  is_admin: boolean;
+  created_at: string;
+};
+
+export type AdminUserPage = {
+  data: AdminUser[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+export async function fetchAdminUsers(
+  token: string | null | undefined,
+  opts?: {
+    limit?: number;
+    offset?: number;
+    q?: string;
+    isAdmin?: 'all' | '1' | '0';
+  },
+): Promise<AdminUserPage> {
+  const limit = opts?.limit ?? 24;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  const q = opts?.q?.trim();
+  if (q) params.set('q', q);
+  if (opts?.isAdmin === '1' || opts?.isAdmin === '0') {
+    params.set('is_admin', opts.isAdmin);
+  }
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/users?${params}`, { headers });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminUser[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    data: json.data ?? [],
+    total: Number(json.total ?? 0),
+    limit: Number(json.limit ?? limit),
+    offset: Number(json.offset ?? offset),
+    has_more: Boolean(json.has_more),
+  };
+}
+
+export function fetchAdminUser(id: number, token: string | null | undefined) {
+  return getJSON<AdminUser>(`/api/v1/admin/users/${id}`, token);
+}
+
 export async function fetchAdminVideos(
   token: string | null | undefined,
   opts?: {

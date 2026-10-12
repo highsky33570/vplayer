@@ -25,6 +25,8 @@ type API struct {
 	AdminVideos adminVideoRepo
 	// AdminCategories optionally overrides Store for admin category reads (tests).
 	AdminCategories adminCategoryRepo
+	// AdminUsers optionally overrides Store for admin user reads (tests).
+	AdminUsers adminUserRepo
 }
 
 func (a *API) Health(c *gin.Context) {

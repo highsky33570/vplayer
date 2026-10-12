@@ -4,6 +4,8 @@ import { AdminCategoryDetail } from './admin/AdminCategoryDetail';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { AdminGuard } from './admin/AdminGuard';
 import { AdminLayout } from './admin/AdminLayout';
+import { AdminUserDetail } from './admin/AdminUserDetail';
+import { AdminUsers } from './admin/AdminUsers';
 import { AdminVideoDetail } from './admin/AdminVideoDetail';
 import { AdminVideos } from './admin/AdminVideos';
 import { AuthProvider } from './auth/AuthContext';
@@ -39,6 +41,8 @@ export default function App() {
                 <Route path="videos/:id" element={<AdminVideoDetail />} />
                 <Route path="categories" element={<AdminCategories />} />
                 <Route path="categories/:id" element={<AdminCategoryDetail />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="users/:id" element={<AdminUserDetail />} />
               </Route>
             </Route>
             <Route element={<ConsumerShell />}>
