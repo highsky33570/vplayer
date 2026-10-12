@@ -61,8 +61,10 @@ type Config struct {
 	// CDNURLAuthMode: none (default; CDNfly origin auth to private R2) | legacy_hmac
 	CDNURLAuthMode string
 	CDNSignSecret  string
-	PlayTicketTTL  int
-	HLSKeySecret   string
+	// AuthSecret signs user session Bearer tokens (separate from CDN URL/ticket signing).
+	AuthSecret    string
+	PlayTicketTTL int
+	HLSKeySecret  string
 
 	AdminAPIToken string
 
@@ -95,13 +97,13 @@ func loadEnvFiles() {
 func Load() Config {
 	loadEnvFiles()
 	return Config{
-		AppEnv:        getenv("APP_ENV", "local"),
-		HTTPAddr:      getenv("HTTP_ADDR", ":8080"),
-		CORSOrigins:   strings.Split(getenv("CORS_ORIGINS", "http://localhost:5173"), ","),
-		MySQLDSN:      getenv("MYSQL_DSN", "vplayer:vplayer@tcp(127.0.0.1:3306)/vplayer?charset=utf8mb4&parseTime=True&loc=Local"),
-		RedisAddr:     getenv("REDIS_ADDR", "127.0.0.1:6379"),
-		RedisPassword: getenv("REDIS_PASSWORD", ""),
-		RedisDB:       getenvInt("REDIS_DB", 0),
+		AppEnv:          getenv("APP_ENV", "local"),
+		HTTPAddr:        getenv("HTTP_ADDR", ":8080"),
+		CORSOrigins:     strings.Split(getenv("CORS_ORIGINS", "http://localhost:5173"), ","),
+		MySQLDSN:        getenv("MYSQL_DSN", "vplayer:vplayer@tcp(127.0.0.1:3306)/vplayer?charset=utf8mb4&parseTime=True&loc=Local"),
+		RedisAddr:       getenv("REDIS_ADDR", "127.0.0.1:6379"),
+		RedisPassword:   getenv("REDIS_PASSWORD", ""),
+		RedisDB:         getenvInt("REDIS_DB", 0),
 		R2AccountID:     getenv("R2_ACCOUNT_ID", ""),
 		R2AccessKey:     getenv("R2_ACCESS_KEY_ID", ""),
 		R2SecretKey:     getenv("R2_SECRET_ACCESS_KEY", ""),
@@ -113,16 +115,17 @@ func Load() Config {
 		CDNBaseURL:      strings.TrimRight(getenv("CDN_BASE_URL", "http://localhost:8080"), "/"),
 		CDNURLAuthMode:  strings.ToLower(getenv("CDN_URL_AUTH_MODE", "none")),
 		CDNSignSecret:   getenv("CDN_SIGN_SECRET", "dev-cdn-secret"),
+		AuthSecret:      getenv("AUTH_SECRET", "dev-auth-secret"),
 		PlayTicketTTL:   getenvInt("PLAY_TICKET_TTL_SEC", 300),
 		HLSKeySecret:    getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
 
 		AdminAPIToken: getenv("ADMIN_API_TOKEN", "dev-admin-token"),
 
-		OleHdTvSyncEnabled:     getenvBool("OLEHDTV_SYNC_ENABLED", false),
-		OleHdTvSyncIntervalMin: getenvInt("OLEHDTV_SYNC_INTERVAL_MINUTES", 15),
-		OleHdTvSourceMode:      getenv("OLEHDTV_SOURCE_MODE", "fixture"),
-		OleHdTvMacCMSDSN:       getenv("OLEHDTV_MACCMS_DSN", ""),
-		OleHdTvExportPath:      getenv("OLEHDTV_EXPORT_PATH", ""),
+		OleHdTvSyncEnabled:       getenvBool("OLEHDTV_SYNC_ENABLED", false),
+		OleHdTvSyncIntervalMin:   getenvInt("OLEHDTV_SYNC_INTERVAL_MINUTES", 15),
+		OleHdTvSourceMode:        getenv("OLEHDTV_SOURCE_MODE", "fixture"),
+		OleHdTvMacCMSDSN:         getenv("OLEHDTV_MACCMS_DSN", ""),
+		OleHdTvExportPath:        getenv("OLEHDTV_EXPORT_PATH", ""),
 		OleHdTvFixturePath:       getenv("OLEHDTV_FIXTURE_PATH", "testdata/olehdtv_sample.json"),
 		OleHdTvHTMLDumpRoot:      getenv("OLEHDTV_HTML_DUMP_ROOT", "testdata/maccms_html"),
 		OleHdTvPublicBaseURL:     strings.TrimRight(getenv("OLEHDTV_PUBLIC_BASE_URL", "https://maccms.local"), "/"),

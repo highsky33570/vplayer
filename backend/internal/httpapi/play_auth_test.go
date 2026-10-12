@@ -14,11 +14,14 @@ import (
 	"github.com/tycdn/vplayer/internal/play"
 )
 
-func testPlayRouter(secret string) (*gin.Engine, *API) {
+func testPlayRouter(authSecret, cdnSecret string) (*gin.Engine, *API) {
 	gin.SetMode(gin.TestMode)
 	api := &API{
-		Cfg:      config.Config{CDNSignSecret: secret},
-		Resolver: &play.Resolver{Cfg: config.Config{CDNSignSecret: secret}},
+		Cfg: config.Config{
+			AuthSecret:    authSecret,
+			CDNSignSecret: cdnSecret,
+		},
+		Resolver: &play.Resolver{Cfg: config.Config{CDNSignSecret: cdnSecret}},
 	}
 	r := gin.New()
 	v1 := r.Group("/api/v1")
@@ -33,7 +36,7 @@ func testPlayRouter(secret string) (*gin.Engine, *API) {
 }
 
 func TestPlayRequiresAuth_GET(t *testing.T) {
-	r, _ := testPlayRouter("test-secret")
+	r, _ := testPlayRouter("test-auth-secret", "test-cdn-secret")
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/videos/1/play", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -43,7 +46,7 @@ func TestPlayRequiresAuth_GET(t *testing.T) {
 }
 
 func TestPlayRequiresAuth_POST(t *testing.T) {
-	r, _ := testPlayRouter("test-secret")
+	r, _ := testPlayRouter("test-auth-secret", "test-cdn-secret")
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/videos/1/play", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -54,7 +57,7 @@ func TestPlayRequiresAuth_POST(t *testing.T) {
 }
 
 func TestPlayRejectsMalformedToken(t *testing.T) {
-	r, _ := testPlayRouter("test-secret")
+	r, _ := testPlayRouter("test-auth-secret", "test-cdn-secret")
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/videos/1/play", nil)
 	req.Header.Set("Authorization", "Bearer not-a-valid-token")
 	w := httptest.NewRecorder()
@@ -65,9 +68,9 @@ func TestPlayRejectsMalformedToken(t *testing.T) {
 }
 
 func TestPlayRejectsExpiredToken(t *testing.T) {
-	secret := "test-secret"
-	r, _ := testPlayRouter(secret)
-	tok, err := auth.IssueToken(secret, 1, "u@example.com", -time.Hour)
+	const authSecret = "test-auth-secret"
+	r, _ := testPlayRouter(authSecret, "test-cdn-secret")
+	tok, err := auth.IssueToken(authSecret, 1, "u@example.com", -time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +84,7 @@ func TestPlayRejectsExpiredToken(t *testing.T) {
 }
 
 func TestPlayRejectsWrongSecretToken(t *testing.T) {
-	r, _ := testPlayRouter("test-secret")
+	r, _ := testPlayRouter("test-auth-secret", "test-cdn-secret")
 	tok, err := auth.IssueToken("other-secret", 1, "u@example.com", time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -96,9 +99,9 @@ func TestPlayRejectsWrongSecretToken(t *testing.T) {
 }
 
 func TestPlayAllowsValidToken(t *testing.T) {
-	secret := "test-secret"
-	r, _ := testPlayRouter(secret)
-	tok, err := auth.IssueToken(secret, 42, "u@example.com", time.Hour)
+	const authSecret = "test-auth-secret"
+	r, _ := testPlayRouter(authSecret, "test-cdn-secret")
+	tok, err := auth.IssueToken(authSecret, 42, "u@example.com", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +127,7 @@ func TestPlayAllowsValidToken(t *testing.T) {
 }
 
 func TestPublicCatalogEndpointsUnauthenticated(t *testing.T) {
-	r, _ := testPlayRouter("test-secret")
+	r, _ := testPlayRouter("test-auth-secret", "test-cdn-secret")
 	for _, path := range []string{"/api/v1/categories", "/api/v1/videos", "/api/v1/videos/1"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		w := httptest.NewRecorder()
@@ -136,7 +139,7 @@ func TestPublicCatalogEndpointsUnauthenticated(t *testing.T) {
 }
 
 func TestPublicVideoJSONHidesPlaybackURL(t *testing.T) {
-	r, _ := testPlayRouter("test-secret")
+	r, _ := testPlayRouter("test-auth-secret", "test-cdn-secret")
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/videos/1", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)

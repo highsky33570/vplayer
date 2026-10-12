@@ -28,8 +28,8 @@ func (a *API) users() store.UserRepo {
 }
 
 func (a *API) authSecret() string {
-	if a.Cfg.CDNSignSecret != "" {
-		return a.Cfg.CDNSignSecret
+	if a.Cfg.AuthSecret != "" {
+		return a.Cfg.AuthSecret
 	}
 	return "dev-auth-secret"
 }
