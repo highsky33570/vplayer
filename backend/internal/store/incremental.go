@@ -28,22 +28,6 @@ type EpisodeSyncRow struct {
 	UpdatedAt       time.Time
 }
 
-// TryAdvisoryLock acquires a MySQL named lock (non-blocking when timeoutSec=0).
-func (m *MySQL) TryAdvisoryLock(name string, timeoutSec int) (bool, error) {
-	var got sql.NullInt64
-	err := m.DB.QueryRow(`SELECT GET_LOCK(?, ?)`, name, timeoutSec).Scan(&got)
-	if err != nil {
-		return false, err
-	}
-	return got.Valid && got.Int64 == 1, nil
-}
-
-// ReleaseAdvisoryLock releases a MySQL named lock.
-func (m *MySQL) ReleaseAdvisoryLock(name string) error {
-	var n sql.NullInt64
-	return m.DB.QueryRow(`SELECT RELEASE_LOCK(?)`, name).Scan(&n)
-}
-
 func (m *MySQL) GetEpisodeForSync(system, sourceVideoID string, sid, nid int) (*EpisodeSyncRow, error) {
 	var e EpisodeSyncRow
 	var active int

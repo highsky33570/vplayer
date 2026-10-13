@@ -2,6 +2,7 @@ package catalogsync
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -14,8 +15,7 @@ import (
 
 // IncrementalStore is the DB surface used by incremental sync (mockable in tests).
 type IncrementalStore interface {
-	TryAdvisoryLock(name string, timeoutSec int) (bool, error)
-	ReleaseAdvisoryLock(name string) error
+	AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error)
 	UpsertCategoryResult(in store.CategoryUpsert) (id uint64, created, updated bool, err error)
 	GetCategoryBySource(system, sourceID string) (*model.Category, error)
 	GetVideoBySource(system, sourceID string) (*model.Video, error)
@@ -25,6 +25,9 @@ type IncrementalStore interface {
 	InsertEpisodeCatalog(in store.EpisodeUpsert) error
 	UpdateEpisodeCatalog(id uint64, in store.EpisodeUpsert) error
 	InsertSyncRunDetailed(system, trigger string, scanned, created, updated, unchanged, failed, deactivated int, summary any, errText string) error
+	StartOperationalRun(in store.StartOperationalRunInput) (uint64, error)
+	FinishOperationalRun(in store.FinishOperationalRunInput) error
+	RejectOperationalRun(in store.RejectOperationalRunInput) (uint64, error)
 }
 
 // ItemAction is a concise per-item plan/result line.
@@ -40,54 +43,57 @@ type ItemAction struct {
 
 // IncrementalSummary is the dry-run / real-run report.
 type IncrementalSummary struct {
-	DryRun            bool                `json:"dry_run"`
-	Adapter           string              `json:"adapter"`
-	Limit             int                 `json:"limit"`
-	Discovered        int                 `json:"discovered"`
-	NewVideos         int                 `json:"new_videos"`
-	UpdatedVideos     int                 `json:"updated_videos"`
-	UnchangedVideos   int                 `json:"unchanged_videos"`
-	NewEpisodes       int                 `json:"new_episodes"`
-	UpdatedEpisodes   int                 `json:"updated_episodes"`
-	UnchangedEpisodes int                 `json:"unchanged_episodes"`
-	Failures          int                 `json:"failures"`
-	MediaSourceChanged int                `json:"media_source_changed"`
-	DeactivateMissingCalled bool          `json:"deactivate_missing_called"`
-	LockAcquired      bool                `json:"lock_acquired"`
-	Watermark         olehdtv.RecentMeta  `json:"watermark"`
-	ListingRequests   int                 `json:"listing_requests,omitempty"`
-	DetailRequests    int                 `json:"detail_requests,omitempty"`
-	PlayRequests      int                 `json:"play_requests,omitempty"`
-	TotalHTTPRequests int                 `json:"total_http_requests,omitempty"`
-	EnrichmentCapped  bool                `json:"enrichment_capped,omitempty"`
-	Actions           []ItemAction        `json:"actions,omitempty"`
-	Error             string              `json:"error,omitempty"`
+	DryRun                  bool               `json:"dry_run"`
+	Adapter                 string             `json:"adapter"`
+	Limit                   int                `json:"limit"`
+	Discovered              int                `json:"discovered"`
+	NewVideos               int                `json:"new_videos"`
+	UpdatedVideos           int                `json:"updated_videos"`
+	UnchangedVideos         int                `json:"unchanged_videos"`
+	NewEpisodes             int                `json:"new_episodes"`
+	UpdatedEpisodes         int                `json:"updated_episodes"`
+	UnchangedEpisodes       int                `json:"unchanged_episodes"`
+	Failures                int                `json:"failures"`
+	MediaSourceChanged      int                `json:"media_source_changed"`
+	DeactivateMissingCalled bool               `json:"deactivate_missing_called"`
+	LockAcquired            bool               `json:"lock_acquired"`
+	Watermark               olehdtv.RecentMeta `json:"watermark"`
+	ListingRequests         int                `json:"listing_requests,omitempty"`
+	DetailRequests          int                `json:"detail_requests,omitempty"`
+	PlayRequests            int                `json:"play_requests,omitempty"`
+	TotalHTTPRequests       int                `json:"total_http_requests,omitempty"`
+	EnrichmentCapped        bool               `json:"enrichment_capped,omitempty"`
+	Actions                 []ItemAction       `json:"actions,omitempty"`
+	Error                   string             `json:"error,omitempty"`
 }
 
 // IncrementalSync performs bounded OLEHDTV catalog synchronization.
 type IncrementalSync struct {
-	Store  IncrementalStore
-	Source olehdtv.RecentSource
-	Log    *slog.Logger
-	LockName string
+	Store       IncrementalStore
+	Source      olehdtv.RecentSource
+	Log         *slog.Logger
+	LockName    string
+	TriggerType string // cli|timer (validated); empty defaults to cli
 }
 
 func NewIncrementalSync(st IncrementalStore, src olehdtv.RecentSource) *IncrementalSync {
 	return &IncrementalSync{
-		Store:    st,
-		Source:   src,
-		Log:      slog.Default().With("component", "olehdtv-incremental"),
-		LockName: store.IncrementalSyncLockName,
+		Store:       st,
+		Source:      src,
+		Log:         slog.Default().With("component", "olehdtv-incremental"),
+		LockName:    store.IncrementalSyncLockName,
+		TriggerType: store.TriggerCLI,
 	}
 }
 
-// Run executes incremental sync. dryRun performs zero DB writes (except advisory lock get/release).
+// Run executes incremental sync. dryRun performs zero catalog/R2 writes (advisory lock still used;
+// operational_runs are not written on dry-run to preserve zero-mutation semantics).
 func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (IncrementalSummary, error) {
 	sum := IncrementalSummary{
-		DryRun:   dryRun,
-		Adapter:  s.Source.Name(),
-		Limit:    limit,
-		Actions:  make([]ItemAction, 0, limit*2),
+		DryRun:                  dryRun,
+		Adapter:                 s.Source.Name(),
+		Limit:                   limit,
+		Actions:                 make([]ItemAction, 0, limit*2),
 		DeactivateMissingCalled: false,
 	}
 	if limit <= 0 {
@@ -99,24 +105,79 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 		return sum, fmt.Errorf("%s", sum.Error)
 	}
 
-	got, err := s.Store.TryAdvisoryLock(s.LockName, 0)
+	trigger := s.TriggerType
+	if trigger == "" {
+		trigger = store.TriggerCLI
+	}
+	trigger, err := store.ValidateTriggerType(trigger)
 	if err != nil {
-		sum.Error = "advisory lock error: " + err.Error()
+		sum.Error = err.Error()
 		return sum, err
 	}
-	if !got {
-		sum.Error = "another incremental sync is already running"
-		return sum, fmt.Errorf("%s", sum.Error)
+
+	hold, err := s.Store.AcquireAdvisoryLock(ctx, s.LockName)
+	if err != nil {
+		if errors.Is(err, store.ErrOperationLocked) {
+			sum.Error = "another incremental sync is already running"
+			if !dryRun {
+				if _, rerr := s.Store.RejectOperationalRun(store.RejectOperationalRunInput{
+					JobType:     store.JobIncrementalSync,
+					TriggerType: trigger,
+					ErrorCode:   store.ErrCodeLockBusy,
+				}); rerr != nil {
+					s.Log.Warn("reject operational run failed", "err", rerr)
+				}
+			}
+			return sum, fmt.Errorf("%w: %s", store.ErrOperationLocked, sum.Error)
+		}
+		sum.Error = "advisory lock error"
+		s.Log.Error("advisory lock acquire failed", "err", err)
+		return sum, err
 	}
 	sum.LockAcquired = true
-	defer func() {
-		_ = s.Store.ReleaseAdvisoryLock(s.LockName)
-	}()
+	defer func() { _ = hold.Release() }()
+
+	var opID uint64
+	if !dryRun {
+		opID, err = s.Store.StartOperationalRun(store.StartOperationalRunInput{
+			JobType:     store.JobIncrementalSync,
+			TriggerType: trigger,
+		})
+		if err != nil {
+			s.Log.Warn("start operational run failed", "err", err)
+			opID = 0
+		}
+	}
+
+	finishOp := func(status, errCode string, hasErr bool) {
+		if dryRun || opID == 0 {
+			return
+		}
+		in := store.FinishOperationalRunInput{
+			ID:             opID,
+			Status:         status,
+			Scanned:        store.IntPtr(sum.Discovered),
+			CreatedCount:   store.IntPtr(sum.NewVideos),
+			UpdatedCount:   store.IntPtr(sum.UpdatedVideos),
+			UnchangedCount: store.IntPtr(sum.UnchangedVideos),
+			FailedCount:    store.IntPtr(sum.Failures),
+			ErrorCode:      errCode,
+			HasError:       hasErr,
+		}
+		if ferr := s.Store.FinishOperationalRun(in); ferr != nil {
+			s.Log.Warn("finish operational run failed", "err", ferr)
+		}
+	}
 
 	cats, err := s.Source.ListCategories(ctx)
 	if err != nil {
 		sum.Failures++
 		sum.Error = "list categories: " + err.Error()
+		code := store.ErrCodeSourceUnavailable
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			code = store.ErrCodeTimeout
+		}
+		finishOp(store.OpStatusFailed, code, true)
 		return sum, err
 	}
 
@@ -153,6 +214,11 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 	if err != nil {
 		sum.Failures++
 		sum.Error = "list recent videos: " + err.Error()
+		code := store.ErrCodeSourceUnavailable
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			code = store.ErrCodeTimeout
+		}
+		finishOp(store.OpStatusFailed, code, true)
 		return sum, err
 	}
 	sum.Watermark = meta
@@ -163,10 +229,12 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 	sum.EnrichmentCapped = meta.EnrichmentCapped
 	sum.Discovered = len(videos)
 
+	timedOut := false
 	for _, v := range videos {
 		if err := ctx.Err(); err != nil {
 			sum.Error = err.Error()
 			sum.Failures++
+			timedOut = errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 			break
 		}
 		if err := s.processVideo(ctx, &sum, catMap, v, dryRun); err != nil {
@@ -198,11 +266,18 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 			sum,
 			errText,
 		)
+		// sync_run_id left NULL: InsertSyncRunDetailed does not expose LastInsertId.
 	}
 
+	if timedOut {
+		finishOp(store.OpStatusFailed, store.ErrCodeTimeout, true)
+		return sum, fmt.Errorf("%s", sum.Error)
+	}
 	if sum.Failures > 0 {
+		finishOp(store.OpStatusFailed, store.ErrCodePartialFailure, true)
 		return sum, fmt.Errorf("incremental sync completed with %d failures", sum.Failures)
 	}
+	finishOp(store.OpStatusSucceeded, "", false)
 	return sum, nil
 }
 

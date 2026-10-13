@@ -15,16 +15,19 @@ import (
 )
 
 type memStore struct {
-	mu        sync.Mutex
-	locked    bool
-	videos    map[string]*model.Video
-	episodes  map[string]*store.EpisodeSyncRow
-	nextVID   uint64
-	nextEID   uint64
+	mu               sync.Mutex
+	locked           bool
+	videos           map[string]*model.Video
+	episodes         map[string]*store.EpisodeSyncRow
+	nextVID          uint64
+	nextEID          uint64
 	deactivateCalled bool
-	syncRuns  int
-	videoUpdatedAt map[uint64]time.Time
-	videoCreatedAt map[uint64]time.Time
+	syncRuns         int
+	videoUpdatedAt   map[uint64]time.Time
+	videoCreatedAt   map[uint64]time.Time
+	opRuns           []store.OperationalRunRow
+	nextOpID         uint64
+	crawlBlocked     bool // set true when lock busy path should prove no work
 }
 
 func newMemStore() *memStore {
@@ -42,24 +45,70 @@ func epKey(sys, vod string, sid, nid int) string {
 	return fmt.Sprintf("%s|%s|%d|%d", sys, vod, sid, nid)
 }
 
-func (m *memStore) TryAdvisoryLock(name string, timeoutSec int) (bool, error) {
+func (m *memStore) AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error) {
+	_ = ctx
 	_ = name
-	_ = timeoutSec
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.locked {
-		return false, nil
+		return nil, store.ErrOperationLocked
 	}
 	m.locked = true
-	return true, nil
+	return store.NewTestAdvisoryHold(func() error {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		m.locked = false
+		return nil
+	}), nil
 }
 
-func (m *memStore) ReleaseAdvisoryLock(name string) error {
-	_ = name
+func (m *memStore) StartOperationalRun(in store.StartOperationalRunInput) (uint64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.locked = false
-	return nil
+	m.nextOpID++
+	id := m.nextOpID
+	now := time.Now()
+	m.opRuns = append(m.opRuns, store.OperationalRunRow{
+		ID: id, JobType: in.JobType, TriggerType: in.TriggerType,
+		Status: store.OpStatusRunning, RequestedAt: now, StartedAt: &now,
+	})
+	return id, nil
+}
+
+func (m *memStore) FinishOperationalRun(in store.FinishOperationalRunInput) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.opRuns {
+		if m.opRuns[i].ID == in.ID {
+			now := time.Now()
+			m.opRuns[i].Status = in.Status
+			m.opRuns[i].FinishedAt = &now
+			m.opRuns[i].Scanned = in.Scanned
+			m.opRuns[i].CreatedCount = in.CreatedCount
+			m.opRuns[i].UpdatedCount = in.UpdatedCount
+			m.opRuns[i].UnchangedCount = in.UnchangedCount
+			m.opRuns[i].FailedCount = in.FailedCount
+			m.opRuns[i].ErrorCode = in.ErrorCode
+			m.opRuns[i].HasError = in.HasError
+			m.opRuns[i].SyncRunID = in.SyncRunID
+			return nil
+		}
+	}
+	return fmt.Errorf("op run %d not found", in.ID)
+}
+
+func (m *memStore) RejectOperationalRun(in store.RejectOperationalRunInput) (uint64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.nextOpID++
+	id := m.nextOpID
+	now := time.Now()
+	m.opRuns = append(m.opRuns, store.OperationalRunRow{
+		ID: id, JobType: in.JobType, TriggerType: in.TriggerType,
+		Status: store.OpStatusRejected, RequestedAt: now, StartedAt: &now, FinishedAt: &now,
+		ErrorCode: in.ErrorCode, HasError: true,
+	})
+	return id, nil
 }
 
 func (m *memStore) UpsertCategoryResult(in store.CategoryUpsert) (uint64, bool, bool, error) {
@@ -303,7 +352,7 @@ func TestIncremental_episodePlaybackChangePreservesMigration(t *testing.T) {
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	src := &memSource{
-		cats: []olehdtv.SourceCategory{{SourceID: "1", Name: "电影", Slug: "movie"}},
+		cats:   []olehdtv.SourceCategory{{SourceID: "1", Name: "电影", Slug: "movie"}},
 		videos: []olehdtv.SourceVideo{sampleVideo("53v", "T", "https://new.example/a.m3u8")},
 	}
 	svc := NewIncrementalSync(st, src)
@@ -343,8 +392,8 @@ func TestIncremental_dryRunNoWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sum.NewVideos != 1 || len(st.videos) != 0 || st.syncRuns != 0 {
-		t.Fatalf("dry-run wrote state: videos=%d runs=%d sum=%+v", len(st.videos), st.syncRuns, sum)
+	if sum.NewVideos != 1 || len(st.videos) != 0 || st.syncRuns != 0 || len(st.opRuns) != 0 {
+		t.Fatalf("dry-run wrote state: videos=%d runs=%d ops=%d sum=%+v", len(st.videos), st.syncRuns, len(st.opRuns), sum)
 	}
 }
 
@@ -370,10 +419,107 @@ func TestIncremental_lockBusy(t *testing.T) {
 	st := newMemStore()
 	st.locked = true
 	svc := NewIncrementalSync(st, &memSource{videos: []olehdtv.SourceVideo{sampleVideo("1", "a", "u")}})
-	_, err := svc.Run(context.Background(), 1, true)
-	if err == nil {
-		t.Fatal("expected lock error")
+	sum, err := svc.Run(context.Background(), 1, true)
+	if err == nil || !errors.Is(err, store.ErrOperationLocked) || sum.LockAcquired {
+		t.Fatalf("expected ErrOperationLocked, sum=%+v err=%v", sum, err)
 	}
+	if len(st.opRuns) != 0 {
+		t.Fatal("dry-run must not write reject rows")
+	}
+}
+
+func TestIncremental_lockBusyRecordsReject(t *testing.T) {
+	st := newMemStore()
+	st.locked = true
+	svc := NewIncrementalSync(st, &memSource{videos: []olehdtv.SourceVideo{sampleVideo("1", "a", "u")}})
+	svc.TriggerType = store.TriggerTimer
+	sum, err := svc.Run(context.Background(), 1, false)
+	if err == nil || !errors.Is(err, store.ErrOperationLocked) || sum.LockAcquired {
+		t.Fatalf("sum=%+v err=%v", sum, err)
+	}
+	if len(st.videos) != 0 {
+		t.Fatal("lock busy must not crawl/write catalog")
+	}
+	if len(st.opRuns) != 1 || st.opRuns[0].Status != store.OpStatusRejected ||
+		st.opRuns[0].ErrorCode != store.ErrCodeLockBusy || st.opRuns[0].TriggerType != store.TriggerTimer ||
+		st.opRuns[0].JobType != store.JobIncrementalSync {
+		t.Fatalf("opRuns=%+v", st.opRuns)
+	}
+	assertOpRunSafe(t, st.opRuns[0])
+}
+
+func testIncSource() *memSource {
+	return &memSource{
+		cats:   []olehdtv.SourceCategory{{SourceID: "1", Name: "电影", Slug: "movie"}},
+		videos: []olehdtv.SourceVideo{sampleVideo("100", "A", "https://example.com/a.m3u8")},
+	}
+}
+
+func TestIncremental_operationalSuccessAndPartial(t *testing.T) {
+	st := newMemStore()
+	svc := NewIncrementalSync(st, testIncSource())
+	svc.TriggerType = store.TriggerCLI
+	sum, err := svc.Run(context.Background(), 10, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sum.LockAcquired || len(st.opRuns) != 1 {
+		t.Fatalf("sum=%+v ops=%+v", sum, st.opRuns)
+	}
+	op := st.opRuns[0]
+	if op.Status != store.OpStatusSucceeded || op.HasError || op.ErrorCode != "" {
+		t.Fatalf("%+v", op)
+	}
+	if op.Scanned == nil || *op.Scanned != sum.Discovered ||
+		op.CreatedCount == nil || *op.CreatedCount != sum.NewVideos {
+		t.Fatalf("counters %+v vs sum %+v", op, sum)
+	}
+	assertOpRunSafe(t, op)
+
+	st2 := &failInsertStore{memStore: *newMemStore()}
+	svc2 := NewIncrementalSync(st2, testIncSource())
+	_, err = svc2.Run(context.Background(), 5, false)
+	if err == nil {
+		t.Fatal("expected partial failure")
+	}
+	if len(st2.opRuns) != 1 || st2.opRuns[0].Status != store.OpStatusFailed ||
+		st2.opRuns[0].ErrorCode != store.ErrCodePartialFailure || !st2.opRuns[0].HasError {
+		t.Fatalf("%+v", st2.opRuns)
+	}
+	assertOpRunSafe(t, st2.opRuns[0])
+}
+
+func TestIncremental_invalidTrigger(t *testing.T) {
+	st := newMemStore()
+	svc := NewIncrementalSync(st, testIncSource())
+	svc.TriggerType = "admin"
+	_, err := svc.Run(context.Background(), 1, false)
+	if err == nil {
+		t.Fatal("expected invalid trigger")
+	}
+	if st.locked || len(st.opRuns) != 0 {
+		t.Fatal("must not lock or write on bad trigger")
+	}
+}
+
+func assertOpRunSafe(t *testing.T, op store.OperationalRunRow) {
+	t.Helper()
+	blob := fmt.Sprintf("%#v", op)
+	for _, bad := range []string{
+		"http://", "https://", "ADMIN_API_TOKEN", "mysql://", "password=", "SENSITIVE",
+	} {
+		if strings.Contains(blob, bad) {
+			t.Fatalf("unsafe content %q in %#v", bad, op)
+		}
+	}
+}
+
+type failInsertStore struct {
+	memStore
+}
+
+func (m *failInsertStore) InsertVideoCatalog(in store.VideoUpsert) (uint64, error) {
+	return 0, fmt.Errorf("insert failed")
 }
 
 func TestIncremental_neverCallsDeactivate(t *testing.T) {

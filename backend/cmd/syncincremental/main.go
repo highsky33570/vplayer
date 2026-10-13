@@ -20,10 +20,15 @@ import (
 func main() {
 	dryRun := flag.Bool("dry-run", false, "discover and compare only; zero DB/R2 mutations (advisory lock still used)")
 	limit := flag.Int("limit", 10, "max recent source videos to process (required small bound; never full catalog)")
+	trigger := flag.String("trigger", store.TriggerCLI, "operational trigger: cli|timer")
 	flag.Parse()
 
 	if *limit <= 0 {
 		log.Fatal("--limit must be > 0")
+	}
+	trig, err := store.ValidateTriggerType(*trigger)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	cfg := config.Load()
@@ -59,10 +64,11 @@ func main() {
 	defer db.DB.Close()
 
 	svc := catalogsync.NewIncrementalSync(db, src)
+	svc.TriggerType = trig
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
-	fmt.Fprintf(os.Stderr, "incremental sync adapter=%s dry_run=%v limit=%d\n", src.Name(), *dryRun, *limit)
+	fmt.Fprintf(os.Stderr, "incremental sync adapter=%s dry_run=%v limit=%d trigger=%s\n", src.Name(), *dryRun, *limit, trig)
 	sum, err := svc.Run(ctx, *limit, *dryRun)
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")

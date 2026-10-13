@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tycdn/vplayer/internal/olehdtv"
 	"github.com/tycdn/vplayer/internal/store"
@@ -19,6 +20,8 @@ type enrichMemStore struct {
 	episodes map[uint64]*store.PendingEnrichmentEpisode
 	writes   int
 	okCounts map[uint64]int // videoID -> ok count override
+	opRuns   []store.OperationalRunRow
+	nextOpID uint64
 }
 
 func newEnrichMemStore() *enrichMemStore {
@@ -28,24 +31,69 @@ func newEnrichMemStore() *enrichMemStore {
 	}
 }
 
-func (m *enrichMemStore) TryAdvisoryLock(name string, timeoutSec int) (bool, error) {
+func (m *enrichMemStore) AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error) {
+	_ = ctx
 	_ = name
-	_ = timeoutSec
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.locked {
-		return false, nil
+		return nil, store.ErrOperationLocked
 	}
 	m.locked = true
-	return true, nil
+	return store.NewTestAdvisoryHold(func() error {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		m.locked = false
+		return nil
+	}), nil
 }
 
-func (m *enrichMemStore) ReleaseAdvisoryLock(name string) error {
-	_ = name
+func (m *enrichMemStore) StartOperationalRun(in store.StartOperationalRunInput) (uint64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.locked = false
-	return nil
+	m.nextOpID++
+	id := m.nextOpID
+	now := time.Now()
+	m.opRuns = append(m.opRuns, store.OperationalRunRow{
+		ID: id, JobType: in.JobType, TriggerType: in.TriggerType,
+		Status: store.OpStatusRunning, RequestedAt: now, StartedAt: &now,
+	})
+	return id, nil
+}
+
+func (m *enrichMemStore) FinishOperationalRun(in store.FinishOperationalRunInput) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.opRuns {
+		if m.opRuns[i].ID == in.ID {
+			now := time.Now()
+			m.opRuns[i].Status = in.Status
+			m.opRuns[i].FinishedAt = &now
+			m.opRuns[i].SelectedCount = in.SelectedCount
+			m.opRuns[i].SucceededCount = in.SucceededCount
+			m.opRuns[i].SkippedCount = in.SkippedCount
+			m.opRuns[i].UnavailableCount = in.UnavailableCount
+			m.opRuns[i].FailedCount = in.FailedCount
+			m.opRuns[i].ErrorCode = in.ErrorCode
+			m.opRuns[i].HasError = in.HasError
+			return nil
+		}
+	}
+	return fmt.Errorf("op run %d not found", in.ID)
+}
+
+func (m *enrichMemStore) RejectOperationalRun(in store.RejectOperationalRunInput) (uint64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.nextOpID++
+	id := m.nextOpID
+	now := time.Now()
+	m.opRuns = append(m.opRuns, store.OperationalRunRow{
+		ID: id, JobType: in.JobType, TriggerType: in.TriggerType,
+		Status: store.OpStatusRejected, RequestedAt: now, StartedAt: &now, FinishedAt: &now,
+		ErrorCode: in.ErrorCode, HasError: true,
+	})
+	return id, nil
 }
 
 func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]store.PendingEnrichmentEpisode, error) {
@@ -451,7 +499,7 @@ func TestEnrichPending_neverOverwritesGoodOrMigration(t *testing.T) {
 	st.episodes[1] = &store.PendingEnrichmentEpisode{
 		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
 		SID: 1, NID: 1, PlaybackStatus: "ok", PlaybackURL: "https://keep/a.m3u8",
-		PlayPageURL: "https://src/p1",
+		PlayPageURL:  "https://src/p1",
 		HlsObjectKey: "videos/1/1/index.m3u8", StorageProvider: "r2", MigrationStatus: "done",
 	}
 	// also a pending that becomes skipped if we race-set URL before apply — simulate Apply no-op
@@ -508,10 +556,199 @@ func TestEnrichPending_lockBusyZeroWork(t *testing.T) {
 		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
 	}
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://x/1.m3u8")}}
-	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
-	if err == nil || sum.LockAcquired || sum.Attempted != 0 || f.hits != 0 {
+	w := NewEnrichPendingWorker(st, f)
+	w.TriggerType = store.TriggerTimer
+	sum, err := w.Run(context.Background(), 5, false, 1)
+	if err == nil || !errors.Is(err, store.ErrOperationLocked) || sum.LockAcquired || sum.Attempted != 0 || f.hits != 0 {
 		t.Fatalf("sum=%+v err=%v hits=%d", sum, err, f.hits)
 	}
+	if len(st.opRuns) != 1 || st.opRuns[0].Status != store.OpStatusRejected ||
+		st.opRuns[0].ErrorCode != store.ErrCodeLockBusy || st.opRuns[0].JobType != store.JobEnrichment {
+		t.Fatalf("opRuns=%+v", st.opRuns)
+	}
+}
+
+func TestEnrichPending_operationalSuccess(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
+		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+	}
+	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
+	w := NewEnrichPendingWorker(st, f)
+	w.TriggerType = store.TriggerCLI
+	sum, err := w.Run(context.Background(), 5, false, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Enriched != 1 || len(st.opRuns) != 1 {
+		t.Fatalf("sum=%+v ops=%+v", sum, st.opRuns)
+	}
+	op := st.opRuns[0]
+	if op.Status != store.OpStatusSucceeded || op.HasError ||
+		op.SelectedCount == nil || *op.SelectedCount != 1 ||
+		op.SucceededCount == nil || *op.SucceededCount != 1 {
+		t.Fatalf("%+v", op)
+	}
+	blob := fmt.Sprintf("%#v", op)
+	for _, bad := range []string{"https://", "http://", "ADMIN_API_TOKEN", "play_page"} {
+		if strings.Contains(blob, bad) {
+			t.Fatalf("unsafe %q in %#v", bad, op)
+		}
+	}
+}
+
+func TestEnrichPending_invalidTrigger(t *testing.T) {
+	st := newEnrichMemStore()
+	w := NewEnrichPendingWorker(st, &mapFetcher{})
+	w.TriggerType = "weird"
+	_, err := w.Run(context.Background(), 5, false, 1)
+	if err == nil {
+		t.Fatal("expected invalid trigger")
+	}
+	if st.locked || len(st.opRuns) != 0 {
+		t.Fatal("must not lock/write")
+	}
+}
+
+// cancelAfterFetch cancels the parent context after a successful body return so
+// ctx.Err() is non-nil when Run finishes aggregating — must not invent a timeout return.
+type cancelAfterFetch struct {
+	inner  *mapFetcher
+	cancel context.CancelFunc
+}
+
+func (f *cancelAfterFetch) Fetch(ctx context.Context, pageURL string) (string, error) {
+	body, err := f.inner.Fetch(ctx, pageURL)
+	if err == nil && f.cancel != nil {
+		f.cancel()
+	}
+	return body, err
+}
+
+func TestEnrichPending_returnSemanticsAndAudit(t *testing.T) {
+	t.Run("case1_all_success", func(t *testing.T) {
+		st := newEnrichMemStore()
+		st.episodes[1] = &store.PendingEnrichmentEpisode{
+			ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
+			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+		}
+		f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
+		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+		if err != nil {
+			t.Fatalf("pre-4A returns nil on success: %v", err)
+		}
+		if sum.Failures != 0 || sum.Enriched != 1 {
+			t.Fatalf("%+v", sum)
+		}
+		if len(st.opRuns) != 1 || st.opRuns[0].Status != store.OpStatusSucceeded || st.opRuns[0].HasError {
+			t.Fatalf("%+v", st.opRuns)
+		}
+	})
+
+	t.Run("case2_mixed_success_failure_nil_return", func(t *testing.T) {
+		st := newEnrichMemStore()
+		st.episodes[1] = &store.PendingEnrichmentEpisode{
+			ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
+			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+		}
+		st.episodes[2] = &store.PendingEnrichmentEpisode{
+			ID: 2, VideoID: 2, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "b",
+			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p2",
+		}
+		f := &mapFetcher{
+			pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")},
+			err:   map[string]error{"https://src/p2": fmt.Errorf("fetch boom")},
+		}
+		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+		if err != nil {
+			t.Fatalf("pre-4A returns nil when Enriched>0 even with Failures: %v sum=%+v", err, sum)
+		}
+		if sum.Enriched < 1 || sum.Failures < 1 {
+			t.Fatalf("expected mixed: %+v", sum)
+		}
+		if len(st.opRuns) != 1 || st.opRuns[0].Status != store.OpStatusFailed ||
+			st.opRuns[0].ErrorCode != store.ErrCodePartialFailure || !st.opRuns[0].HasError {
+			t.Fatalf("audit must be partial_failure: %+v", st.opRuns)
+		}
+	})
+
+	t.Run("case3_all_failed_nonzero_error", func(t *testing.T) {
+		st := newEnrichMemStore()
+		st.episodes[1] = &store.PendingEnrichmentEpisode{
+			ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
+			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+		}
+		f := &mapFetcher{pages: map[string]string{"https://src/p1": `<html>no player</html>`}}
+		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+		if err == nil {
+			t.Fatalf("pre-4A returns error when Failures>0 Enriched==0 Error==\"\": %+v", sum)
+		}
+		if sum.Enriched != 0 || sum.Failures < 1 {
+			t.Fatalf("%+v", sum)
+		}
+		if len(st.opRuns) != 1 || st.opRuns[0].Status != store.OpStatusFailed ||
+			st.opRuns[0].ErrorCode != store.ErrCodePartialFailure || !st.opRuns[0].HasError {
+			t.Fatalf("%+v", st.opRuns)
+		}
+	})
+
+	t.Run("case4_post_work_ctx_done_no_invented_timeout", func(t *testing.T) {
+		st := newEnrichMemStore()
+		st.episodes[1] = &store.PendingEnrichmentEpisode{
+			ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
+			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		f := &cancelAfterFetch{
+			inner:  &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}},
+			cancel: cancel,
+		}
+		sum, err := NewEnrichPendingWorker(st, f).Run(ctx, 5, false, 1)
+		if err != nil {
+			t.Fatalf("must not invent timeout/error after successful enrichment: %v sum=%+v", err, sum)
+		}
+		if sum.Enriched != 1 || sum.Failures != 0 {
+			t.Fatalf("%+v", sum)
+		}
+		if ctx.Err() == nil {
+			t.Fatal("expected ctx canceled after fetch for this case")
+		}
+		if len(st.opRuns) != 1 || st.opRuns[0].Status != store.OpStatusSucceeded ||
+			st.opRuns[0].ErrorCode == store.ErrCodeTimeout {
+			t.Fatalf("must not classify post-work cancel as timeout: %+v", st.opRuns)
+		}
+	})
+
+	t.Run("case5_deadline_during_dispatch_audit_only", func(t *testing.T) {
+		st := newEnrichMemStore()
+		st.episodes[1] = &store.PendingEnrichmentEpisode{
+			ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
+			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+		}
+		st.episodes[2] = &store.PendingEnrichmentEpisode{
+			ID: 2, VideoID: 2, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "b",
+			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p2",
+		}
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		defer cancel()
+		f := &mapFetcher{pages: map[string]string{
+			"https://src/p1": playHTML("https://cdn.example/1.m3u8"),
+			"https://src/p2": playHTML("https://cdn.example/2.m3u8"),
+		}}
+		sum, err := NewEnrichPendingWorker(st, f).Run(ctx, 5, false, 1)
+		// Pre-4A: ctx.Done sets Error+Failures; with Enriched==0 and Error!="", return is nil.
+		if err != nil {
+			t.Fatalf("pre-4A returns nil when Error already set from ctx.Done: %v sum=%+v", err, sum)
+		}
+		if sum.Enriched != 0 || sum.Failures < 1 || sum.Error == "" {
+			t.Fatalf("%+v", sum)
+		}
+		if len(st.opRuns) != 1 || st.opRuns[0].Status != store.OpStatusFailed ||
+			st.opRuns[0].ErrorCode != store.ErrCodeTimeout {
+			t.Fatalf("audit timeout only: %+v", st.opRuns)
+		}
+	})
 }
 
 func TestEnrichPending_selectsOnlyEligible(t *testing.T) {

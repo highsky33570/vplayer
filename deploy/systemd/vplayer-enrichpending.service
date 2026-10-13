@@ -19,7 +19,7 @@ Environment=APP_ENV=production
 Environment=OLEHDTV_SYNC_ENABLED=false
 
 # Bounded backlog drain only (play pages already stored). Default concurrency=1.
-ExecStart=/opt/vplayer/backend/bin/enrichpending --limit 15 --concurrency 1
+ExecStart=/opt/vplayer/backend/bin/enrichpending --limit 15 --concurrency 1 --trigger=timer
 
 TimeoutStartSec=25m
 Nice=10

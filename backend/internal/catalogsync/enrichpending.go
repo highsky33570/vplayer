@@ -2,6 +2,7 @@ package catalogsync
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -13,20 +14,22 @@ import (
 )
 
 const (
-	EnrichPendingMinLimit   = 1
-	EnrichPendingMaxLimit   = 20
-	EnrichPendingDefaultLim = 15
+	EnrichPendingMinLimit    = 1
+	EnrichPendingMaxLimit    = 20
+	EnrichPendingDefaultLim  = 15
 	EnrichPendingMaxPerVideo = 3
-	EnrichPendingMinDelayMs = 1000
-	EnrichPendingMaxConc    = 2
+	EnrichPendingMinDelayMs  = 1000
+	EnrichPendingMaxConc     = 2
 )
 
 // EnrichPendingStore is the DB surface for deferred enrichment (mockable).
 type EnrichPendingStore interface {
-	TryAdvisoryLock(name string, timeoutSec int) (bool, error)
-	ReleaseAdvisoryLock(name string) error
+	AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error)
 	ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]store.PendingEnrichmentEpisode, error)
 	ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status string) (updated bool, err error)
+	StartOperationalRun(in store.StartOperationalRunInput) (uint64, error)
+	FinishOperationalRun(in store.FinishOperationalRunInput) error
+	RejectOperationalRun(in store.RejectOperationalRunInput) (uint64, error)
 }
 
 // PageFetcher fetches a single play page HTML body.
@@ -46,35 +49,37 @@ type EnrichPendingAction struct {
 
 // EnrichPendingSummary is the machine-readable worker report.
 type EnrichPendingSummary struct {
-	DryRun         bool                  `json:"dry_run"`
-	Limit          int                   `json:"limit"`
-	Selected       int                   `json:"selected"`
-	Attempted      int                   `json:"attempted"`
-	Enriched       int                   `json:"enriched"`
-	StillPending   int                   `json:"still_pending"`
-	Unavailable    int                   `json:"unavailable"`
-	Failures       int                   `json:"failures"`
-	SkippedExisting int                  `json:"skipped_existing"`
-	LockAcquired   bool                  `json:"lock_acquired"`
-	RequestsMade   int                   `json:"requests_made"`
-	Actions        []EnrichPendingAction `json:"actions,omitempty"`
-	Error          string                `json:"error,omitempty"`
+	DryRun          bool                  `json:"dry_run"`
+	Limit           int                   `json:"limit"`
+	Selected        int                   `json:"selected"`
+	Attempted       int                   `json:"attempted"`
+	Enriched        int                   `json:"enriched"`
+	StillPending    int                   `json:"still_pending"`
+	Unavailable     int                   `json:"unavailable"`
+	Failures        int                   `json:"failures"`
+	SkippedExisting int                   `json:"skipped_existing"`
+	LockAcquired    bool                  `json:"lock_acquired"`
+	RequestsMade    int                   `json:"requests_made"`
+	Actions         []EnrichPendingAction `json:"actions,omitempty"`
+	Error           string                `json:"error,omitempty"`
 }
 
 // EnrichPendingWorker gradually resolves pending_enrichment play pages.
 type EnrichPendingWorker struct {
-	Store    EnrichPendingStore
-	Fetcher  PageFetcher
-	Log      *slog.Logger
-	LockName string
+	Store       EnrichPendingStore
+	Fetcher     PageFetcher
+	Log         *slog.Logger
+	LockName    string
+	TriggerType string // cli|timer; empty defaults to cli
 }
 
 func NewEnrichPendingWorker(st EnrichPendingStore, fetcher PageFetcher) *EnrichPendingWorker {
 	return &EnrichPendingWorker{
-		Store:    st,
-		Fetcher:  fetcher,
-		Log:      slog.Default().With("component", "olehdtv-enrichpending"),
-		LockName: store.PendingEnrichmentLockName,
+		Store:       st,
+		Fetcher:     fetcher,
+		Log:         slog.Default().With("component", "olehdtv-enrichpending"),
+		LockName:    store.PendingEnrichmentLockName,
+		TriggerType: store.TriggerCLI,
 	}
 }
 
@@ -110,10 +115,11 @@ func ClampEnrichPendingHTTPSettings(delayMs, concurrency, retries int) (delayOut
 }
 
 // SelectFairPendingBatch picks up to limit rows:
-//  1) videos with zero playable episodes first
-//  2) then any remaining eligible rows (other videos / already-ok videos)
-//  3) never more than EnrichPendingMaxPerVideo from one video
-//  4) never more than EnrichPendingMaxLimit globally
+//  1. videos with zero playable episodes first
+//  2. then any remaining eligible rows (other videos / already-ok videos)
+//  3. never more than EnrichPendingMaxPerVideo from one video
+//  4. never more than EnrichPendingMaxLimit globally
+//
 // Candidates should already be diversified by ListPendingEnrichmentEpisodes
 // (≤3 pending rows/video); this pass re-applies the same fairness rules.
 func SelectFairPendingBatch(cands []store.PendingEnrichmentEpisode, limit int) []store.PendingEnrichmentEpisode {
@@ -166,6 +172,7 @@ type enrichPendingResult struct {
 }
 
 // Run executes one bounded enrichment pass.
+// dryRun skips catalog writes and operational_runs (lock still acquired).
 func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, concurrency int) (EnrichPendingSummary, error) {
 	sum := EnrichPendingSummary{
 		DryRun:  dryRun,
@@ -187,28 +194,86 @@ func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, c
 		concurrency = EnrichPendingMaxConc
 	}
 
-	got, err := w.Store.TryAdvisoryLock(w.LockName, 0)
+	trigger := w.TriggerType
+	if trigger == "" {
+		trigger = store.TriggerCLI
+	}
+	trigger, err := store.ValidateTriggerType(trigger)
 	if err != nil {
-		sum.Error = "advisory lock error: " + err.Error()
+		sum.Error = err.Error()
 		return sum, err
 	}
-	if !got {
-		sum.Error = "another enrichpending worker is already running"
-		return sum, fmt.Errorf("%s", sum.Error)
+
+	hold, err := w.Store.AcquireAdvisoryLock(ctx, w.LockName)
+	if err != nil {
+		if errors.Is(err, store.ErrOperationLocked) {
+			sum.Error = "another enrichpending worker is already running"
+			if !dryRun {
+				if _, rerr := w.Store.RejectOperationalRun(store.RejectOperationalRunInput{
+					JobType:     store.JobEnrichment,
+					TriggerType: trigger,
+					ErrorCode:   store.ErrCodeLockBusy,
+				}); rerr != nil {
+					w.Log.Warn("reject operational run failed", "err", rerr)
+				}
+			}
+			return sum, fmt.Errorf("%w: %s", store.ErrOperationLocked, sum.Error)
+		}
+		sum.Error = "advisory lock error"
+		w.Log.Error("advisory lock acquire failed", "err", err)
+		return sum, err
 	}
 	sum.LockAcquired = true
-	defer func() { _ = w.Store.ReleaseAdvisoryLock(w.LockName) }()
+	defer func() { _ = hold.Release() }()
+
+	var opID uint64
+	if !dryRun {
+		opID, err = w.Store.StartOperationalRun(store.StartOperationalRunInput{
+			JobType:     store.JobEnrichment,
+			TriggerType: trigger,
+		})
+		if err != nil {
+			w.Log.Warn("start operational run failed", "err", err)
+			opID = 0
+		}
+	}
+
+	finishOp := func(status, errCode string, hasErr bool) {
+		if dryRun || opID == 0 {
+			return
+		}
+		in := store.FinishOperationalRunInput{
+			ID:               opID,
+			Status:           status,
+			SelectedCount:    store.IntPtr(sum.Selected),
+			SucceededCount:   store.IntPtr(sum.Enriched),
+			SkippedCount:     store.IntPtr(sum.SkippedExisting),
+			UnavailableCount: store.IntPtr(sum.Unavailable),
+			FailedCount:      store.IntPtr(sum.Failures),
+			ErrorCode:        errCode,
+			HasError:         hasErr,
+		}
+		if ferr := w.Store.FinishOperationalRun(in); ferr != nil {
+			w.Log.Warn("finish operational run failed", "err", ferr)
+		}
+	}
 
 	// Store diversifies (≤3/video) then LIMITs; pass the worker --limit directly.
 	cands, err := w.Store.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, limit)
 	if err != nil {
 		sum.Failures++
 		sum.Error = "list pending: " + err.Error()
+		code := store.ErrCodeDatabaseError
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			code = store.ErrCodeTimeout
+		}
+		finishOp(store.OpStatusFailed, code, true)
 		return sum, err
 	}
 	batch := SelectFairPendingBatch(cands, limit)
 	sum.Selected = len(batch)
 	if len(batch) == 0 {
+		finishOp(store.OpStatusSucceeded, "", false)
 		return sum, nil
 	}
 
@@ -225,11 +290,16 @@ func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, c
 			}
 		}()
 	}
+	// dispatchCanceled is audit-only; pre-4A still returned nil when Error was set
+	// during ctx.Done dispatch (even with Enriched==0), so we must not invent a
+	// new timeout return from ctx.Err() after work completes.
+	dispatchCanceled := false
 	for _, ep := range batch {
 		select {
 		case <-ctx.Done():
 			sum.Error = ctx.Err().Error()
 			sum.Failures++
+			dispatchCanceled = true
 		case jobs <- ep:
 		}
 	}
@@ -261,9 +331,29 @@ func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, c
 			sum.Actions = append(sum.Actions, r.action)
 		}
 	}
+
+	// Exact pre-4A return semantics (d781153):
+	// only Failures>0 && Enriched==0 && Error=="" returns a non-nil error.
 	if sum.Failures > 0 && sum.Enriched == 0 && sum.Error == "" {
 		sum.Error = fmt.Sprintf("%d enrichment failures", sum.Failures)
+		finishOp(store.OpStatusFailed, store.ErrCodePartialFailure, true)
 		return sum, fmt.Errorf("%s", sum.Error)
+	}
+
+	// Operational audit classification must not change the Run return value.
+	switch {
+	case sum.Failures == 0:
+		finishOp(store.OpStatusSucceeded, "", false)
+	case sum.Enriched > 0:
+		finishOp(store.OpStatusFailed, store.ErrCodePartialFailure, true)
+	case dispatchCanceled && errors.Is(ctx.Err(), context.DeadlineExceeded):
+		// Deadline interrupted dispatch before any enrichment; Run still returns nil
+		// (Error already set), but audit can record timeout.
+		finishOp(store.OpStatusFailed, store.ErrCodeTimeout, true)
+	case sum.Failures > 0:
+		finishOp(store.OpStatusFailed, store.ErrCodePartialFailure, true)
+	default:
+		finishOp(store.OpStatusSucceeded, "", false)
 	}
 	return sum, nil
 }
