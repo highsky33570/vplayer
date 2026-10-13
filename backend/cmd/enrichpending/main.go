@@ -19,7 +19,8 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "fetch/parse pending play pages but perform zero DB writes")
 	limit := flag.Int("limit", catalogsync.EnrichPendingDefaultLim, "max pending episodes to process (1–20)")
 	concurrency := flag.Int("concurrency", 1, "HTTP concurrency (1–2; default 1)")
-	trigger := flag.String("trigger", store.TriggerCLI, "operational trigger: cli|timer")
+	trigger := flag.String("trigger", store.TriggerCLI, "operational trigger: cli|timer|admin")
+	requestedBy := flag.Uint64("requested-by-user-id", 0, "admin user id when --trigger=admin; must be 0 for cli|timer")
 	flag.Parse()
 
 	if err := catalogsync.ValidateEnrichPendingLimit(*limit); err != nil {
@@ -27,6 +28,9 @@ func main() {
 	}
 	trig, err := store.ValidateTriggerType(*trigger)
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := store.ValidateTriggerRequester(trig, *requestedBy); err != nil {
 		log.Fatal(err)
 	}
 
@@ -48,6 +52,7 @@ func main() {
 
 	svc := catalogsync.NewEnrichPendingWorker(db, fetcher)
 	svc.TriggerType = trig
+	svc.RequestedByUserID = *requestedBy
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 

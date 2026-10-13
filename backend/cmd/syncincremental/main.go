@@ -20,7 +20,8 @@ import (
 func main() {
 	dryRun := flag.Bool("dry-run", false, "discover and compare only; zero DB/R2 mutations (advisory lock still used)")
 	limit := flag.Int("limit", 10, "max recent source videos to process (required small bound; never full catalog)")
-	trigger := flag.String("trigger", store.TriggerCLI, "operational trigger: cli|timer")
+	trigger := flag.String("trigger", store.TriggerCLI, "operational trigger: cli|timer|admin")
+	requestedBy := flag.Uint64("requested-by-user-id", 0, "admin user id when --trigger=admin; must be 0 for cli|timer")
 	flag.Parse()
 
 	if *limit <= 0 {
@@ -28,6 +29,9 @@ func main() {
 	}
 	trig, err := store.ValidateTriggerType(*trigger)
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := store.ValidateTriggerRequester(trig, *requestedBy); err != nil {
 		log.Fatal(err)
 	}
 
@@ -65,6 +69,7 @@ func main() {
 
 	svc := catalogsync.NewIncrementalSync(db, src)
 	svc.TriggerType = trig
+	svc.RequestedByUserID = *requestedBy
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 

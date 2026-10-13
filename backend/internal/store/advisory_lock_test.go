@@ -22,8 +22,8 @@ func TestValidateTriggerAndJob(t *testing.T) {
 	if _, err := ValidateTriggerType("timer"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ValidateTriggerType("admin"); err == nil {
-		t.Fatal("admin not allowed in 4A")
+	if _, err := ValidateTriggerType("admin"); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := ValidateTriggerType("evil"); err == nil {
 		t.Fatal("expected reject")
@@ -35,7 +35,34 @@ func TestValidateTriggerAndJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := ValidateJobType("full_sync"); err == nil {
-		t.Fatal("full_sync not recorded in 4A")
+		t.Fatal("full_sync not recorded")
+	}
+}
+
+func TestValidateTriggerRequester(t *testing.T) {
+	if err := ValidateTriggerRequester(TriggerCLI, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateTriggerRequester(TriggerTimer, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateTriggerRequester(TriggerCLI, 9); err == nil {
+		t.Fatal("cli must reject requester")
+	}
+	if err := ValidateTriggerRequester(TriggerTimer, 9); err == nil {
+		t.Fatal("timer must reject requester")
+	}
+	if err := ValidateTriggerRequester(TriggerAdmin, 0); err == nil {
+		t.Fatal("admin requires requester > 0")
+	}
+	if err := ValidateTriggerRequester(TriggerAdmin, 42); err != nil {
+		t.Fatal(err)
+	}
+	if RequestedByPtr(0) != nil {
+		t.Fatal("zero requester ptr must be nil")
+	}
+	if p := RequestedByPtr(7); p == nil || *p != 7 {
+		t.Fatalf("unexpected ptr: %v", p)
 	}
 }
 

@@ -70,7 +70,8 @@ type EnrichPendingWorker struct {
 	Fetcher     PageFetcher
 	Log         *slog.Logger
 	LockName    string
-	TriggerType string // cli|timer; empty defaults to cli
+	TriggerType       string // cli|timer|admin; empty defaults to cli
+	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
 }
 
 func NewEnrichPendingWorker(st EnrichPendingStore, fetcher PageFetcher) *EnrichPendingWorker {
@@ -203,6 +204,11 @@ func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, c
 		sum.Error = err.Error()
 		return sum, err
 	}
+	if err := store.ValidateTriggerRequester(trigger, w.RequestedByUserID); err != nil {
+		sum.Error = err.Error()
+		return sum, err
+	}
+	reqBy := store.RequestedByPtr(w.RequestedByUserID)
 
 	hold, err := w.Store.AcquireAdvisoryLock(ctx, w.LockName)
 	if err != nil {
@@ -210,9 +216,10 @@ func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, c
 			sum.Error = "another enrichpending worker is already running"
 			if !dryRun {
 				if _, rerr := w.Store.RejectOperationalRun(store.RejectOperationalRunInput{
-					JobType:     store.JobEnrichment,
-					TriggerType: trigger,
-					ErrorCode:   store.ErrCodeLockBusy,
+					JobType:           store.JobEnrichment,
+					TriggerType:       trigger,
+					RequestedByUserID: reqBy,
+					ErrorCode:         store.ErrCodeLockBusy,
 				}); rerr != nil {
 					w.Log.Warn("reject operational run failed", "err", rerr)
 				}
@@ -229,8 +236,9 @@ func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, c
 	var opID uint64
 	if !dryRun {
 		opID, err = w.Store.StartOperationalRun(store.StartOperationalRunInput{
-			JobType:     store.JobEnrichment,
-			TriggerType: trigger,
+			JobType:           store.JobEnrichment,
+			TriggerType:       trigger,
+			RequestedByUserID: reqBy,
 		})
 		if err != nil {
 			w.Log.Warn("start operational run failed", "err", err)

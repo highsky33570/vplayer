@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError,
   fetchAdminOperationalRuns,
   fetchAdminSyncOverview,
   fetchAdminSyncRuns,
+  postAdminRunEnrichment,
+  postAdminRunIncremental,
   type AdminOperationalRun,
   type AdminSyncOverview,
   type AdminSyncRunSummary,
@@ -18,6 +20,23 @@ import {
   type AdminOpsStatusFilter,
   type AdminOpsTriggerFilter,
 } from './adminSyncQuery';
+
+/** Delayed Operational Runs refresh after Admin action acceptance (seconds). */
+export const ADMIN_OPS_REFRESH_DELAYS_MS = [2500, 9000] as const;
+
+function actionStatusMessage(status: number, errorCode?: string): string {
+  if (status === 202) return 'Run request accepted.';
+  if (status === 409 || errorCode === 'operation_busy') {
+    return 'A worker is already recorded as running.';
+  }
+  if (status === 429 || errorCode === 'operation_cooldown') {
+    return 'A recent Admin request already exists; wait briefly before trying again.';
+  }
+  if (status === 503 || errorCode === 'worker_unavailable') {
+    return 'Worker could not be launched.';
+  }
+  return 'Request failed.';
+}
 
 function formatTime(value?: string | null) {
   if (!value) return '—';
@@ -161,6 +180,42 @@ export function AdminSync() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [incSubmitting, setIncSubmitting] = useState(false);
+  const [enSubmitting, setEnSubmitting] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionTone, setActionTone] = useState<'info' | 'danger'>('info');
+  const refreshTimers = useRef<number[]>([]);
+
+  function clearOpsRefreshTimers() {
+    for (const id of refreshTimers.current) window.clearTimeout(id);
+    refreshTimers.current = [];
+  }
+
+  async function refreshOperationalRunsOnly() {
+    try {
+      const ops = await fetchAdminOperationalRuns(token, {
+        limit: parsed.opPageSize,
+        offset: (parsed.opPage - 1) * parsed.opPageSize,
+        jobType: parsed.opJob || undefined,
+        triggerType: parsed.opTrigger || undefined,
+        status: parsed.opStatus || undefined,
+      });
+      setOpRows(ops.data);
+      setOpTotal(ops.total);
+    } catch {
+      // best-effort refresh after action; main page error state unchanged
+    }
+  }
+
+  function scheduleOperationalRefresh() {
+    clearOpsRefreshTimers();
+    for (const delay of ADMIN_OPS_REFRESH_DELAYS_MS) {
+      const id = window.setTimeout(() => {
+        void refreshOperationalRunsOnly();
+      }, delay);
+      refreshTimers.current.push(id);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -215,8 +270,61 @@ export function AdminSync() {
     void load();
     return () => {
       cancelled = true;
+      clearOpsRefreshTimers();
     };
   }, [token, logout, navigate, parsed]);
+
+  async function runIncremental() {
+    const ok = window.confirm(
+      'Run Incremental Sync with fixed server settings (limit 5)? This launches a bounded worker; it does not wait for completion.',
+    );
+    if (!ok) return;
+    setIncSubmitting(true);
+    setActionMessage(null);
+    try {
+      const res = await postAdminRunIncremental(token);
+      if (res.status === 401) {
+        logout();
+        navigate(loginWithNext('/admin/sync'), { replace: true });
+        return;
+      }
+      const msg = actionStatusMessage(res.status, res.body.error);
+      setActionTone(res.status === 202 ? 'info' : 'danger');
+      setActionMessage(msg);
+      if (res.status === 202) scheduleOperationalRefresh();
+    } catch (e) {
+      setActionTone('danger');
+      setActionMessage(e instanceof Error ? e.message : 'Request failed.');
+    } finally {
+      setIncSubmitting(false);
+    }
+  }
+
+  async function runEnrichment() {
+    const ok = window.confirm(
+      'Run Pending Enrichment with fixed server settings (limit 15, concurrency 1)? This launches a bounded worker; it does not wait for completion.',
+    );
+    if (!ok) return;
+    setEnSubmitting(true);
+    setActionMessage(null);
+    try {
+      const res = await postAdminRunEnrichment(token);
+      if (res.status === 401) {
+        logout();
+        navigate(loginWithNext('/admin/sync'), { replace: true });
+        return;
+      }
+      const msg = actionStatusMessage(res.status, res.body.error);
+      setActionTone(res.status === 202 ? 'info' : 'danger');
+      setActionMessage(msg);
+      if (res.status === 202) scheduleOperationalRefresh();
+    } catch (e) {
+      setActionTone('danger');
+      setActionMessage(e instanceof Error ? e.message : 'Request failed.');
+    } finally {
+      setEnSubmitting(false);
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / parsed.pageSize));
   const opTotalPages = Math.max(1, Math.ceil(opTotal / parsed.opPageSize));
@@ -254,7 +362,7 @@ export function AdminSync() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>Sync / Crawler</h1>
-        <p className="admin-muted">只读同步观测 · 基于已记录的数据库状态</p>
+        <p className="admin-muted">同步观测与有界 Admin 触发 · 基于已记录的数据库状态</p>
       </div>
 
       <div className="admin-alert is-info" role="note">
@@ -262,8 +370,39 @@ export function AdminSync() {
         <span className="admin-mono">sync_runs</span>. Operational Runs come from worker audit rows in{' '}
         <span className="admin-mono">operational_runs</span>. A running row means the worker recorded a
         running operation — not that systemd was polled. Enrichment appears only under Operational
-        Runs.
+        Runs. Admin actions launch fixed bounded worker binaries; API restart can still interrupt an
+        Admin-launched child process.
       </div>
+
+      {!loading && !forbidden ? (
+        <div className="admin-filters" style={{ marginTop: 16, gap: 12, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="admin-btn-primary"
+            disabled={incSubmitting || enSubmitting}
+            onClick={() => void runIncremental()}
+          >
+            {incSubmitting ? 'Submitting…' : 'Run Incremental Sync'}
+          </button>
+          <button
+            type="button"
+            className="admin-btn-primary"
+            disabled={incSubmitting || enSubmitting}
+            onClick={() => void runEnrichment()}
+          >
+            {enSubmitting ? 'Submitting…' : 'Run Pending Enrichment'}
+          </button>
+        </div>
+      ) : null}
+      {actionMessage ? (
+        <div
+          className={actionTone === 'danger' ? 'admin-alert is-danger' : 'admin-alert is-info'}
+          role="status"
+          style={{ marginTop: 12 }}
+        >
+          {actionMessage}
+        </div>
+      ) : null}
 
       {loading ? <p className="admin-muted">加载中…</p> : null}
       {forbidden ? (

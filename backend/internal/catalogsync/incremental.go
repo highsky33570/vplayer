@@ -73,7 +73,8 @@ type IncrementalSync struct {
 	Source      olehdtv.RecentSource
 	Log         *slog.Logger
 	LockName    string
-	TriggerType string // cli|timer (validated); empty defaults to cli
+	TriggerType       string // cli|timer|admin (validated); empty defaults to cli
+	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
 }
 
 func NewIncrementalSync(st IncrementalStore, src olehdtv.RecentSource) *IncrementalSync {
@@ -114,6 +115,11 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 		sum.Error = err.Error()
 		return sum, err
 	}
+	if err := store.ValidateTriggerRequester(trigger, s.RequestedByUserID); err != nil {
+		sum.Error = err.Error()
+		return sum, err
+	}
+	reqBy := store.RequestedByPtr(s.RequestedByUserID)
 
 	hold, err := s.Store.AcquireAdvisoryLock(ctx, s.LockName)
 	if err != nil {
@@ -121,9 +127,10 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 			sum.Error = "another incremental sync is already running"
 			if !dryRun {
 				if _, rerr := s.Store.RejectOperationalRun(store.RejectOperationalRunInput{
-					JobType:     store.JobIncrementalSync,
-					TriggerType: trigger,
-					ErrorCode:   store.ErrCodeLockBusy,
+					JobType:           store.JobIncrementalSync,
+					TriggerType:       trigger,
+					RequestedByUserID: reqBy,
+					ErrorCode:         store.ErrCodeLockBusy,
 				}); rerr != nil {
 					s.Log.Warn("reject operational run failed", "err", rerr)
 				}
@@ -140,8 +147,9 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 	var opID uint64
 	if !dryRun {
 		opID, err = s.Store.StartOperationalRun(store.StartOperationalRunInput{
-			JobType:     store.JobIncrementalSync,
-			TriggerType: trigger,
+			JobType:           store.JobIncrementalSync,
+			TriggerType:       trigger,
+			RequestedByUserID: reqBy,
 		})
 		if err != nil {
 			s.Log.Warn("start operational run failed", "err", err)

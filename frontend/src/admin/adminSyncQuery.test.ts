@@ -117,8 +117,7 @@ describe('admin sync operational history UI boundaries', () => {
     assert.match(queryHelper, /op_page/);
 
     for (const needle of [
-      'Run Incremental',
-      'Run Enrichment',
+      'Full Sync',
       'Retry',
       'Cancel',
       'Migrate Now',
@@ -136,5 +135,29 @@ describe('admin sync operational history UI boundaries', () => {
     ]) {
       assert.equal(combined.includes(needle), false, `must not contain ${needle}`);
     }
+  });
+
+  it('wires Plan 4B Admin actions with confirmation and delayed refresh', () => {
+    const list = readFileSync(join(here, 'AdminSync.tsx'), 'utf8');
+    const api = readFileSync(join(here, '../api.ts'), 'utf8');
+
+    assert.match(list, /Run Incremental Sync/);
+    assert.match(list, /Run Pending Enrichment/);
+    assert.match(list, /window\.confirm/);
+    assert.match(list, /incSubmitting/);
+    assert.match(list, /enSubmitting/);
+    assert.match(list, /ADMIN_OPS_REFRESH_DELAYS_MS/);
+    assert.match(list, /scheduleOperationalRefresh/);
+    assert.match(list, /A worker is already recorded as running/);
+    assert.match(list, /A recent Admin request already exists/);
+    assert.match(list, /Worker could not be launched/);
+    assert.match(list, /Run request accepted/);
+    assert.equal(list.includes('Full Sync'), false);
+    assert.equal(/limit\s*=|concurrency\s*=|<input[^>]+limit/i.test(list), false);
+
+    assert.match(api, /postAdminRunIncremental/);
+    assert.match(api, /postAdminRunEnrichment/);
+    assert.match(api, /\/api\/v1\/admin\/sync\/actions\/incremental/);
+    assert.match(api, /\/api\/v1\/admin\/sync\/actions\/enrichment/);
   });
 });

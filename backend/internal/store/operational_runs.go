@@ -14,7 +14,7 @@ const (
 
 	TriggerCLI   = "cli"
 	TriggerTimer = "timer"
-	TriggerAdmin = "admin" // reserved for Plan 4B; not accepted by ValidateTriggerType yet
+	TriggerAdmin = "admin"
 
 	OpStatusRunning   = "running"
 	OpStatusSucceeded = "succeeded"
@@ -36,15 +36,43 @@ const (
 	EnrichmentStaleAfter  = 25 * time.Minute
 )
 
-// ValidateTriggerType accepts only cli|timer for Plan 4A.
+// ValidateTriggerType accepts cli|timer|admin.
 func ValidateTriggerType(raw string) (string, error) {
 	t := strings.ToLower(strings.TrimSpace(raw))
 	switch t {
-	case TriggerCLI, TriggerTimer:
+	case TriggerCLI, TriggerTimer, TriggerAdmin:
 		return t, nil
 	default:
-		return "", fmt.Errorf("invalid trigger %q (allowed: cli, timer)", raw)
+		return "", fmt.Errorf("invalid trigger %q (allowed: cli, timer, admin)", raw)
 	}
+}
+
+// ValidateTriggerRequester enforces Plan 4B requester rules before any lock/crawl:
+// cli|timer => requester unset/0; admin => requester > 0.
+func ValidateTriggerRequester(trigger string, requestedByUserID uint64) error {
+	trig, err := ValidateTriggerType(trigger)
+	if err != nil {
+		return err
+	}
+	switch trig {
+	case TriggerAdmin:
+		if requestedByUserID == 0 {
+			return fmt.Errorf("trigger=admin requires --requested-by-user-id > 0")
+		}
+	default: // cli, timer
+		if requestedByUserID != 0 {
+			return fmt.Errorf("trigger=%s must not set requested-by-user-id", trig)
+		}
+	}
+	return nil
+}
+
+// RequestedByPtr returns nil for 0 so cli/timer persist NULL requester.
+func RequestedByPtr(id uint64) *uint64 {
+	if id == 0 {
+		return nil
+	}
+	return &id
 }
 
 // ValidateJobType accepts only incremental_sync|enrichment for Plan 4A writers.
@@ -115,6 +143,13 @@ type RejectOperationalRunInput struct {
 	ErrorCode         string // typically lock_busy
 }
 
+func requesterIDValue(p *uint64) uint64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
 // StartOperationalRun inserts status=running with real timestamps.
 func (m *MySQL) StartOperationalRun(in StartOperationalRunInput) (uint64, error) {
 	job, err := ValidateJobType(in.JobType)
@@ -123,6 +158,9 @@ func (m *MySQL) StartOperationalRun(in StartOperationalRunInput) (uint64, error)
 	}
 	trig, err := ValidateTriggerType(in.TriggerType)
 	if err != nil {
+		return 0, err
+	}
+	if err := ValidateTriggerRequester(trig, requesterIDValue(in.RequestedByUserID)); err != nil {
 		return 0, err
 	}
 	now := time.Now()
@@ -181,6 +219,9 @@ func (m *MySQL) RejectOperationalRun(in RejectOperationalRunInput) (uint64, erro
 	}
 	trig, err := ValidateTriggerType(in.TriggerType)
 	if err != nil {
+		return 0, err
+	}
+	if err := ValidateTriggerRequester(trig, requesterIDValue(in.RequestedByUserID)); err != nil {
 		return 0, err
 	}
 	code, err := validateErrorCode(in.ErrorCode)

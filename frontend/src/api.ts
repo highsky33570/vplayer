@@ -423,6 +423,32 @@ export function fetchAdminOperationalRun(id: number, token: string | null | unde
   return getJSON<AdminOperationalRun>(`/api/v1/admin/sync/operations/${id}`, token);
 }
 
+export type AdminSyncActionResult = {
+  ok: boolean;
+  message?: string;
+  job_type?: string;
+  error?: string;
+};
+
+async function postAdminSyncAction(
+  path: string,
+  token: string | null | undefined,
+): Promise<{ status: number; body: AdminSyncActionResult }> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: '{}' });
+  const json = (await res.json().catch(() => ({}))) as AdminSyncActionResult;
+  return { status: res.status, body: json };
+}
+
+export function postAdminRunIncremental(token: string | null | undefined) {
+  return postAdminSyncAction('/api/v1/admin/sync/actions/incremental', token);
+}
+
+export function postAdminRunEnrichment(token: string | null | undefined) {
+  return postAdminSyncAction('/api/v1/admin/sync/actions/enrichment', token);
+}
+
 export type AdminMediaOverview = {
   episodes_total: number;
   migrated_count: number;

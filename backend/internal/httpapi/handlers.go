@@ -31,6 +31,10 @@ type API struct {
 	AdminSync adminSyncRepo
 	// AdminOps optionally overrides Store for admin operational_runs reads (tests).
 	AdminOps adminOpsRepo
+	// AdminActionGuards optionally overrides Store for Admin action busy/cooldown checks (tests).
+	AdminActionGuards adminActionGuards
+	// WorkerLauncher optionally overrides production os/exec launcher (tests).
+	WorkerLauncher WorkerLauncher
 	// AdminMedia optionally overrides Store for admin media reads (tests).
 	AdminMedia adminMediaRepo
 }

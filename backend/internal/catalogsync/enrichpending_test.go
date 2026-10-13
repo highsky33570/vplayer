@@ -56,7 +56,8 @@ func (m *enrichMemStore) StartOperationalRun(in store.StartOperationalRunInput) 
 	now := time.Now()
 	m.opRuns = append(m.opRuns, store.OperationalRunRow{
 		ID: id, JobType: in.JobType, TriggerType: in.TriggerType,
-		Status: store.OpStatusRunning, RequestedAt: now, StartedAt: &now,
+		Status: store.OpStatusRunning, RequestedByUserID: in.RequestedByUserID,
+		RequestedAt: now, StartedAt: &now,
 	})
 	return id, nil
 }
@@ -90,7 +91,8 @@ func (m *enrichMemStore) RejectOperationalRun(in store.RejectOperationalRunInput
 	now := time.Now()
 	m.opRuns = append(m.opRuns, store.OperationalRunRow{
 		ID: id, JobType: in.JobType, TriggerType: in.TriggerType,
-		Status: store.OpStatusRejected, RequestedAt: now, StartedAt: &now, FinishedAt: &now,
+		Status: store.OpStatusRejected, RequestedByUserID: in.RequestedByUserID,
+		RequestedAt: now, StartedAt: &now, FinishedAt: &now,
 		ErrorCode: in.ErrorCode, HasError: true,
 	})
 	return id, nil
@@ -608,6 +610,55 @@ func TestEnrichPending_invalidTrigger(t *testing.T) {
 	}
 	if st.locked || len(st.opRuns) != 0 {
 		t.Fatal("must not lock/write")
+	}
+}
+
+func TestEnrichPending_adminRequesterRulesAndAudit(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
+		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+	}
+	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
+
+	w0 := NewEnrichPendingWorker(st, f)
+	w0.TriggerType = store.TriggerAdmin
+	w0.RequestedByUserID = 0
+	if _, err := w0.Run(context.Background(), 5, false, 1); err == nil || st.locked || len(st.opRuns) != 0 {
+		t.Fatal("admin without requester must fail early")
+	}
+
+	wCLI := NewEnrichPendingWorker(st, f)
+	wCLI.TriggerType = store.TriggerCLI
+	wCLI.RequestedByUserID = 3
+	if _, err := wCLI.Run(context.Background(), 5, false, 1); err == nil {
+		t.Fatal("cli with requester must fail")
+	}
+
+	wOK := NewEnrichPendingWorker(st, f)
+	wOK.TriggerType = store.TriggerAdmin
+	wOK.RequestedByUserID = 55
+	sum, err := wOK.Run(context.Background(), 5, false, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Enriched != 1 || len(st.opRuns) != 1 ||
+		st.opRuns[0].RequestedByUserID == nil || *st.opRuns[0].RequestedByUserID != 55 {
+		t.Fatalf("sum=%+v ops=%+v", sum, st.opRuns)
+	}
+
+	stBusy := newEnrichMemStore()
+	stBusy.locked = true
+	wBusy := NewEnrichPendingWorker(stBusy, f)
+	wBusy.TriggerType = store.TriggerAdmin
+	wBusy.RequestedByUserID = 88
+	_, err = wBusy.Run(context.Background(), 5, false, 1)
+	if err == nil || !errors.Is(err, store.ErrOperationLocked) {
+		t.Fatalf("expected lock busy: %v", err)
+	}
+	if len(stBusy.opRuns) != 1 || stBusy.opRuns[0].RequestedByUserID == nil ||
+		*stBusy.opRuns[0].RequestedByUserID != 88 || stBusy.opRuns[0].ErrorCode != store.ErrCodeLockBusy {
+		t.Fatalf("reject audit: %+v", stBusy.opRuns)
 	}
 }
 

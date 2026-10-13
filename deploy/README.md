@@ -48,7 +48,7 @@ What the script does (summary):
 1. Requires root; refuses dirty **tracked** Git changes (ignored `.env` symlink is OK).
 2. `git fetch origin main` and hard-updates the checkout to the exact `origin/main` commit (no merge).
 3. Ensures `/opt/vplayer-repo/.env` is a symlink to `/opt/vplayer/.env` (never copies secrets into Git).
-4. Aborts if `vplayer-syncincremental.service` or `vplayer-enrichpending.service` is currently active.
+4. Aborts if `vplayer-syncincremental.service` or `vplayer-enrichpending.service` is currently active, and aborts if the production worker binaries `/opt/vplayer/backend/bin/syncincremental` or `enrichpending` are executing (covers Admin-launched API children). An early check runs before build/staging; a final check runs again immediately before `INSTALL_STARTED` / first runtime binary install.
 5. Builds/tests into a staging directory first (`go test`, three Go binaries, stages `backend/migrations`, `npm ci` + frontend build).
 6. After success only: backs up current API/worker binaries, frontend dist, and runtime migrations dir (not `.env`).
 7. Atomically installs binaries (temp file + `mv`), swaps frontend dist via rename, then atomically swaps `/opt/vplayer/backend/migrations` (prepare `.new` fully → rename; dirs `755`, SQL files `644`).

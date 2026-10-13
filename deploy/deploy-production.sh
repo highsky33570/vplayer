@@ -22,6 +22,9 @@ readonly ENRICH_UNIT="vplayer-enrichpending.service"
 readonly SYNC_TIMER="vplayer-syncincremental.timer"
 readonly ENRICH_TIMER="vplayer-enrichpending.timer"
 
+# shellcheck source=lib/worker_process_guard.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/worker_process_guard.sh"
+
 STAGING=""
 BACKUP_DIR=""
 INSTALL_STARTED=0
@@ -340,6 +343,10 @@ main() {
   if is_active "${ENRICH_UNIT}"; then
     die "${ENRICH_UNIT} is active; aborting to avoid interrupting a running worker"
   fi
+  # Admin-launched workers are API children and do not appear as the oneshot units above.
+  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}"; then
+    die "deployment refused: VPlayer worker process is active"
+  fi
 
   local stamp
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -378,7 +385,7 @@ main() {
   cp -a "${REPO_DIR}/frontend/dist/." "${STAGING}/frontend-dist/"
   [[ -f "${STAGING}/frontend-dist/index.html" ]] || die "staged frontend dist missing index.html"
 
-  # --- Backups (only after all builds succeed) ---
+  # --- Backups (only after all builds succeed; does not mutate live runtime) ---
   log "creating rollback backup under ${BACKUP_DIR}"
   mkdir -p "${BACKUP_DIR}"
   backup_path_if_exists "${API_BIN}" "vplayer-api"
@@ -389,6 +396,17 @@ main() {
   fi
   if [[ -d "${MIGRATIONS_RUNTIME}" ]]; then
     cp -a "${MIGRATIONS_RUNTIME}" "${BACKUP_DIR}/migrations"
+  fi
+
+  # FINAL worker/systemd guard — immediately before first runtime mutation.
+  if is_active "${SYNC_UNIT}"; then
+    die "${SYNC_UNIT} is active; aborting to avoid interrupting a running worker"
+  fi
+  if is_active "${ENRICH_UNIT}"; then
+    die "${ENRICH_UNIT} is active; aborting to avoid interrupting a running worker"
+  fi
+  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}"; then
+    die "deployment refused: VPlayer worker process is active"
   fi
 
   # --- Install (production mutation begins) ---

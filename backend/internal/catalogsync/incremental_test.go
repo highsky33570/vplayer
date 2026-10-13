@@ -70,7 +70,8 @@ func (m *memStore) StartOperationalRun(in store.StartOperationalRunInput) (uint6
 	now := time.Now()
 	m.opRuns = append(m.opRuns, store.OperationalRunRow{
 		ID: id, JobType: in.JobType, TriggerType: in.TriggerType,
-		Status: store.OpStatusRunning, RequestedAt: now, StartedAt: &now,
+		Status: store.OpStatusRunning, RequestedByUserID: in.RequestedByUserID,
+		RequestedAt: now, StartedAt: &now,
 	})
 	return id, nil
 }
@@ -105,7 +106,8 @@ func (m *memStore) RejectOperationalRun(in store.RejectOperationalRunInput) (uin
 	now := time.Now()
 	m.opRuns = append(m.opRuns, store.OperationalRunRow{
 		ID: id, JobType: in.JobType, TriggerType: in.TriggerType,
-		Status: store.OpStatusRejected, RequestedAt: now, StartedAt: &now, FinishedAt: &now,
+		Status: store.OpStatusRejected, RequestedByUserID: in.RequestedByUserID,
+		RequestedAt: now, StartedAt: &now, FinishedAt: &now,
 		ErrorCode: in.ErrorCode, HasError: true,
 	})
 	return id, nil
@@ -492,13 +494,63 @@ func TestIncremental_operationalSuccessAndPartial(t *testing.T) {
 func TestIncremental_invalidTrigger(t *testing.T) {
 	st := newMemStore()
 	svc := NewIncrementalSync(st, testIncSource())
-	svc.TriggerType = "admin"
+	svc.TriggerType = "evil"
 	_, err := svc.Run(context.Background(), 1, false)
 	if err == nil {
 		t.Fatal("expected invalid trigger")
 	}
 	if st.locked || len(st.opRuns) != 0 {
 		t.Fatal("must not lock or write on bad trigger")
+	}
+}
+
+func TestIncremental_adminRequesterRulesAndAudit(t *testing.T) {
+	st := newMemStore()
+	svc := NewIncrementalSync(st, testIncSource())
+	svc.TriggerType = store.TriggerAdmin
+	svc.RequestedByUserID = 0
+	_, err := svc.Run(context.Background(), 1, false)
+	if err == nil || st.locked || len(st.opRuns) != 0 {
+		t.Fatalf("admin without requester must fail early: err=%v locked=%v ops=%d", err, st.locked, len(st.opRuns))
+	}
+
+	st2 := newMemStore()
+	svc2 := NewIncrementalSync(st2, testIncSource())
+	svc2.TriggerType = store.TriggerCLI
+	svc2.RequestedByUserID = 9
+	_, err = svc2.Run(context.Background(), 1, false)
+	if err == nil || st2.locked || len(st2.opRuns) != 0 {
+		t.Fatal("cli with requester must fail early")
+	}
+
+	st3 := newMemStore()
+	svc3 := NewIncrementalSync(st3, testIncSource())
+	svc3.TriggerType = store.TriggerAdmin
+	svc3.RequestedByUserID = 42
+	sum, err := svc3.Run(context.Background(), 10, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sum.LockAcquired || len(st3.opRuns) != 1 {
+		t.Fatalf("sum=%+v ops=%+v", sum, st3.opRuns)
+	}
+	if st3.opRuns[0].RequestedByUserID == nil || *st3.opRuns[0].RequestedByUserID != 42 {
+		t.Fatalf("requester not audited: %+v", st3.opRuns[0])
+	}
+
+	st4 := newMemStore()
+	st4.locked = true
+	svc4 := NewIncrementalSync(st4, testIncSource())
+	svc4.TriggerType = store.TriggerAdmin
+	svc4.RequestedByUserID = 77
+	_, err = svc4.Run(context.Background(), 1, false)
+	if err == nil || !errors.Is(err, store.ErrOperationLocked) {
+		t.Fatalf("expected lock busy: %v", err)
+	}
+	if len(st4.opRuns) != 1 || st4.opRuns[0].Status != store.OpStatusRejected ||
+		st4.opRuns[0].ErrorCode != store.ErrCodeLockBusy ||
+		st4.opRuns[0].RequestedByUserID == nil || *st4.opRuns[0].RequestedByUserID != 77 {
+		t.Fatalf("admin reject audit: %+v", st4.opRuns)
 	}
 }
 
