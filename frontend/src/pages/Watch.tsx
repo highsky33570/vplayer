@@ -69,6 +69,10 @@ export function Watch() {
           navigate(loginWithNext(`/watch/${videoId}`), { replace: true });
           return;
         }
+        if (e instanceof ApiError && e.code === 'playback_unavailable') {
+          setError('This video is currently unavailable for playback.');
+          return;
+        }
         setError(e instanceof Error ? e.message : '播放失败');
       } finally {
         if (!cancelled) setLoading(false);
@@ -91,7 +95,19 @@ export function Watch() {
   }
 
   if (error) {
-    return <div className="page page-error">{error}</div>;
+    return (
+      <div className="page watch">
+        <aside className="watch-side" style={{ padding: 24 }}>
+          <p style={{ margin: '0 0 8px', fontSize: 13 }}>
+            <Link to="/" style={{ color: 'var(--brand)', fontWeight: 600 }}>
+              ← 返回首页
+            </Link>
+          </p>
+          <h2>{video?.title ?? '视频'}</h2>
+          <p style={{ marginTop: 16, color: 'var(--muted)' }}>{error}</p>
+        </aside>
+      </div>
+    );
   }
 
   return (

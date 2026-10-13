@@ -112,7 +112,9 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]
 }
 
 // ApplyPlaybackEnrichment sets playback_url/status only when the row is still pending+empty.
-// Never touches hls_object_key, storage_provider, migration_status, is_active, or other migration fields.
+// Never touches hls_object_key, storage_provider, or migration_status.
+// When status is ok and playbackURL is non-empty, sets is_active=1 so Resolver can serve it.
+// Unavailable / empty-URL outcomes leave is_active unchanged (typically 0 for pending inserts).
 // Returns true when a row was updated.
 func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status string) (bool, error) {
 	playbackURL = strings.TrimSpace(playbackURL)
@@ -120,12 +122,17 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 	if status == "" {
 		return false, fmt.Errorf("playback status required")
 	}
+	activate := 0
+	if strings.EqualFold(status, "ok") && playbackURL != "" {
+		activate = 1
+	}
 	now := time.Now()
 	res, err := m.DB.Exec(`
 		UPDATE video_episodes SET
 		  playback_url = ?,
 		  playback_source = CASE WHEN ? <> '' THEN ? ELSE playback_source END,
 		  playback_status = ?,
+		  is_active = CASE WHEN ? = 1 THEN 1 ELSE is_active END,
 		  last_synced_at = ?,
 		  sync_status = 'ok'
 		WHERE id = ?
@@ -134,6 +141,7 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 		playbackURL,
 		playbackSource, playbackSource,
 		status,
+		activate,
 		now,
 		id,
 	)
@@ -142,4 +150,31 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
+}
+
+// VideoPlaybackAvailability summarizes episode playback states for resolve UX.
+type VideoPlaybackAvailability struct {
+	PlayableCount  int // status ok + non-empty playback_url (any is_active)
+	UnavailableCount int
+	PendingCount   int
+}
+
+// GetVideoPlaybackAvailability counts episode playback outcomes for a video.
+func (m *MySQL) GetVideoPlaybackAvailability(videoID uint64) (VideoPlaybackAvailability, error) {
+	var out VideoPlaybackAvailability
+	err := m.DB.QueryRow(`
+		SELECT
+		  COALESCE(SUM(CASE
+		    WHEN LOWER(COALESCE(playback_status,'')) = 'ok' AND COALESCE(playback_url,'') <> '' THEN 1
+		    ELSE 0 END), 0),
+		  COALESCE(SUM(CASE
+		    WHEN LOWER(COALESCE(playback_status,'')) = 'unavailable' THEN 1
+		    ELSE 0 END), 0),
+		  COALESCE(SUM(CASE
+		    WHEN LOWER(COALESCE(playback_status,'')) = 'pending_enrichment' THEN 1
+		    ELSE 0 END), 0)
+		FROM video_episodes
+		WHERE video_id = ?`, videoID).
+		Scan(&out.PlayableCount, &out.UnavailableCount, &out.PendingCount)
+	return out, err
 }

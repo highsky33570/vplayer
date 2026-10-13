@@ -116,18 +116,26 @@ export type VideoPage = {
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
-async function parseJSONResponse(res: Response): Promise<{ ok?: boolean; message?: string; data?: unknown }> {
+async function parseJSONResponse(res: Response): Promise<{
+  ok?: boolean;
+  message?: string;
+  error?: string;
+  data?: unknown;
+}> {
   return (await res.json().catch(() => ({}))) as {
     ok?: boolean;
     message?: string;
+    error?: string;
     data?: unknown;
   };
 }
@@ -138,7 +146,7 @@ async function getJSON<T>(path: string, token?: string | null): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { headers });
   const json = await parseJSONResponse(res);
   if (!res.ok || json.ok === false) {
-    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status, json.error);
   }
   return json.data as T;
 }

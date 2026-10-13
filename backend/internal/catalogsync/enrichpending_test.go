@@ -174,7 +174,10 @@ func (m *enrichMemStore) ApplyPlaybackEnrichment(id uint64, playbackURL, playbac
 		e.PlaybackSource = playbackSource
 	}
 	e.PlaybackStatus = status
-	// Intentionally do not modify is_active — enrichment must not reactivate inactive rows.
+	// Match store.ApplyPlaybackEnrichment: activate only on ok + non-empty URL.
+	if strings.EqualFold(status, "ok") && strings.TrimSpace(playbackURL) != "" {
+		e.IsActive = true
+	}
 	m.writes++
 	return true, nil
 }
@@ -405,7 +408,7 @@ func TestEnrichPending_listDiversifiesAndFillsLimit(t *testing.T) {
 	}
 }
 
-func TestEnrichPending_doesNotChangeIsActive(t *testing.T) {
+func TestEnrichPending_successActivatesPlayableEpisode(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[1] = &store.PendingEnrichmentEpisode{
 		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
@@ -420,11 +423,66 @@ func TestEnrichPending_doesNotChangeIsActive(t *testing.T) {
 	if sum.Enriched != 1 {
 		t.Fatalf("%+v", sum)
 	}
-	if st.episodes[1].IsActive {
-		t.Fatal("enrichment must not set is_active=1 on intentionally inactive episode")
+	if !st.episodes[1].IsActive {
+		t.Fatal("successful enrich with usable URL must set is_active=1")
 	}
 	if st.episodes[1].PlaybackStatus != "ok" || st.episodes[1].PlaybackURL == "" {
 		t.Fatalf("playback fields not updated: %+v", st.episodes[1])
+	}
+}
+
+func TestEnrichPending_sourceRestrictedBecomesUnavailable(t *testing.T) {
+	restricted := `<html><body><div>系统提示<br/>您没有权限访问此数据，请升级会员</div></body></html>`
+	st := newEnrichMemStore()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 10, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "84839",
+		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+		IsActive: false,
+	}
+	f := &mapFetcher{pages: map[string]string{"https://src/p1": restricted}}
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Unavailable != 1 || sum.Enriched != 0 || sum.StillPending != 0 {
+		t.Fatalf("%+v", sum)
+	}
+	ep := st.episodes[1]
+	if ep.PlaybackStatus != "unavailable" || ep.PlaybackURL != "" || ep.IsActive {
+		t.Fatalf("restricted episode: %+v", ep)
+	}
+	if len(sum.Actions) != 1 || sum.Actions[0].Detail != "source_restricted" {
+		t.Fatalf("actions=%+v", sum.Actions)
+	}
+	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("still pending-eligible: %+v", list)
+	}
+}
+
+func TestEnrichPending_sourceRestrictedDryRun(t *testing.T) {
+	restricted := `<html><body>系统提示 您没有权限访问此数据，请升级会员</body></html>`
+	st := newEnrichMemStore()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 10, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "84839",
+		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
+	}
+	f := &mapFetcher{pages: map[string]string{"https://src/p1": restricted}}
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, true, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Unavailable != 1 || st.writes != 0 {
+		t.Fatalf("dry-run writes=%d sum=%+v", st.writes, sum)
+	}
+	if st.episodes[1].PlaybackStatus != "pending_enrichment" {
+		t.Fatal("dry-run must not persist")
+	}
+	if len(sum.Actions) != 1 || sum.Actions[0].Action != "WOULD_UNAVAILABLE" || sum.Actions[0].Detail != "source_restricted" {
+		t.Fatalf("%+v", sum.Actions)
 	}
 }
 
@@ -448,7 +506,7 @@ func TestEnrichPending_successAndIdempotent(t *testing.T) {
 		t.Fatalf("%+v", sum)
 	}
 	ep := st.episodes[1]
-	if ep.PlaybackURL != "https://cdn.example/4.m3u8" || ep.PlaybackStatus != "ok" {
+	if ep.PlaybackURL != "https://cdn.example/4.m3u8" || ep.PlaybackStatus != "ok" || !ep.IsActive {
 		t.Fatalf("%+v", ep)
 	}
 	writes := st.writes

@@ -401,6 +401,38 @@ func (w *EnrichPendingWorker) processOne(ctx context.Context, ep store.PendingEn
 		return r
 	}
 
+	// Confirmed OLEHDTV membership/permission page → terminal unavailable (not retryable).
+	if maccms.ClassifyPlayPage(body) == maccms.PlayPageSourceRestricted {
+		if dryRun {
+			r.unav = true
+			act.Action = "WOULD_UNAVAILABLE"
+			act.Detail = "source_restricted"
+			r.action = act
+			return r
+		}
+		updated, uerr := w.Store.ApplyPlaybackEnrichment(ep.ID, "", ep.PlaybackSource, "unavailable")
+		if uerr != nil {
+			r.fail = true
+			r.pend = true
+			act.Action = "FAILURE"
+			act.Detail = uerr.Error()
+			r.action = act
+			return r
+		}
+		if !updated {
+			r.skip = true
+			act.Action = "SKIPPED_EXISTING"
+			act.Detail = "row no longer pending"
+			r.action = act
+			return r
+		}
+		r.unav = true
+		act.Action = "UNAVAILABLE"
+		act.Detail = "source_restricted"
+		r.action = act
+		return r
+	}
+
 	p, ok := maccms.ParsePlayerAAAA(body)
 	if !ok {
 		r.fail = true

@@ -2,6 +2,7 @@ package play
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -11,18 +12,35 @@ import (
 	"github.com/tycdn/vplayer/internal/store"
 )
 
+// episodeAvailability is the resolve-time subset of episode status counts (mockable).
+type episodeAvailability interface {
+	GetVideoPlaybackAvailability(videoID uint64) (store.VideoPlaybackAvailability, error)
+}
+
 // Resolver returns normalized playback info for the VPlayer frontend.
 // It uses authorized stored playback metadata only — no OLEHDTV page parsing.
 type Resolver struct {
 	Cfg   config.Config
 	Store *store.MySQL
+	// Availability optionally overrides Store for tests.
+	Availability episodeAvailability
+	// VideoByID optionally overrides Store.GetVideo (tests).
+	VideoByID func(id uint64) (*model.Video, error)
 }
 
 func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, error) {
-	if r.Store == nil {
+	if r.Store == nil && r.VideoByID == nil {
 		return demoPlayback(videoID, r.Cfg), nil
 	}
-	v, err := r.Store.GetVideo(videoID)
+	var (
+		v   *model.Video
+		err error
+	)
+	if r.VideoByID != nil {
+		v, err = r.VideoByID(videoID)
+	} else {
+		v, err = r.Store.GetVideo(videoID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -52,20 +70,22 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 		hlsObjectKey = ep.HLSObjectKey
 		source = ep.PlaybackSource
 		outSID, outNID = ep.SID, ep.NID
-	} else if ep, err := r.Store.GetDefaultEpisode(videoID); err == nil && ep != nil {
-		if url == "" {
-			url = ep.PlaybackURL
-			source = ep.PlaybackSource
-			outSID, outNID = ep.SID, ep.NID
-		}
-		if hlsObjectKey == "" {
-			hlsObjectKey = ep.HLSObjectKey
-		}
-		if outSID == 0 {
-			outSID = ep.SID
-		}
-		if outNID == 0 {
-			outNID = ep.NID
+	} else if r.Store != nil {
+		if ep, err := r.Store.GetDefaultEpisode(videoID); err == nil && ep != nil {
+			if url == "" {
+				url = ep.PlaybackURL
+				source = ep.PlaybackSource
+				outSID, outNID = ep.SID, ep.NID
+			}
+			if hlsObjectKey == "" {
+				hlsObjectKey = ep.HLSObjectKey
+			}
+			if outSID == 0 {
+				outSID = ep.SID
+			}
+			if outNID == 0 {
+				outNID = ep.NID
+			}
 		}
 	}
 	if hlsObjectKey == "" {
@@ -77,6 +97,9 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 	if final == "" {
 		if v.Status == "demo" {
 			return demoPlayback(videoID, r.Cfg), nil
+		}
+		if r.confirmedUnavailable(videoID) {
+			return nil, ErrPlaybackUnavailable
 		}
 		return nil, fmt.Errorf("no playback url")
 	}
@@ -105,6 +128,30 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 		NID:    outNID,
 		Ticket: NewTicket(videoID, r.Cfg.CDNSignSecret, r.Cfg.PlayTicketTTL),
 	}, nil
+}
+
+// confirmedUnavailable is true when episodes show terminal unavailability and
+// nothing is still pending enrichment (so we do not mask unknown/retryable gaps).
+func (r *Resolver) confirmedUnavailable(videoID uint64) bool {
+	var av store.VideoPlaybackAvailability
+	var err error
+	switch {
+	case r.Availability != nil:
+		av, err = r.Availability.GetVideoPlaybackAvailability(videoID)
+	case r.Store != nil:
+		av, err = r.Store.GetVideoPlaybackAvailability(videoID)
+	default:
+		return false
+	}
+	if err != nil {
+		return false
+	}
+	return av.PlayableCount == 0 && av.UnavailableCount > 0 && av.PendingCount == 0
+}
+
+// IsPlaybackUnavailable reports whether err is the confirmed-unavailable sentinel.
+func IsPlaybackUnavailable(err error) bool {
+	return errors.Is(err, ErrPlaybackUnavailable)
 }
 
 func (r *Resolver) findEpisode(videoID uint64, sid, nid int) (*model.Episode, error) {

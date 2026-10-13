@@ -160,6 +160,14 @@ func (a *API) ResolvePlay(c *gin.Context) {
 	}
 	info, err := resolver.Resolve(id, sid, nid)
 	if err != nil {
+		if play.IsPlaybackUnavailable(err) {
+			c.JSON(http.StatusOK, gin.H{
+				"ok":      false,
+				"error":   "playback_unavailable",
+				"message": play.UserMessagePlaybackUnavailable,
+			})
+			return
+		}
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": err.Error()})
 		return
 	}

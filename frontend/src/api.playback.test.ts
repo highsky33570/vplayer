@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
-import { bearerAuthHeader, getPlayback } from './api.ts';
+import { ApiError, bearerAuthHeader, getPlayback } from './api.ts';
 
 describe('bearerAuthHeader', () => {
   it('sets Bearer token', () => {
@@ -31,5 +31,27 @@ describe('getPlayback auth header', () => {
     const info = await getPlayback(9, 0, 0, 'tok-123');
     assert.equal(seenAuth, 'Bearer tok-123');
     assert.equal(info.url, 'https://cdn.example/a.m3u8');
+  });
+
+  it('surfaces playback_unavailable with safe message', async () => {
+    mock.method(globalThis, 'fetch', async () => {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: 'playback_unavailable',
+          message: 'This video is currently unavailable for playback.',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    });
+    await assert.rejects(
+      () => getPlayback(9870, 0, 0, 'tok'),
+      (e: unknown) => {
+        assert.ok(e instanceof ApiError);
+        assert.equal(e.code, 'playback_unavailable');
+        assert.equal(e.message, 'This video is currently unavailable for playback.');
+        return true;
+      },
+    );
   });
 });
