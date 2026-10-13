@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +16,19 @@ import (
 	"github.com/tycdn/vplayer/internal/store"
 )
 
+type episodeStateMap struct {
+	byKey map[string]store.EpisodePlaybackState
+}
+
+func (m episodeStateMap) GetEpisodePlaybackState(videoID uint64, sid, nid int) (store.EpisodePlaybackState, error) {
+	st, ok := m.byKey[fmt.Sprintf("%d:%d:%d", videoID, sid, nid)]
+	if !ok {
+		return store.EpisodePlaybackState{}, nil
+	}
+	st.Found = true
+	return st, nil
+}
+
 func TestResolvePlay_playbackUnavailable(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	const authSecret = "test-auth-secret"
@@ -23,10 +37,11 @@ func TestResolvePlay_playbackUnavailable(t *testing.T) {
 		Resolver: &play.Resolver{
 			Cfg: config.Config{CDNSignSecret: "cdn"},
 			VideoByID: func(id uint64) (*model.Video, error) {
-				return &model.Video{ID: id, Title: "restricted", Status: "ready", IsActive: true}, nil
+				return &model.Video{ID: id, Title: "restricted", Status: "ready", IsActive: true, PlaySID: 1, PlayNID: 1}, nil
 			},
-			Availability: availMap{byID: map[uint64]store.VideoPlaybackAvailability{
-				9870: {PlayableCount: 0, UnavailableCount: 1, PendingCount: 0},
+			EpisodeState: episodeStateMap{byKey: map[string]store.EpisodePlaybackState{
+				"9870:1:1": {PlaybackStatus: "unavailable", PlaybackURL: ""},
+				"9870:1:4": {PlaybackStatus: "pending_enrichment", PlaybackURL: ""},
 			}},
 		},
 	}
@@ -65,10 +80,10 @@ func TestResolvePlay_unknownStillNotFound(t *testing.T) {
 		Resolver: &play.Resolver{
 			Cfg: config.Config{CDNSignSecret: "cdn"},
 			VideoByID: func(id uint64) (*model.Video, error) {
-				return &model.Video{ID: id, Status: "ready", IsActive: true}, nil
+				return &model.Video{ID: id, Status: "ready", IsActive: true, PlaySID: 1, PlayNID: 1}, nil
 			},
-			Availability: availMap{byID: map[uint64]store.VideoPlaybackAvailability{
-				1: {PlayableCount: 0, UnavailableCount: 0, PendingCount: 1},
+			EpisodeState: episodeStateMap{byKey: map[string]store.EpisodePlaybackState{
+				"1:1:1": {PlaybackStatus: "pending_enrichment", PlaybackURL: ""},
 			}},
 		},
 	}
@@ -94,12 +109,4 @@ func TestResolvePlay_unknownStillNotFound(t *testing.T) {
 	if body["message"] != "no playback url" {
 		t.Fatalf("message=%v", body["message"])
 	}
-}
-
-type availMap struct {
-	byID map[uint64]store.VideoPlaybackAvailability
-}
-
-func (m availMap) GetVideoPlaybackAvailability(videoID uint64) (store.VideoPlaybackAvailability, error) {
-	return m.byID[videoID], nil
 }

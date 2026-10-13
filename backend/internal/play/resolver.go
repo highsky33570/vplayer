@@ -12,9 +12,9 @@ import (
 	"github.com/tycdn/vplayer/internal/store"
 )
 
-// episodeAvailability is the resolve-time subset of episode status counts (mockable).
-type episodeAvailability interface {
-	GetVideoPlaybackAvailability(videoID uint64) (store.VideoPlaybackAvailability, error)
+// episodeStateLookup loads one episode's playback_status/url (mockable; any is_active).
+type episodeStateLookup interface {
+	GetEpisodePlaybackState(videoID uint64, sid, nid int) (store.EpisodePlaybackState, error)
 }
 
 // Resolver returns normalized playback info for the VPlayer frontend.
@@ -22,8 +22,8 @@ type episodeAvailability interface {
 type Resolver struct {
 	Cfg   config.Config
 	Store *store.MySQL
-	// Availability optionally overrides Store for tests.
-	Availability episodeAvailability
+	// EpisodeState optionally overrides Store for tests.
+	EpisodeState episodeStateLookup
 	// VideoByID optionally overrides Store.GetVideo (tests).
 	VideoByID func(id uint64) (*model.Video, error)
 }
@@ -63,6 +63,10 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 	if outNID == 0 {
 		outNID = 1
 	}
+	// Explicit request overrides video primary episode.
+	if sid > 0 && nid > 0 {
+		outSID, outNID = sid, nid
+	}
 
 	var hlsObjectKey string
 	if ep, err := r.findEpisode(videoID, sid, nid); err == nil && ep != nil {
@@ -98,7 +102,12 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 		if v.Status == "demo" {
 			return demoPlayback(videoID, r.Cfg), nil
 		}
-		if r.confirmedUnavailable(videoID) {
+		// Target the requested episode, else the video primary/default (sid/nid).
+		targetSID, targetNID := outSID, outNID
+		if sid > 0 && nid > 0 {
+			targetSID, targetNID = sid, nid
+		}
+		if r.targetEpisodeUnavailable(videoID, targetSID, targetNID) {
 			return nil, ErrPlaybackUnavailable
 		}
 		return nil, fmt.Errorf("no playback url")
@@ -130,23 +139,32 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 	}, nil
 }
 
-// confirmedUnavailable is true when episodes show terminal unavailability and
-// nothing is still pending enrichment (so we do not mask unknown/retryable gaps).
-func (r *Resolver) confirmedUnavailable(videoID uint64) bool {
-	var av store.VideoPlaybackAvailability
-	var err error
+// targetEpisodeUnavailable is true when the specific requested/default episode is
+// confirmed unavailable with no playable URL. Sibling pending episodes do not block this.
+func (r *Resolver) targetEpisodeUnavailable(videoID uint64, sid, nid int) bool {
+	if sid <= 0 {
+		sid = 1
+	}
+	if nid <= 0 {
+		nid = 1
+	}
+	var (
+		st  store.EpisodePlaybackState
+		err error
+	)
 	switch {
-	case r.Availability != nil:
-		av, err = r.Availability.GetVideoPlaybackAvailability(videoID)
+	case r.EpisodeState != nil:
+		st, err = r.EpisodeState.GetEpisodePlaybackState(videoID, sid, nid)
 	case r.Store != nil:
-		av, err = r.Store.GetVideoPlaybackAvailability(videoID)
+		st, err = r.Store.GetEpisodePlaybackState(videoID, sid, nid)
 	default:
 		return false
 	}
-	if err != nil {
+	if err != nil || !st.Found {
 		return false
 	}
-	return av.PlayableCount == 0 && av.UnavailableCount > 0 && av.PendingCount == 0
+	return strings.EqualFold(strings.TrimSpace(st.PlaybackStatus), "unavailable") &&
+		strings.TrimSpace(st.PlaybackURL) == ""
 }
 
 // IsPlaybackUnavailable reports whether err is the confirmed-unavailable sentinel.

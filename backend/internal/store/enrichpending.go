@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -152,29 +153,29 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 	return n > 0, nil
 }
 
-// VideoPlaybackAvailability summarizes episode playback states for resolve UX.
-type VideoPlaybackAvailability struct {
-	PlayableCount  int // status ok + non-empty playback_url (any is_active)
-	UnavailableCount int
-	PendingCount   int
+// EpisodePlaybackState is the resolve-time status of one episode (any is_active).
+type EpisodePlaybackState struct {
+	PlaybackStatus string
+	PlaybackURL    string
+	Found          bool
 }
 
-// GetVideoPlaybackAvailability counts episode playback outcomes for a video.
-func (m *MySQL) GetVideoPlaybackAvailability(videoID uint64) (VideoPlaybackAvailability, error) {
-	var out VideoPlaybackAvailability
+// GetEpisodePlaybackState loads playback_status/url for a video episode without requiring is_active=1.
+// Used so confirmed-unavailable (inactive) primary episodes can drive watch UX while siblings remain pending.
+func (m *MySQL) GetEpisodePlaybackState(videoID uint64, sid, nid int) (EpisodePlaybackState, error) {
+	var out EpisodePlaybackState
 	err := m.DB.QueryRow(`
-		SELECT
-		  COALESCE(SUM(CASE
-		    WHEN LOWER(COALESCE(playback_status,'')) = 'ok' AND COALESCE(playback_url,'') <> '' THEN 1
-		    ELSE 0 END), 0),
-		  COALESCE(SUM(CASE
-		    WHEN LOWER(COALESCE(playback_status,'')) = 'unavailable' THEN 1
-		    ELSE 0 END), 0),
-		  COALESCE(SUM(CASE
-		    WHEN LOWER(COALESCE(playback_status,'')) = 'pending_enrichment' THEN 1
-		    ELSE 0 END), 0)
+		SELECT COALESCE(playback_status,''), COALESCE(playback_url,'')
 		FROM video_episodes
-		WHERE video_id = ?`, videoID).
-		Scan(&out.PlayableCount, &out.UnavailableCount, &out.PendingCount)
-	return out, err
+		WHERE video_id=? AND sid=? AND nid=?
+		LIMIT 1`, videoID, sid, nid).
+		Scan(&out.PlaybackStatus, &out.PlaybackURL)
+	if err == sql.ErrNoRows {
+		return EpisodePlaybackState{}, nil
+	}
+	if err != nil {
+		return EpisodePlaybackState{}, err
+	}
+	out.Found = true
+	return out, nil
 }
