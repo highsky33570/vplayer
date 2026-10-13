@@ -132,24 +132,9 @@ func ChooseContentPoster(detailPoster, catalogPoster string) string {
 	return ""
 }
 
-// Known OLEHDTV generic site poster (not per-title art). Match by exact filename
-// so other /upload/site/ or static.olelive.com URLs are not blanket-rejected.
-const oleHdTvGenericPosterFile = "105e22b56101eb0268ea9904972357ba.png"
-
-func isOleHdTvGenericPoster(low string) bool {
-	// Strip query/fragment so .../105e22….png?x=1 still matches.
-	if i := strings.IndexAny(low, "?#"); i >= 0 {
-		low = low[:i]
-	}
-	return strings.HasSuffix(low, oleHdTvGenericPosterFile)
-}
-
 func isChromeAsset(u string) bool {
 	low := strings.ToLower(strings.TrimSpace(u))
 	if low == "" {
-		return true
-	}
-	if isOleHdTvGenericPoster(low) {
 		return true
 	}
 	for _, bad := range []string{
@@ -157,6 +142,8 @@ func isChromeAsset(u string) bool {
 		"banner_ad", "/ads/", "sprite", "loading.gif", "load.gif",
 		"placeholder", "/static/images/img/hd.png", "hd.png",
 		"/static/images/img/",
+		// OLEHDTV site chrome under /upload/site/ (not per-title art; /upload/vod/ is content).
+		"/upload/site/",
 	} {
 		if strings.Contains(low, bad) {
 			return true
