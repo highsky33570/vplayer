@@ -4,6 +4,8 @@ import { AdminCategoryDetail } from './admin/AdminCategoryDetail';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { AdminGuard } from './admin/AdminGuard';
 import { AdminLayout } from './admin/AdminLayout';
+import { AdminSync } from './admin/AdminSync';
+import { AdminSyncRunDetail } from './admin/AdminSyncRunDetail';
 import { AdminUserDetail } from './admin/AdminUserDetail';
 import { AdminUsers } from './admin/AdminUsers';
 import { AdminVideoDetail } from './admin/AdminVideoDetail';
@@ -43,6 +45,8 @@ export default function App() {
                 <Route path="categories/:id" element={<AdminCategoryDetail />} />
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="users/:id" element={<AdminUserDetail />} />
+                <Route path="sync" element={<AdminSync />} />
+                <Route path="sync/runs/:id" element={<AdminSyncRunDetail />} />
               </Route>
             </Route>
             <Route element={<ConsumerShell />}>

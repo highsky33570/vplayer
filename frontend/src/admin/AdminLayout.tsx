@@ -11,7 +11,7 @@ const NAV: AdminNavItem[] = [
   { to: '/admin/videos', label: 'Videos', enabled: true },
   { to: '/admin/categories', label: 'Categories', enabled: true },
   { to: '/admin/users', label: 'Users', enabled: true },
-  { to: '/admin/sync', label: 'Sync / Crawler', enabled: false },
+  { to: '/admin/sync', label: 'Sync / Crawler', enabled: true },
   { to: '/admin/media', label: 'Media', enabled: false },
 ];
 

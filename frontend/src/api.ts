@@ -273,6 +273,73 @@ export function fetchAdminDashboard(token: string | null | undefined) {
   return getJSON<AdminDashboardData>('/api/v1/admin/dashboard', token);
 }
 
+export type AdminSyncOverview = {
+  latest_sync: AdminSyncRunSummary | null;
+  latest_incremental: AdminSyncRunSummary | null;
+  latest_full: AdminSyncRunSummary | null;
+  pending_enrichment_count: number;
+  videos_sync_error_count: number;
+  categories_sync_error_count: number;
+  videos_active: number;
+  videos_inactive: number;
+};
+
+export type AdminSyncRunPage = {
+  data: AdminSyncRunSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+export function fetchAdminSyncOverview(token: string | null | undefined) {
+  return getJSON<AdminSyncOverview>('/api/v1/admin/sync', token);
+}
+
+export async function fetchAdminSyncRuns(
+  token: string | null | undefined,
+  opts?: {
+    limit?: number;
+    offset?: number;
+    triggerType?: string;
+  },
+): Promise<AdminSyncRunPage> {
+  const limit = opts?.limit ?? 24;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  const trigger = opts?.triggerType?.trim();
+  if (trigger) params.set('trigger_type', trigger);
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/sync/runs?${params}`, { headers });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminSyncRunSummary[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    data: json.data ?? [],
+    total: Number(json.total ?? 0),
+    limit: Number(json.limit ?? limit),
+    offset: Number(json.offset ?? offset),
+    has_more: Boolean(json.has_more),
+  };
+}
+
+export function fetchAdminSyncRun(id: number, token: string | null | undefined) {
+  return getJSON<AdminSyncRunSummary>(`/api/v1/admin/sync/runs/${id}`, token);
+}
+
 export type AdminCategory = {
   id: number;
   name: string;

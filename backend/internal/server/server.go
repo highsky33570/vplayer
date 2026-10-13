@@ -109,6 +109,9 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/admin/categories/:id", api.RequireUser, api.RequireAdmin, api.AdminGetCategory)
 		v1.GET("/admin/users", api.RequireUser, api.RequireAdmin, api.AdminListUsers)
 		v1.GET("/admin/users/:id", api.RequireUser, api.RequireAdmin, api.AdminGetUser)
+		v1.GET("/admin/sync", api.RequireUser, api.RequireAdmin, api.AdminSyncOverview)
+		v1.GET("/admin/sync/runs", api.RequireUser, api.RequireAdmin, api.AdminListSyncRuns)
+		v1.GET("/admin/sync/runs/:id", api.RequireUser, api.RequireAdmin, api.AdminGetSyncRun)
 		// Legacy ops token auth — unchanged; migrate later to RequireAdmin.
 		v1.POST("/admin/integrations/olehdtv/sync", api.AdminOleHdTvSync)
 	}

@@ -238,6 +238,16 @@
   font-weight: 650;
 }
 
+.admin-sync-card strong {
+  font-size: 1.15rem;
+  line-height: 1.35;
+}
+
+.admin-sync-card p {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+
 .admin-stat-card strong.is-ok,
 .admin-sync-grid strong.is-ok {
   color: #1f9d63;
