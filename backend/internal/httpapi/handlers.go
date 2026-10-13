@@ -29,6 +29,8 @@ type API struct {
 	AdminUsers adminUserRepo
 	// AdminSync optionally overrides Store for admin sync reads (tests).
 	AdminSync adminSyncRepo
+	// AdminOps optionally overrides Store for admin operational_runs reads (tests).
+	AdminOps adminOpsRepo
 	// AdminMedia optionally overrides Store for admin media reads (tests).
 	AdminMedia adminMediaRepo
 }

@@ -6,6 +6,7 @@ import { AdminGuard } from './admin/AdminGuard';
 import { AdminLayout } from './admin/AdminLayout';
 import { AdminMedia } from './admin/AdminMedia';
 import { AdminMediaEpisodeDetail } from './admin/AdminMediaEpisodeDetail';
+import { AdminOperationalRunDetail } from './admin/AdminOperationalRunDetail';
 import { AdminSync } from './admin/AdminSync';
 import { AdminSyncRunDetail } from './admin/AdminSyncRunDetail';
 import { AdminUserDetail } from './admin/AdminUserDetail';
@@ -49,6 +50,7 @@ export default function App() {
                 <Route path="users/:id" element={<AdminUserDetail />} />
                 <Route path="sync" element={<AdminSync />} />
                 <Route path="sync/runs/:id" element={<AdminSyncRunDetail />} />
+                <Route path="sync/operations/:id" element={<AdminOperationalRunDetail />} />
                 <Route path="media" element={<AdminMedia />} />
                 <Route path="media/episodes/:id" element={<AdminMediaEpisodeDetail />} />
               </Route>

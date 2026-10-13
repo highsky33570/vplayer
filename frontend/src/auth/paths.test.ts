@@ -62,6 +62,10 @@ describe('safeInternalPath / resolvePostLoginPath', () => {
   it('accepts /admin/sync paths', () => {
     assert.equal(safeInternalPath('/admin/sync'), '/admin/sync');
     assert.equal(resolvePostLoginPath('/admin/sync/runs/9'), '/admin/sync/runs/9');
+    assert.equal(
+      resolvePostLoginPath('/admin/sync/operations/3'),
+      '/admin/sync/operations/3',
+    );
   });
 
   it('accepts /admin/media paths', () => {

@@ -340,6 +340,89 @@ export function fetchAdminSyncRun(id: number, token: string | null | undefined) 
   return getJSON<AdminSyncRunSummary>(`/api/v1/admin/sync/runs/${id}`, token);
 }
 
+export type AdminOperationalRun = {
+  id: number;
+  job_type: string;
+  trigger_type: string;
+  status: string;
+  requested_by_user_id?: number | null;
+  requested_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  duration_seconds?: number | null;
+  stale: boolean;
+  scanned?: number | null;
+  created_count?: number | null;
+  updated_count?: number | null;
+  unchanged_count?: number | null;
+  failed_count?: number | null;
+  selected_count?: number | null;
+  succeeded_count?: number | null;
+  skipped_count?: number | null;
+  unavailable_count?: number | null;
+  has_error: boolean;
+  error_code: string;
+  sync_run_id?: number | null;
+};
+
+export type AdminOperationalRunPage = {
+  data: AdminOperationalRun[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+export async function fetchAdminOperationalRuns(
+  token: string | null | undefined,
+  opts?: {
+    limit?: number;
+    offset?: number;
+    jobType?: string;
+    triggerType?: string;
+    status?: string;
+  },
+): Promise<AdminOperationalRunPage> {
+  const limit = opts?.limit ?? 24;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  const job = opts?.jobType?.trim();
+  if (job) params.set('job_type', job);
+  const trigger = opts?.triggerType?.trim();
+  if (trigger) params.set('trigger_type', trigger);
+  const status = opts?.status?.trim();
+  if (status) params.set('status', status);
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/sync/operations?${params}`, { headers });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminOperationalRun[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    data: json.data ?? [],
+    total: Number(json.total ?? 0),
+    limit: Number(json.limit ?? limit),
+    offset: Number(json.offset ?? offset),
+    has_more: Boolean(json.has_more),
+  };
+}
+
+export function fetchAdminOperationalRun(id: number, token: string | null | undefined) {
+  return getJSON<AdminOperationalRun>(`/api/v1/admin/sync/operations/${id}`, token);
+}
+
 export type AdminMediaOverview = {
   episodes_total: number;
   migrated_count: number;

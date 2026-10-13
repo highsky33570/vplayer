@@ -112,6 +112,8 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/admin/sync", api.RequireUser, api.RequireAdmin, api.AdminSyncOverview)
 		v1.GET("/admin/sync/runs", api.RequireUser, api.RequireAdmin, api.AdminListSyncRuns)
 		v1.GET("/admin/sync/runs/:id", api.RequireUser, api.RequireAdmin, api.AdminGetSyncRun)
+		v1.GET("/admin/sync/operations", api.RequireUser, api.RequireAdmin, api.AdminListOperationalRuns)
+		v1.GET("/admin/sync/operations/:id", api.RequireUser, api.RequireAdmin, api.AdminGetOperationalRun)
 		v1.GET("/admin/media", api.RequireUser, api.RequireAdmin, api.AdminMediaOverview)
 		v1.GET("/admin/media/episodes", api.RequireUser, api.RequireAdmin, api.AdminListMediaEpisodes)
 		v1.GET("/admin/media/episodes/:id", api.RequireUser, api.RequireAdmin, api.AdminGetMediaEpisode)
