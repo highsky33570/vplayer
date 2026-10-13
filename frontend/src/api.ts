@@ -340,6 +340,95 @@ export function fetchAdminSyncRun(id: number, token: string | null | undefined) 
   return getJSON<AdminSyncRunSummary>(`/api/v1/admin/sync/runs/${id}`, token);
 }
 
+export type AdminMediaOverview = {
+  episodes_total: number;
+  migrated_count: number;
+  failed_count: number;
+  not_migrated_count: number;
+  eligible_count: number;
+  storage_r2_count: number;
+  latest_migrated_at?: string | null;
+};
+
+export type AdminMediaEpisode = {
+  episode_id: number;
+  video_id: number;
+  video_title: string;
+  sid: number;
+  nid: number;
+  episode_title: string;
+  storage_provider: string;
+  migration_status: string;
+  migrated_at?: string;
+  has_error: boolean;
+  playback_status: string;
+  has_hls_object?: boolean;
+};
+
+export type AdminMediaEpisodePage = {
+  data: AdminMediaEpisode[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+export function fetchAdminMediaOverview(token: string | null | undefined) {
+  return getJSON<AdminMediaOverview>('/api/v1/admin/media', token);
+}
+
+export async function fetchAdminMediaEpisodes(
+  token: string | null | undefined,
+  opts?: {
+    limit?: number;
+    offset?: number;
+    q?: string;
+    migrationStatus?: 'all' | 'done' | 'failed' | 'pending';
+    storageProvider?: 'all' | 'r2';
+  },
+): Promise<AdminMediaEpisodePage> {
+  const limit = opts?.limit ?? 24;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  const q = opts?.q?.trim();
+  if (q) params.set('q', q);
+  if (opts?.migrationStatus && opts.migrationStatus !== 'all') {
+    params.set('migration_status', opts.migrationStatus);
+  }
+  if (opts?.storageProvider && opts.storageProvider !== 'all') {
+    params.set('storage_provider', opts.storageProvider);
+  }
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/media/episodes?${params}`, { headers });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminMediaEpisode[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    data: json.data ?? [],
+    total: Number(json.total ?? 0),
+    limit: Number(json.limit ?? limit),
+    offset: Number(json.offset ?? offset),
+    has_more: Boolean(json.has_more),
+  };
+}
+
+export function fetchAdminMediaEpisode(id: number, token: string | null | undefined) {
+  return getJSON<AdminMediaEpisode>(`/api/v1/admin/media/episodes/${id}`, token);
+}
+
 export type AdminCategory = {
   id: number;
   name: string;

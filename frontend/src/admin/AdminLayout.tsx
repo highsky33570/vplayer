@@ -12,7 +12,7 @@ const NAV: AdminNavItem[] = [
   { to: '/admin/categories', label: 'Categories', enabled: true },
   { to: '/admin/users', label: 'Users', enabled: true },
   { to: '/admin/sync', label: 'Sync / Crawler', enabled: true },
-  { to: '/admin/media', label: 'Media', enabled: false },
+  { to: '/admin/media', label: 'Media', enabled: true },
 ];
 
 export function AdminLayout() {
