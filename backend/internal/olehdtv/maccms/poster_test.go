@@ -14,6 +14,10 @@ func TestIsPlaceholderPoster(t *testing.T) {
 		"/static/images/img/info_icon.png",
 		"https://cdn.example/load.gif",
 		"https://cdn.example/loading.gif",
+		"https://static.olelive.com/upload/site/20201117-1/105e22b56101eb0268ea9904972357ba.png",
+		"https://static.olelive.com/upload/site/20201117-1/105e22b56101eb0268ea9904972357ba.png?x=1",
+		"105e22b56101eb0268ea9904972357ba.png",
+		"/upload/site/20201117-1/105e22b56101eb0268ea9904972357ba.png",
 	}
 	for _, u := range placeholders {
 		if !maccms.IsPlaceholderPoster(u) {
@@ -23,6 +27,11 @@ func TestIsPlaceholderPoster(t *testing.T) {
 	real := "https://static.olelive.com/upload/vod/20260712-1/abc.jpg"
 	if maccms.IsPlaceholderPoster(real) || !maccms.IsValidContentPoster(real) {
 		t.Fatalf("real poster rejected: %s", real)
+	}
+	// Do not blanket-reject other /upload/site/ or static.olelive.com URLs.
+	otherSite := "https://static.olelive.com/upload/site/20201117-1/other-asset.png"
+	if maccms.IsPlaceholderPoster(otherSite) {
+		t.Fatalf("unexpected placeholder rejection: %s", otherSite)
 	}
 }
 

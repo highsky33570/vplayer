@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { formatViews, type Video } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { videoEntryHref } from '../auth/paths';
+import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
 
 type Props = {
   videos: Video[];
@@ -55,7 +56,12 @@ export function FeaturedCarousel({ videos }: Props) {
             aria-hidden={i !== index}
             tabIndex={i === index ? 0 : -1}
           >
-            <img src={v.cover_url} alt="" loading={i === 0 ? 'eager' : 'lazy'} />
+            <img
+              src={coverImgSrc(v.cover_url)}
+              alt=""
+              loading={i === 0 ? 'eager' : 'lazy'}
+              onError={onCoverImgError}
+            />
             <div className="carousel-caption">
               <h3>{v.title}</h3>
               <p>

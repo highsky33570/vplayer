@@ -9,6 +9,7 @@ import (
 	"github.com/tycdn/vplayer/internal/config"
 	"github.com/tycdn/vplayer/internal/media"
 	"github.com/tycdn/vplayer/internal/model"
+	"github.com/tycdn/vplayer/internal/olehdtv/maccms"
 	"github.com/tycdn/vplayer/internal/play"
 	"github.com/tycdn/vplayer/internal/scheduler"
 	"github.com/tycdn/vplayer/internal/store"
@@ -218,9 +219,12 @@ func (a *API) withCoverURL(v model.Video) model.Video {
 			url = play.SignURL(cdn.BaseURL, a.Cfg.CDNSignSecret, media.ObjectPathWithBucket(cdn.Bucket, key), a.Cfg.PlayTicketTTL)
 		}
 		v.CoverURL = url
-	case v.PosterSourceURL != "":
+	case v.PosterSourceURL != "" && !maccms.IsPlaceholderPoster(v.PosterSourceURL):
 		// Until poster is imported to R2/CDN, keep the authorized external source URL.
 		v.CoverURL = v.PosterSourceURL
+	case v.PosterSourceURL != "":
+		// Known source chrome/placeholder: omit cover_url so clients use branded fallback.
+		v.CoverURL = ""
 	default:
 		v.CoverURL = play.CoverPlaceholder(v.Title)
 	}

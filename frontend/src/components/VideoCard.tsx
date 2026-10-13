@@ -3,25 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { formatDuration, formatViews, type Video } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { videoEntryHref } from '../auth/paths';
+import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
 
 type Props = {
   video: Video;
   compact?: boolean;
   categoryName?: string;
 };
-
-const FALLBACK =
-  'data:image/svg+xml,' +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
-      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-        <stop stop-color="#00aeec"/><stop offset="1" stop-color="#fb7299"/>
-      </linearGradient></defs>
-      <rect width="640" height="360" fill="#f1f2f3"/>
-      <rect width="640" height="360" fill="url(#g)" opacity=".35"/>
-      <text x="320" y="188" text-anchor="middle" fill="#fff" font-size="36" font-family="sans-serif" font-weight="700">VPlayer</text>
-    </svg>`,
-  );
 
 export function VideoCard({ video, compact, categoryName }: Props) {
   const { user, ready } = useAuth();
@@ -51,13 +39,10 @@ export function VideoCard({ video, compact, categoryName }: Props) {
     >
       <div className="thumb">
         <img
-          src={video.cover_url || FALLBACK}
+          src={coverImgSrc(video.cover_url)}
           alt=""
           loading="lazy"
-          onError={(e) => {
-            const el = e.currentTarget;
-            if (el.src !== FALLBACK) el.src = FALLBACK;
-          }}
+          onError={onCoverImgError}
         />
         <div className="thumb-stats">
           <span>
