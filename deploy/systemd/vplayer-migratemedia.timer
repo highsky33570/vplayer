@@ -1,6 +1,7 @@
 [Unit]
 Description=Run VPlayer selective R2 media migration every 6 hours
-Requires=vplayer-migratemedia.service
+# Do NOT use Requires= on the oneshot service here: activating the timer would
+# also activate the service (status=immediate migration). Unit= below is enough.
 
 [Timer]
 # Conservative cadence vs discovery/enrichment (~3h). Offset at :40 to avoid stacking.

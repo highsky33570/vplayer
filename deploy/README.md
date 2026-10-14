@@ -54,7 +54,7 @@ What the script does (summary):
 6. After success only: backs up current API/worker binaries, frontend dist, and runtime migrations dir (not `.env`).
 7. Atomically installs binaries (temp file + `mv`), swaps frontend dist via rename, then atomically swaps `/opt/vplayer/backend/migrations` (prepare `.new` fully → rename; dirs `755`, SQL files `644`).
 8. Restarts **only** `vplayer-api.service` **after** migrations are in place so startup can discover/apply new SQL. Does **not** start oneshot workers. Does **not** run a separate migrate CLI.
-9. Installs/updates `vplayer-migratemedia.service` + `.timer`, `daemon-reload`, and `enable --now` on the **timer only** (never starts the migratemedia oneshot during deploy).
+9. Installs/updates `vplayer-migratemedia.service` + `.timer`, `daemon-reload`, `enable` + `restart` on the **timer only** (never starts the migratemedia oneshot; timer must not `Requires=` the oneshot).
 10. Verifies API + sync/enrichment/migration **timers** active, migratemedia **service** not active, `nginx -t`, local `/health`, and local homepage HTTP.
 11. Keeps the newest 5 backup directories under `/opt/vplayer/releases/backups/`.
 

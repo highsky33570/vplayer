@@ -122,8 +122,9 @@ migrations_has_sql() {
   [[ -n "${f}" ]]
 }
 
-# Install/update migratemedia oneshot + timer from the repo. Does not start the service
-# (avoids an immediate migration). enable --now applies to the TIMER only.
+# Install/update migratemedia oneshot + timer from the repo.
+# Never starts the oneshot service. Enables and (re)starts the TIMER only so the
+# next OnCalendar event can fire later — not an immediate migration.
 install_migratemedia_units() {
   local svc_src="${SYSTEMD_UNIT_SRC}/vplayer-migratemedia.service"
   local timer_src="${SYSTEMD_UNIT_SRC}/vplayer-migratemedia.timer"
@@ -133,8 +134,16 @@ install_migratemedia_units() {
   install -m 644 "${svc_src}" "${SYSTEMD_UNIT_DST}/vplayer-migratemedia.service"
   install -m 644 "${timer_src}" "${SYSTEMD_UNIT_DST}/vplayer-migratemedia.timer"
   systemctl daemon-reload
-  # Timer only — never systemctl start vplayer-migratemedia.service here.
-  systemctl enable --now "${MIGRATE_TIMER}"
+
+  # enable without --now, then start/restart the TIMER unit only.
+  # Do not: systemctl enable --now (historical immediate oneshot pull via Requires=),
+  # and never: systemctl start/restart the migratemedia.service oneshot.
+  systemctl enable "${MIGRATE_TIMER}"
+  systemctl restart "${MIGRATE_TIMER}"
+
+  if is_active "${MIGRATE_UNIT}"; then
+    die "${MIGRATE_UNIT} became active during timer install; refusing unexpected migration"
+  fi
 }
 
 # Stage a complete migrations tree under STAGING (does not touch runtime).
@@ -471,7 +480,7 @@ main() {
   systemctl restart "${API_UNIT}"
   sleep 1
 
-  log "installing ${MIGRATE_UNIT} / ${MIGRATE_TIMER} (enable timer only; do not start oneshot)…"
+  log "installing ${MIGRATE_UNIT} / ${MIGRATE_TIMER} (enable+restart timer only; never start oneshot)…"
   install_migratemedia_units
 
   # --- Verify ---

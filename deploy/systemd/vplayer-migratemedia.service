@@ -1,40 +1,24 @@
 [Unit]
 Description=VPlayer selective R2 media migration (bounded, limit 1)
 Documentation=file:///opt/vplayer/deploy/systemd/README.md
-After=network-online.target mysql.service
+After=network-online.target docker.service
 Wants=network-online.target
-# Independent of vplayer-api and catalog workers; do not couple restarts.
+# Match proven production syncincremental worker conventions (no dedicated Linux user).
 
 [Service]
 Type=oneshot
-User=vplayer
-Group=vplayer
-WorkingDirectory=/opt/vplayer/backend
-
-# Reuse the same secrets file as the API / syncincremental / enrichpending — no credentials in this unit.
-# Confirm path with: systemctl show -p EnvironmentFiles vplayer-api.service
-EnvironmentFile=-/etc/vplayer/vplayer.env
-
-Environment=APP_ENV=production
-Environment=OLEHDTV_SYNC_ENABLED=false
+WorkingDirectory=/opt/vplayer
+# Dotenv: cwd=/opt/vplayer → loadEnvFiles reads ./.env → /opt/vplayer/.env (no secrets in this unit).
 
 # One episode per timer fire. Overlap protection is the app advisory lock (vplayer_media_migrate).
 ExecStart=/opt/vplayer/backend/bin/migratemedia --execute --confirm=MIGRATE --limit 1 --trigger=timer
 
 # CLI uses a 30-minute context; leave a small buffer for process teardown.
 TimeoutStartSec=35m
-Nice=10
-IOSchedulingClass=best-effort
-IOSchedulingPriority=7
 
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=vplayer-migratemedia
-
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
-ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
