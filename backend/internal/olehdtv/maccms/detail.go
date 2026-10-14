@@ -355,12 +355,17 @@ func isValidDescription(d string) bool {
 }
 
 func extractDetailPoster(html, detailURL string) string {
+	vodID, _ := ExtractVodID(detailURL)
+	// Prefer the current title's thumb / hero art — never recommendation carousels.
+	if p := ExtractTitleOwnedPoster(html, detailURL, vodID); p != "" {
+		return p
+	}
 	if m := reOGImage.FindStringSubmatch(html); len(m) > 0 {
 		u := AbsoluteURL(detailURL, firstGroup(m[1], m[2]))
 		if IsValidContentPoster(u) && strings.Contains(strings.ToLower(u), "/upload/vod/") {
 			return u
 		}
-		// Non-placeholder og:image is a candidate, but prefer scoped BestPoster when available.
+		// Non-placeholder og:image is a weak candidate; prefer scoped BestPoster when available.
 		if IsValidContentPoster(u) {
 			if p := BestPoster(detailContentScope(html), detailURL); IsValidContentPoster(p) {
 				return p
@@ -368,11 +373,11 @@ func extractDetailPoster(html, detailURL string) string {
 			return u
 		}
 	}
-	scope := detailContentScope(html)
-	if p := BestPoster(scope, detailURL); p != "" {
+	// Scoped detail region only — do not scan the full page (recommendations).
+	if p := BestPoster(detailContentScope(html), detailURL); p != "" {
 		return p
 	}
-	return BestPoster(html, detailURL)
+	return ""
 }
 
 func detailContentScope(html string) string {

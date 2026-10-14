@@ -734,6 +734,26 @@ func TestVideoCatalogChanged(t *testing.T) {
 	}
 }
 
+func TestVideoCatalogChanged_posterSourceURLRepair(t *testing.T) {
+	const site = "https://static.olelive.com/upload/site/20201117-1/d2035d18801242fc62991b32d6366bf8.png"
+	const vod = "https://static.olelive.com/upload/vod/20260928-1/64dc7d18d85e96eccf9a3a03572eca6c.jpg"
+	existing := &model.Video{
+		Title: "t", Status: "ready", IsActive: true,
+		PosterSourceURL: site, CoverR2Key: "posters/84839.jpg", CoverKey: "posters/84839.jpg",
+	}
+	in := store.VideoUpsert{
+		Title: "t", Status: "ready", IsActive: true,
+		PosterSourceURL: vod, CoverR2Key: "posters/84839.jpg", CoverKey: "posters/84839.jpg",
+	}
+	if !VideoCatalogChanged(existing, in) {
+		t.Fatal("new legitimate detail poster must mark catalog changed for repair")
+	}
+	// Migrated cover keys stay on the upsert (processVideo copies existing CoverR2Key).
+	if in.CoverR2Key != existing.CoverR2Key {
+		t.Fatal("cover_r2_key must remain migrated key")
+	}
+}
+
 func TestEpisodeCatalogChangedAndMedia(t *testing.T) {
 	ex := &store.EpisodeSyncRow{
 		Title: "正片", PlaybackURL: "https://a", PlaybackStatus: "ok", IsActive: true,
