@@ -88,7 +88,14 @@ export function Home() {
           : Promise.resolve({ data: [] as Video[], total: 0, limit: HOME_SECTION_LIMIT, offset: 0, has_more: false });
       });
 
-      Promise.all([listVideosPage({ limit: HOME_SECTION_LIMIT, offset: 0 }), ...categoryFetches])
+      Promise.all([
+        listVideosPage({
+          limit: HOME_SECTION_LIMIT,
+          offset: 0,
+          excludeCategorySlug: 'midnight',
+        }),
+        ...categoryFetches,
+      ])
         .then(([latestPage, ...catPages]) => {
           if (cancelled) return;
           const bySlug: Record<string, Video[]> = {};

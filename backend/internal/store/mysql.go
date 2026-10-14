@@ -79,10 +79,10 @@ func (m *MySQL) ListReadyVideos(limit, offset int) ([]model.Video, error) {
 }
 
 func (m *MySQL) ListReadyVideosByCategory(categoryID uint64, limit, offset int) ([]model.Video, error) {
-	return m.ListReadyVideosFiltered(categoryID, "", limit, offset)
+	return m.ListReadyVideosFiltered(categoryID, "", "", limit, offset)
 }
 
-func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query string, limit, offset int) ([]model.Video, error) {
+func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string, limit, offset int) ([]model.Video, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 48
 	}
@@ -96,16 +96,9 @@ func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query string, limit, 
 		FROM videos
 		WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
 	args := []any{}
-	if categoryID > 0 {
-		q += ` AND category_id=?`
-		args = append(args, categoryID)
-	}
-	if query = strings.TrimSpace(query); query != "" {
-		like := "%" + query + "%"
-		q += ` AND (title LIKE ? OR COALESCE(description,'') LIKE ? OR COALESCE(actors,'') LIKE ?)`
-		args = append(args, like, like, like)
-	}
+	q, args = AppendReadyVideosWhere(q, args, categoryID, query, excludeCategorySlug)
 	// Newest-added first: created_at (insert time), then id as stable tie-breaker.
+	// Exclusion (if any) is already in WHERE above — applied before ORDER BY/LIMIT/OFFSET.
 	q += ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 	rows, err := m.DB.Query(q, args...)

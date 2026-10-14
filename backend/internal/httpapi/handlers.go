@@ -22,6 +22,8 @@ type API struct {
 	Resolver   *play.Resolver
 	SyncRunner *scheduler.OleHdTvRunner
 	MediaBase  string
+	// PublicVideos optionally overrides Store for public video list/count (tests).
+	PublicVideos publicVideoRepo
 	// AdminVideos optionally overrides Store for admin video reads (tests).
 	AdminVideos adminVideoRepo
 	// AdminCategories optionally overrides Store for admin category reads (tests).
@@ -38,6 +40,22 @@ type API struct {
 	WorkerLauncher WorkerLauncher
 	// AdminMedia optionally overrides Store for admin media reads (tests).
 	AdminMedia adminMediaRepo
+}
+
+// publicVideoRepo is the store surface used by GET /api/v1/videos.
+type publicVideoRepo interface {
+	CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string) (int, error)
+	ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string, limit, offset int) ([]model.Video, error)
+}
+
+func (a *API) publicVideoRepo() publicVideoRepo {
+	if a.PublicVideos != nil {
+		return a.PublicVideos
+	}
+	if a.Store != nil {
+		return a.Store
+	}
+	return nil
 }
 
 func (a *API) Health(c *gin.Context) {
@@ -65,6 +83,8 @@ func (a *API) ListVideos(c *gin.Context) {
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	catID, _ := strconv.ParseUint(c.Query("category_id"), 10, 64)
 	q := strings.TrimSpace(c.Query("q"))
+	// Optional homepage-only filter; absent/empty => no exclusion (search/browse/category unchanged).
+	excludeSlug := store.NormalizeExcludeCategorySlug(c.Query("exclude_category_slug"))
 	if limit <= 0 {
 		limit = 24
 	}
@@ -74,7 +94,8 @@ func (a *API) ListVideos(c *gin.Context) {
 	if offset < 0 {
 		offset = 0
 	}
-	if a.Store == nil {
+	repo := a.publicVideoRepo()
+	if repo == nil {
 		rows := demoVideos()
 		if q != "" {
 			filtered := make([]model.Video, 0, len(rows))
@@ -89,17 +110,17 @@ func (a *API) ListVideos(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "data": rows, "total": len(rows), "limit": limit, "offset": offset, "has_more": false})
 		return
 	}
-	total, err := a.Store.CountReadyVideosFiltered(catID, q)
+	total, err := repo.CountReadyVideosFiltered(catID, q, excludeSlug)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
-	rows, err := a.Store.ListReadyVideosFiltered(catID, q, limit, offset)
+	rows, err := repo.ListReadyVideosFiltered(catID, q, excludeSlug, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
-	if len(rows) == 0 && catID == 0 && q == "" && total == 0 {
+	if len(rows) == 0 && catID == 0 && q == "" && excludeSlug == "" && total == 0 {
 		rows = demoVideos()
 		total = len(rows)
 	}

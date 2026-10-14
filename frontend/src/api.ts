@@ -160,6 +160,8 @@ export async function listVideosPage(opts?: {
   q?: string;
   limit?: number;
   offset?: number;
+  /** Optional; homepage Featured/最新上架 only. Never set for category/search/browse. */
+  excludeCategorySlug?: string;
 }): Promise<VideoPage> {
   const limit = opts?.limit ?? 48;
   const offset = opts?.offset ?? 0;
@@ -170,6 +172,8 @@ export async function listVideosPage(opts?: {
   if (opts?.categoryId) params.set('category_id', String(opts.categoryId));
   const q = opts?.q?.trim();
   if (q) params.set('q', q);
+  const excludeSlug = opts?.excludeCategorySlug?.trim();
+  if (excludeSlug) params.set('exclude_category_slug', excludeSlug);
   const res = await fetch(`${API_BASE}/api/v1/videos?${params}`);
   const json = (await res.json().catch(() => ({}))) as {
     ok?: boolean;

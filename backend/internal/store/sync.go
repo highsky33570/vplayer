@@ -48,17 +48,17 @@ type VideoUpsert struct {
 }
 
 type EpisodeUpsert struct {
-	VideoID         uint64
-	SourceSystem    string
-	SourceVideoID   string
-	SID             int
-	NID             int
-	Title           string
-	PlaybackSource  string
-	PlaybackURL     string
-	PlayPageURL     string
-	PlaybackStatus  string
-	IsActive        bool
+	VideoID        uint64
+	SourceSystem   string
+	SourceVideoID  string
+	SID            int
+	NID            int
+	Title          string
+	PlaybackSource string
+	PlaybackURL    string
+	PlayPageURL    string
+	PlaybackStatus string
+	IsActive       bool
 }
 
 func (m *MySQL) GetCategoryBySource(system, sourceID string) (*model.Category, error) {
@@ -333,21 +333,13 @@ func (m *MySQL) TouchVideoSeen(id uint64) error {
 }
 
 func (m *MySQL) CountReadyVideos(categoryID uint64) (int, error) {
-	return m.CountReadyVideosFiltered(categoryID, "")
+	return m.CountReadyVideosFiltered(categoryID, "", "")
 }
 
-func (m *MySQL) CountReadyVideosFiltered(categoryID uint64, query string) (int, error) {
+func (m *MySQL) CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string) (int, error) {
 	q := `SELECT COUNT(*) FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
 	args := []any{}
-	if categoryID > 0 {
-		q += ` AND category_id=?`
-		args = append(args, categoryID)
-	}
-	if query = strings.TrimSpace(query); query != "" {
-		like := "%" + query + "%"
-		q += ` AND (title LIKE ? OR COALESCE(description,'') LIKE ? OR COALESCE(actors,'') LIKE ?)`
-		args = append(args, like, like, like)
-	}
+	q, args = AppendReadyVideosWhere(q, args, categoryID, query, excludeCategorySlug)
 	var n int
 	err := m.DB.QueryRow(q, args...).Scan(&n)
 	return n, err
