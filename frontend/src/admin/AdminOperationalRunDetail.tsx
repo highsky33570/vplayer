@@ -34,6 +34,8 @@ function jobLabel(jobType: string) {
       return 'Incremental Sync';
     case 'enrichment':
       return 'Pending Enrichment';
+    case 'media_migration':
+      return 'Media Migration';
     default:
       return jobType || '—';
   }
@@ -117,6 +119,8 @@ export function AdminOperationalRunDetail() {
   }, [id, token, logout, navigate]);
 
   const isEnrichment = data?.job_type === 'enrichment';
+  const isMediaMigration = data?.job_type === 'media_migration';
+  const useSelectedCounters = isEnrichment || isMediaMigration;
 
   return (
     <section className="admin-page">
@@ -202,7 +206,7 @@ export function AdminOperationalRunDetail() {
             <dt>Duration</dt>
             <dd>{formatDuration(data.duration_seconds)}</dd>
           </div>
-          {isEnrichment ? (
+          {useSelectedCounters ? (
             <>
               <div>
                 <dt>Selected</dt>
@@ -216,10 +220,12 @@ export function AdminOperationalRunDetail() {
                 <dt>Skipped</dt>
                 <dd>{formatNullableCount(data.skipped_count)}</dd>
               </div>
-              <div>
-                <dt>Unavailable</dt>
-                <dd>{formatNullableCount(data.unavailable_count)}</dd>
-              </div>
+              {isEnrichment ? (
+                <div>
+                  <dt>Unavailable</dt>
+                  <dd>{formatNullableCount(data.unavailable_count)}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Failed</dt>
                 <dd>{formatNullableCount(data.failed_count)}</dd>

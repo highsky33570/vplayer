@@ -86,7 +86,7 @@ func parseOpsJobTypeFilter(raw string) (string, string, bool) {
 		return "", "", true
 	}
 	switch strings.ToLower(v) {
-	case store.JobIncrementalSync, store.JobEnrichment:
+	case store.JobIncrementalSync, store.JobEnrichment, store.JobMediaMigration:
 		return strings.ToLower(v), "", true
 	default:
 		return "", "invalid job_type", false
@@ -200,6 +200,8 @@ func isOperationalRunStale(r *store.OperationalRunRow, now time.Time) bool {
 		threshold = store.IncrementalStaleAfter
 	case store.JobEnrichment:
 		threshold = store.EnrichmentStaleAfter
+	case store.JobMediaMigration:
+		threshold = store.MediaMigrationStaleAfter
 	default:
 		return false
 	}

@@ -34,6 +34,9 @@ func TestValidateTriggerAndJob(t *testing.T) {
 	if _, err := ValidateJobType(JobEnrichment); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := ValidateJobType(JobMediaMigration); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := ValidateJobType("full_sync"); err == nil {
 		t.Fatal("full_sync not recorded")
 	}

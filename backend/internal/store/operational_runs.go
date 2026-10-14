@@ -11,6 +11,7 @@ import (
 const (
 	JobIncrementalSync = "incremental_sync"
 	JobEnrichment      = "enrichment"
+	JobMediaMigration  = "media_migration"
 
 	TriggerCLI   = "cli"
 	TriggerTimer = "timer"
@@ -32,8 +33,9 @@ const (
 
 // Stale thresholds for future Admin derived status (no auto-mutation in 4A).
 const (
-	IncrementalStaleAfter = 20 * time.Minute
-	EnrichmentStaleAfter  = 25 * time.Minute
+	IncrementalStaleAfter    = 20 * time.Minute
+	EnrichmentStaleAfter     = 25 * time.Minute
+	MediaMigrationStaleAfter = 45 * time.Minute // longer than CLI migrate context (30m)
 )
 
 // ValidateTriggerType accepts cli|timer|admin.
@@ -75,11 +77,11 @@ func RequestedByPtr(id uint64) *uint64 {
 	return &id
 }
 
-// ValidateJobType accepts only incremental_sync|enrichment for Plan 4A writers.
+// ValidateJobType accepts incremental_sync|enrichment|media_migration.
 func ValidateJobType(raw string) (string, error) {
 	j := strings.ToLower(strings.TrimSpace(raw))
 	switch j {
-	case JobIncrementalSync, JobEnrichment:
+	case JobIncrementalSync, JobEnrichment, JobMediaMigration:
 		return j, nil
 	default:
 		return "", fmt.Errorf("invalid job_type %q", raw)

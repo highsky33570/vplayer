@@ -71,6 +71,8 @@ function jobLabel(jobType: string) {
       return 'Incremental Sync';
     case 'enrichment':
       return 'Pending Enrichment';
+    case 'media_migration':
+      return 'Media Migration';
     default:
       return jobType || '—';
   }
@@ -154,6 +156,15 @@ function OperationalCounters({ row }: { row: AdminOperationalRun }) {
         {formatNullableCount(row.succeeded_count)} · skipped {formatNullableCount(row.skipped_count)} ·
         unavailable {formatNullableCount(row.unavailable_count)} · failed{' '}
         {formatNullableCount(row.failed_count)}
+      </>
+    );
+  }
+  if (row.job_type === 'media_migration') {
+    return (
+      <>
+        selected {formatNullableCount(row.selected_count)} · succeeded{' '}
+        {formatNullableCount(row.succeeded_count)} · skipped {formatNullableCount(row.skipped_count)} ·
+        failed {formatNullableCount(row.failed_count)}
       </>
     );
   }
@@ -576,7 +587,7 @@ export function AdminSync() {
           <div className="admin-page-head" style={{ marginTop: 36 }}>
             <h2>Operational Runs</h2>
             <p className="admin-muted">
-              Incremental / enrichment worker execution history from{' '}
+              Incremental / enrichment / media migration worker execution history from{' '}
               <span className="admin-mono">operational_runs</span> · newest first
             </p>
           </div>
@@ -596,6 +607,7 @@ export function AdminSync() {
                 <option value="">All</option>
                 <option value="incremental_sync">Incremental Sync</option>
                 <option value="enrichment">Pending Enrichment</option>
+                <option value="media_migration">Media Migration</option>
               </select>
             </label>
             <label className="admin-filter-field">

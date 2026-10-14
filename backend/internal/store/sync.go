@@ -458,8 +458,10 @@ type MigratableEpisode struct {
 	MigrationStatus string
 }
 
+// ListMigratableEpisodes returns batch worker candidates: general eligibility plus
+// failure cooldown. Prefer this for automatic/batch selection (not Admin counts).
 func (m *MySQL) ListMigratableEpisodes(limit int, episodeID uint64) ([]MigratableEpisode, error) {
-	q, args := listMigratableEpisodesQuery(limit, episodeID)
+	q, args := listMigratableEpisodesQuery(limit, episodeID, time.Now())
 	rows, err := m.DB.Query(q, args...)
 	if err != nil {
 		return nil, err
@@ -477,8 +479,8 @@ func (m *MySQL) ListMigratableEpisodes(limit int, episodeID uint64) ([]Migratabl
 	return out, rows.Err()
 }
 
-// CountMigratableEpisodes counts episodes matching the canonical migratable eligibility
-// definition (same predicate as ListMigratableEpisodes, without LIMIT).
+// CountMigratableEpisodes counts general eligibility (no failure cooldown).
+// AdminMediaOverviewStats.eligible_count uses this path.
 func (m *MySQL) CountMigratableEpisodes() (int, error) {
 	var n int
 	if err := m.DB.QueryRow(countMigratableEpisodesQuery()).Scan(&n); err != nil {
@@ -491,16 +493,17 @@ func (m *MySQL) MarkEpisodeMigrated(id uint64, objectKey, provider string) error
 	_, err := m.DB.Exec(`
 		UPDATE video_episodes
 		SET hls_object_key=?, storage_provider=?, migration_status='done',
-		    migration_error=NULL, migrated_at=?
+		    migration_error=NULL, migrated_at=?, migration_failed_at=NULL
 		WHERE id=?`, objectKey, provider, time.Now(), id)
 	return err
 }
 
 func (m *MySQL) MarkEpisodeMigrationFailed(id uint64, msg string) error {
+	// migration_failed_at drives batch worker retry cooldown; migrated_at stays success-only.
 	_, err := m.DB.Exec(`
 		UPDATE video_episodes
-		SET migration_status='failed', migration_error=?
-		WHERE id=?`, msg, id)
+		SET migration_status='failed', migration_error=?, migration_failed_at=?
+		WHERE id=?`, msg, time.Now(), id)
 	return err
 }
 

@@ -71,6 +71,19 @@ describe('adminSyncQuery', () => {
     assert.equal(parsed.opPage, 1);
     assert.equal(parsed.page, 1);
   });
+
+  it('accepts media_migration op job filter', () => {
+    const qs = buildAdminSyncSearch({
+      triggerType: '',
+      page: 1,
+      opJob: 'media_migration',
+      opTrigger: 'cli',
+      opStatus: 'succeeded',
+    });
+    assert.equal(qs.includes('op_job=media_migration'), true);
+    const parsed = parseAdminSyncSearch(new URLSearchParams(qs.slice(1)));
+    assert.equal(parsed.opJob, 'media_migration');
+  });
 });
 
 describe('admin sync operational history UI boundaries', () => {

@@ -72,6 +72,8 @@ func staleThresholdForJob(jobType string) (time.Duration, bool) {
 		return IncrementalStaleAfter, true
 	case JobEnrichment:
 		return EnrichmentStaleAfter, true
+	case JobMediaMigration:
+		return MediaMigrationStaleAfter, true
 	default:
 		return 0, false
 	}

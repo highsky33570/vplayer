@@ -141,7 +141,7 @@ func (m *MySQL) InsertEpisodeCatalog(in EpisodeUpsert) error {
 }
 
 // UpdateEpisodeCatalog updates source/catalog episode fields only.
-// Never touches hls_object_key, storage_provider, migration_status, migrated_at.
+// Never touches hls_object_key, storage_provider, migration_status, migrated_at, migration_failed_at.
 func (m *MySQL) UpdateEpisodeCatalog(id uint64, in EpisodeUpsert) error {
 	now := time.Now()
 	status := in.PlaybackStatus

@@ -1,6 +1,6 @@
 /** Build admin sync + operational runs query for URL search params / API. */
 
-export type AdminOpsJobFilter = '' | 'incremental_sync' | 'enrichment';
+export type AdminOpsJobFilter = '' | 'incremental_sync' | 'enrichment' | 'media_migration';
 export type AdminOpsTriggerFilter = '' | 'cli' | 'timer';
 export type AdminOpsStatusFilter = '' | 'running' | 'succeeded' | 'failed' | 'rejected';
 
@@ -22,7 +22,11 @@ export function parseAdminSyncSearch(params: URLSearchParams): {
 
   const opJobRaw = (params.get('op_job') ?? '').trim();
   const opJob: AdminOpsJobFilter =
-    opJobRaw === 'incremental_sync' || opJobRaw === 'enrichment' ? opJobRaw : '';
+    opJobRaw === 'incremental_sync' ||
+    opJobRaw === 'enrichment' ||
+    opJobRaw === 'media_migration'
+      ? opJobRaw
+      : '';
 
   const opTriggerRaw = (params.get('op_trigger') ?? '').trim();
   const opTrigger: AdminOpsTriggerFilter =

@@ -22,6 +22,8 @@ func main() {
 	confirm := flag.String("confirm", "", "must be MIGRATE to allow --execute")
 	limit := flag.Int("limit", 1, "max episodes to process")
 	episodeID := flag.Uint64("episode-id", 0, "optional specific episode id")
+	trigger := flag.String("trigger", store.TriggerCLI, "operational trigger: cli|timer|admin")
+	requestedBy := flag.Uint64("requested-by-user-id", 0, "admin user id when --trigger=admin; must be 0 for cli|timer")
 	flag.Parse()
 
 	modeDry := *dryRun
@@ -36,6 +38,14 @@ func main() {
 	}
 	if modeExec && *confirm != "MIGRATE" {
 		log.Fatal("--execute requires --confirm=MIGRATE")
+	}
+
+	trig, err := store.ValidateTriggerType(*trigger)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := store.ValidateTriggerRequester(trig, *requestedBy); err != nil {
+		log.Fatal(err)
 	}
 
 	cfg := config.Load()
@@ -55,23 +65,6 @@ func main() {
 		log.Fatal("R2_BUCKET is empty")
 	}
 
-	var eps []store.MigratableEpisode
-	if *episodeID > 0 {
-		ep, err := db.GetMigratableEpisodeByID(*episodeID)
-		if err != nil {
-			log.Fatalf("episode: %v", err)
-		}
-		if ep == nil {
-			log.Fatalf("episode %d not found", *episodeID)
-		}
-		eps = []store.MigratableEpisode{*ep}
-	} else {
-		eps, err = db.ListMigratableEpisodes(*limit, 0)
-		if err != nil {
-			log.Fatalf("list episodes: %v", err)
-		}
-	}
-
 	localStore, err := media.NewLocalStore(cfg.OleHdTvLocalObjectsDir, cfg.OleHdTvMediaPublicBase)
 	if err != nil {
 		log.Fatalf("local store: %v", err)
@@ -87,70 +80,52 @@ func main() {
 		CDN:      cdn,
 		Log:      log.Default(),
 	}
-
-	summary := map[string]int{
-		"scanned": len(eps), "planned": 0, "skipped": 0, "already_migrated": 0, "migrated": 0, "failed": 0,
-	}
+	runner := mediamigrate.NewBatchRunner(db, mig)
+	runner.TriggerType = trig
+	runner.RequestedByUserID = *requestedBy
 
 	if modeDry {
 		fmt.Println("=== media migration dry-run ===")
 	} else {
 		fmt.Println("=== media migration EXECUTE ===")
 	}
-	fmt.Printf("bucket=%s media_cdn_base=%s auth_mode=%s\n", cfg.R2Bucket, displayCDNBase(cdn.BaseURL), cfg.CDNURLAuthMode)
-
-	if len(eps) == 0 {
-		fmt.Println("no migratable episodes matched")
-		os.Exit(0)
-	}
+	fmt.Printf("bucket=%s media_cdn_base=%s auth_mode=%s trigger=%s\n",
+		cfg.R2Bucket, displayCDNBase(cdn.BaseURL), cfg.CDNURLAuthMode, trig)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	for _, ep := range eps {
-		if modeDry {
-			plan, err := mig.InspectSource(ctx, ep)
-			if err != nil {
-				log.Printf("inspect episode=%d: %v", ep.ID, err)
-				summary["failed"]++
-				continue
-			}
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			_ = enc.Encode(plan)
-			switch {
-			case plan.AlreadyMigrated:
-				summary["already_migrated"]++
-			case plan.SkipReason != "":
-				summary["skipped"]++
-			default:
-				summary["planned"]++
-			}
-			continue
-		}
+	sum, err := runner.Run(ctx, mediamigrate.RunOptions{
+		DryRun:    modeDry,
+		Execute:   modeExec,
+		Limit:     *limit,
+		EpisodeID: *episodeID,
+	})
 
-		// EXECUTE path — still gated by --confirm=MIGRATE above.
-		res := mig.MigrateEpisode(ctx, ep)
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		_ = enc.Encode(res)
-		switch {
-		case res.AlreadyMigrated:
-			summary["already_migrated"]++
-		case res.Skipped && res.Error == "":
-			summary["skipped"]++
-		case res.Error != "":
-			summary["failed"]++
-		default:
-			summary["migrated"]++
-		}
+	summary := map[string]int{
+		"scanned":          sum.Selected,
+		"planned":          sum.Planned,
+		"skipped":          sum.Skipped,
+		"already_migrated": sum.AlreadyMigrated,
+		"migrated":         sum.Migrated,
+		"failed":           sum.Failed,
 	}
+	if sum.Selected == 0 && err == nil {
+		fmt.Println("no migratable episodes matched")
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(sum)
 
 	fmt.Println("--- summary ---")
 	b, _ := json.MarshalIndent(summary, "", "  ")
 	fmt.Println(string(b))
 	if modeDry {
 		fmt.Println("STOP: dry-run only — no R2 uploads and no episode migration field writes.")
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "media migration: %v\n", err)
+		os.Exit(1)
 	}
 	os.Exit(exitCodeFromSummary(summary, modeExec))
 }

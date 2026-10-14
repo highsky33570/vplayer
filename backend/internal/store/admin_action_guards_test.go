@@ -14,6 +14,10 @@ func TestStaleThresholdForJob(t *testing.T) {
 	if !ok || d != EnrichmentStaleAfter {
 		t.Fatalf("%v %v", d, ok)
 	}
+	d, ok = staleThresholdForJob(JobMediaMigration)
+	if !ok || d != MediaMigrationStaleAfter {
+		t.Fatalf("%v %v", d, ok)
+	}
 	if _, ok := staleThresholdForJob("mystery"); ok {
 		t.Fatal("unknown job must not invent threshold")
 	}

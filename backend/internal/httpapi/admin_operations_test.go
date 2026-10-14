@@ -325,6 +325,25 @@ func TestAdminListOperationalRunsPaginationAndValidation(t *testing.T) {
 	}
 }
 
+func TestParseOpsJobTypeFilter_mediaMigration(t *testing.T) {
+	job, msg, ok := parseOpsJobTypeFilter("media_migration")
+	if !ok || job != store.JobMediaMigration || msg != "" {
+		t.Fatalf("got job=%q msg=%q ok=%v", job, msg, ok)
+	}
+	_, msg, ok = parseOpsJobTypeFilter("full_sync")
+	if ok || msg == "" {
+		t.Fatal("full_sync must remain rejected")
+	}
+	job, _, ok = parseOpsJobTypeFilter("incremental_sync")
+	if !ok || job != store.JobIncrementalSync {
+		t.Fatal("incremental_sync must still parse")
+	}
+	job, _, ok = parseOpsJobTypeFilter("enrichment")
+	if !ok || job != store.JobEnrichment {
+		t.Fatal("enrichment must still parse")
+	}
+}
+
 func TestOperationalRunStaleAndDuration(t *testing.T) {
 	now := time.Date(2026, 10, 12, 18, 0, 0, 0, time.UTC)
 	freshStart := now.Add(-5 * time.Minute)
@@ -359,6 +378,23 @@ func TestOperationalRunStaleAndDuration(t *testing.T) {
 	}
 	if !isOperationalRunStale(staleEnrich, now) {
 		t.Fatal("enrichment >25m must be stale")
+	}
+
+	staleMediaStart := now.Add(-46 * time.Minute)
+	staleMedia := &store.OperationalRunRow{
+		ID: 8, JobType: store.JobMediaMigration, Status: store.OpStatusRunning,
+		RequestedAt: staleMediaStart, StartedAt: &staleMediaStart,
+	}
+	if !isOperationalRunStale(staleMedia, now) {
+		t.Fatal("media_migration >45m must be stale")
+	}
+	freshMediaStart := now.Add(-10 * time.Minute)
+	freshMedia := &store.OperationalRunRow{
+		ID: 9, JobType: store.JobMediaMigration, Status: store.OpStatusRunning,
+		RequestedAt: freshMediaStart, StartedAt: &freshMediaStart,
+	}
+	if isOperationalRunStale(freshMedia, now) {
+		t.Fatal("fresh media_migration must not be stale")
 	}
 
 	completed := &store.OperationalRunRow{

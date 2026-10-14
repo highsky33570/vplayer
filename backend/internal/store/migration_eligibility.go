@@ -1,10 +1,20 @@
 package store
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
-// MigratableEpisodeWhereSQL is the canonical eligibility predicate for automatic/batch
-// R2 migration candidates (ListMigratableEpisodes / CountMigratableEpisodes /
-// AdminMediaOverviewStats.eligible_count).
+// MediaMigrateLockName is the MySQL advisory lock for migratemedia workers.
+const MediaMigrateLockName = "vplayer_media_migrate"
+
+// MediaMigrationFailureCooldown skips recently failed episodes from batch worker
+// selection only (ListMigratableEpisodes). CountMigratableEpisodes / Admin
+// eligible_count do not apply this cooldown.
+const MediaMigrationFailureCooldown = 24 * time.Hour
+
+// MigratableEpisodeWhereSQL is the canonical general eligibility predicate
+// (CountMigratableEpisodes / AdminMediaOverviewStats.eligible_count).
 //
 // Joined as:
 //
@@ -23,6 +33,16 @@ const MigratableEpisodeWhereSQL = `
 		AND LOWER(COALESCE(e.migration_status,'')) NOT IN ('done','migrated')
 		AND LOWER(COALESCE(e.playback_status,'')) NOT IN ('unavailable','member','vip','restricted','forbidden')`
 
+// MigratableWorkerCooldownSQL excludes recently failed episodes from batch selection.
+// Uses migration_failed_at only (migrated_at remains success-only).
+// Legacy failed rows with NULL migration_failed_at remain selectable once.
+const MigratableWorkerCooldownSQL = `
+		AND (
+			LOWER(COALESCE(e.migration_status,'')) <> 'failed'
+			OR e.migration_failed_at IS NULL
+			OR e.migration_failed_at <= ?
+		)`
+
 func migratableEpisodesJoinFrom() string {
 	return `
 		FROM video_episodes e
@@ -30,7 +50,7 @@ func migratableEpisodesJoinFrom() string {
 		WHERE ` + MigratableEpisodeWhereSQL
 }
 
-func listMigratableEpisodesQuery(limit int, episodeID uint64) (string, []any) {
+func listMigratableEpisodesQuery(limit int, episodeID uint64, now time.Time) (string, []any) {
 	if limit <= 0 {
 		limit = 1
 	}
@@ -39,7 +59,11 @@ func listMigratableEpisodesQuery(limit int, episodeID uint64) (string, []any) {
 		       COALESCE(e.playback_status,'ok'), COALESCE(e.hls_object_key,''), COALESCE(e.migration_status,'')` +
 		migratableEpisodesJoinFrom()
 	args := []any{}
-	if episodeID > 0 {
+	// Explicit --episode-id bypasses worker failure cooldown (inspect/retry).
+	if episodeID == 0 {
+		q += MigratableWorkerCooldownSQL
+		args = append(args, now.Add(-MediaMigrationFailureCooldown))
+	} else {
 		q += ` AND e.id=?`
 		args = append(args, episodeID)
 	}
@@ -66,6 +90,10 @@ type MigratableEligibilityInput struct {
 	MigrationStatus string
 	// HlsObjectKey is unused by eligibility (SQL does not filter on it).
 	HlsObjectKey string
+	// MigratedAt is success-only (unused by worker failure cooldown).
+	MigratedAt *time.Time
+	// MigrationFailedAt is last migration failure time for batch cooldown. Nil = legacy/never failed.
+	MigrationFailedAt *time.Time
 }
 
 // MatchesMigratableEligibility is the Go twin of MigratableEpisodeWhereSQL.
@@ -105,12 +133,37 @@ func MatchesMigratableEligibility(in MigratableEligibilityInput) bool {
 	return true
 }
 
+// MatchesMigratableWorkerSelection is general eligibility plus failure cooldown
+// (batch ListMigratableEpisodes twin). Explicit --episode-id bypasses this.
+func MatchesMigratableWorkerSelection(in MigratableEligibilityInput, now time.Time) bool {
+	if !MatchesMigratableEligibility(in) {
+		return false
+	}
+	if strings.ToLower(in.MigrationStatus) != "failed" {
+		return true
+	}
+	if in.MigrationFailedAt == nil {
+		return true // legacy failed without failure timestamp → selectable once
+	}
+	return !in.MigrationFailedAt.After(now.Add(-MediaMigrationFailureCooldown))
+}
+
 // filterMigratableEligibility applies MatchesMigratableEligibility and returns
 // matching rows in input order (list semantics without LIMIT).
 func filterMigratableEligibility(rows []MigratableEligibilityInput) []MigratableEligibilityInput {
 	out := make([]MigratableEligibilityInput, 0, len(rows))
 	for _, r := range rows {
 		if MatchesMigratableEligibility(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func filterMigratableWorkerSelection(rows []MigratableEligibilityInput, now time.Time) []MigratableEligibilityInput {
+	out := make([]MigratableEligibilityInput, 0, len(rows))
+	for _, r := range rows {
+		if MatchesMigratableWorkerSelection(r, now) {
 			out = append(out, r)
 		}
 	}
