@@ -459,29 +459,7 @@ type MigratableEpisode struct {
 }
 
 func (m *MySQL) ListMigratableEpisodes(limit int, episodeID uint64) ([]MigratableEpisode, error) {
-	if limit <= 0 {
-		limit = 1
-	}
-	q := `
-		SELECT e.id, e.video_id, e.sid, e.nid, e.title, e.playback_source, e.playback_url,
-		       COALESCE(e.playback_status,'ok'), COALESCE(e.hls_object_key,''), COALESCE(e.migration_status,'')
-		FROM video_episodes e
-		INNER JOIN videos v ON v.id = e.video_id
-		WHERE e.is_active=1
-		  AND COALESCE(v.is_active,1)=1
-		  AND v.status IN ('ready','demo')
-		  AND TRIM(e.playback_url) <> ''
-		  AND LOWER(COALESCE(e.playback_status,'ok')) IN ('ok','available','')
-		  AND LOWER(COALESCE(e.migration_status,'')) NOT IN ('done','migrated')
-		  AND LOWER(COALESCE(e.playback_status,'')) NOT IN ('unavailable','member','vip','restricted','forbidden')`
-	args := []any{}
-	if episodeID > 0 {
-		q += ` AND e.id=?`
-		args = append(args, episodeID)
-	}
-	q += ` ORDER BY e.id ASC LIMIT ?`
-	args = append(args, limit)
-
+	q, args := listMigratableEpisodesQuery(limit, episodeID)
 	rows, err := m.DB.Query(q, args...)
 	if err != nil {
 		return nil, err
@@ -497,6 +475,16 @@ func (m *MySQL) ListMigratableEpisodes(limit int, episodeID uint64) ([]Migratabl
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// CountMigratableEpisodes counts episodes matching the canonical migratable eligibility
+// definition (same predicate as ListMigratableEpisodes, without LIMIT).
+func (m *MySQL) CountMigratableEpisodes() (int, error) {
+	var n int
+	if err := m.DB.QueryRow(countMigratableEpisodesQuery()).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func (m *MySQL) MarkEpisodeMigrated(id uint64, objectKey, provider string) error {

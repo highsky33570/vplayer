@@ -33,16 +33,6 @@ type AdminMediaEpisode struct {
 	HasHLSObject    bool
 }
 
-// Eligibility matches ListMigratableEpisodes (without per-run LIMIT).
-const adminMediaEligibleWhere = `
-		e.is_active=1
-		AND COALESCE(v.is_active,1)=1
-		AND v.status IN ('ready','demo')
-		AND TRIM(e.playback_url) <> ''
-		AND LOWER(COALESCE(e.playback_status,'ok')) IN ('ok','available','')
-		AND LOWER(COALESCE(e.migration_status,'')) NOT IN ('done','migrated')
-		AND LOWER(COALESCE(e.playback_status,'')) NOT IN ('unavailable','member','vip','restricted','forbidden')`
-
 const adminMediaEpisodeSelect = `
 		SELECT e.id, e.video_id, COALESCE(v.title,''), e.sid, e.nid, COALESCE(e.title,''),
 		       COALESCE(e.storage_provider,''), COALESCE(e.migration_status,''), e.migrated_at,
@@ -73,12 +63,11 @@ func (m *MySQL) AdminMediaOverviewStats() (*AdminMediaOverview, error) {
 		WHERE LOWER(COALESCE(migration_status,'')) NOT IN ('done','migrated','failed')`).Scan(&out.NotMigratedCount); err != nil {
 		return nil, err
 	}
-	if err := m.DB.QueryRow(`
-		SELECT COUNT(*) FROM video_episodes e
-		INNER JOIN videos v ON v.id = e.video_id
-		WHERE ` + adminMediaEligibleWhere).Scan(&out.EligibleCount); err != nil {
+	eligible, err := m.CountMigratableEpisodes()
+	if err != nil {
 		return nil, err
 	}
+	out.EligibleCount = eligible
 	if err := m.DB.QueryRow(`
 		SELECT COUNT(*) FROM video_episodes
 		WHERE LOWER(COALESCE(storage_provider,'')) = 'r2'`).Scan(&out.StorageR2Count); err != nil {
