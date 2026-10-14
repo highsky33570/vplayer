@@ -12,6 +12,7 @@ pass() { printf 'PASS: %s\n' "$*"; }
 
 SYNC_BIN="/opt/vplayer/backend/bin/syncincremental"
 ENRICH_BIN="/opt/vplayer/backend/bin/enrichpending"
+MIGRATE_BIN="/opt/vplayer/backend/bin/migratemedia"
 OTHER_BIN="/usr/bin/sleep"
 STAGE_BIN="/tmp/vplayer-deploy.XXXX/bin/syncincremental"
 
@@ -34,13 +35,19 @@ fi
 pass "incremental binary active"
 
 # 4) enrichment production binary
-if ! exe_matches_worker_bins "${ENRICH_BIN}" "${SYNC_BIN}" "${ENRICH_BIN}"; then
+if ! exe_matches_worker_bins "${ENRICH_BIN}" "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}"; then
   fail "enrichpending should match"
 fi
 pass "enrichment binary active"
 
+# 4b) migratemedia production binary
+if ! exe_matches_worker_bins "${MIGRATE_BIN}" "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}"; then
+  fail "migratemedia should match"
+fi
+pass "migratemedia binary active"
+
 # 5) staging/tmp path must not match production paths
-if exe_matches_worker_bins "${STAGE_BIN}" "${SYNC_BIN}" "${ENRICH_BIN}"; then
+if exe_matches_worker_bins "${STAGE_BIN}" "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}"; then
   fail "staging/tmp binary must not match"
 fi
 pass "staging binary ignored"
@@ -50,7 +57,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 export PROC_ROOT="${TMP}/proc"
 mkdir -p "${PROC_ROOT}"
-if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}"; then
+if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}"; then
   fail "empty proc should be inactive"
 fi
 pass "no active workers (empty proc)"

@@ -20,8 +20,12 @@ readonly MAX_BACKUPS=5
 readonly API_UNIT="vplayer-api.service"
 readonly SYNC_UNIT="vplayer-syncincremental.service"
 readonly ENRICH_UNIT="vplayer-enrichpending.service"
+readonly MIGRATE_UNIT="vplayer-migratemedia.service"
 readonly SYNC_TIMER="vplayer-syncincremental.timer"
 readonly ENRICH_TIMER="vplayer-enrichpending.timer"
+readonly MIGRATE_TIMER="vplayer-migratemedia.timer"
+readonly SYSTEMD_UNIT_SRC="${REPO_DIR}/deploy/systemd"
+readonly SYSTEMD_UNIT_DST="/etc/systemd/system"
 
 # shellcheck source=lib/worker_process_guard.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/worker_process_guard.sh"
@@ -116,6 +120,21 @@ migrations_has_sql() {
   local f
   f="$(find "${root}" -maxdepth 1 -type f -name '*.sql' -print -quit)"
   [[ -n "${f}" ]]
+}
+
+# Install/update migratemedia oneshot + timer from the repo. Does not start the service
+# (avoids an immediate migration). enable --now applies to the TIMER only.
+install_migratemedia_units() {
+  local svc_src="${SYSTEMD_UNIT_SRC}/vplayer-migratemedia.service"
+  local timer_src="${SYSTEMD_UNIT_SRC}/vplayer-migratemedia.timer"
+  [[ -f "${svc_src}" ]] || die "missing unit: ${svc_src}"
+  [[ -f "${timer_src}" ]] || die "missing unit: ${timer_src}"
+
+  install -m 644 "${svc_src}" "${SYSTEMD_UNIT_DST}/vplayer-migratemedia.service"
+  install -m 644 "${timer_src}" "${SYSTEMD_UNIT_DST}/vplayer-migratemedia.timer"
+  systemctl daemon-reload
+  # Timer only — never systemctl start vplayer-migratemedia.service here.
+  systemctl enable --now "${MIGRATE_TIMER}"
 }
 
 # Stage a complete migrations tree under STAGING (does not touch runtime).
@@ -347,8 +366,11 @@ main() {
   if is_active "${ENRICH_UNIT}"; then
     die "${ENRICH_UNIT} is active; aborting to avoid interrupting a running worker"
   fi
-  # Admin-launched workers are API children and do not appear as the oneshot units above.
-  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}"; then
+  if is_active "${MIGRATE_UNIT}"; then
+    die "${MIGRATE_UNIT} is active; aborting to avoid interrupting a running worker"
+  fi
+  # Admin-launched / timer oneshots may not appear as active units in every edge case.
+  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}"; then
     die "deployment refused: VPlayer worker process is active"
   fi
 
@@ -411,7 +433,10 @@ main() {
   if is_active "${ENRICH_UNIT}"; then
     die "${ENRICH_UNIT} is active; aborting to avoid interrupting a running worker"
   fi
-  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}"; then
+  if is_active "${MIGRATE_UNIT}"; then
+    die "${MIGRATE_UNIT} is active; aborting to avoid interrupting a running worker"
+  fi
+  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}"; then
     die "deployment refused: VPlayer worker process is active"
   fi
 
@@ -442,15 +467,22 @@ main() {
   log "deploying backend SQL migrations to ${MIGRATIONS_RUNTIME}…"
   atomic_install_migrations "${STAGING}/migrations" "${MIGRATIONS_RUNTIME}"
 
-  log "restarting ${API_UNIT} only (timers/workers untouched)…"
+  log "restarting ${API_UNIT} only (oneshot workers not started)…"
   systemctl restart "${API_UNIT}"
   sleep 1
+
+  log "installing ${MIGRATE_UNIT} / ${MIGRATE_TIMER} (enable timer only; do not start oneshot)…"
+  install_migratemedia_units
 
   # --- Verify ---
   log "verifying units and endpoints…"
   is_active "${API_UNIT}" || die "${API_UNIT} is not active after restart"
   is_active "${SYNC_TIMER}" || die "${SYNC_TIMER} is not active"
   is_active "${ENRICH_TIMER}" || die "${ENRICH_TIMER} is not active"
+  is_active "${MIGRATE_TIMER}" || die "${MIGRATE_TIMER} is not active"
+  if is_active "${MIGRATE_UNIT}"; then
+    die "${MIGRATE_UNIT} is unexpectedly active after deploy (migration must not run from deploy)"
+  fi
 
   nginx -t || die "nginx -t failed"
 

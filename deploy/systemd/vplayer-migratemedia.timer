@@ -1,0 +1,15 @@
+[Unit]
+Description=Run VPlayer selective R2 media migration every 6 hours
+Requires=vplayer-migratemedia.service
+
+[Timer]
+# Conservative cadence vs discovery/enrichment (~3h). Offset at :40 to avoid stacking.
+# No OnBootSec — avoid aggressive immediate migration after reboot/deploy.
+OnCalendar=*-*-* 00/6:40:00
+Persistent=false
+RandomizedDelaySec=10min
+AccuracySec=1min
+Unit=vplayer-migratemedia.service
+
+[Install]
+WantedBy=timers.target
