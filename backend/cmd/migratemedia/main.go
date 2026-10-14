@@ -49,6 +49,22 @@ func main() {
 	}
 
 	cfg := config.Load()
+	r2cfg := r2ExecuteConfig{
+		Endpoint:   cfg.R2Endpoint,
+		AccessKey:  cfg.R2AccessKey,
+		SecretKey:  cfg.R2SecretKey,
+		Bucket:     cfg.R2Bucket,
+		Region:     cfg.R2Region,
+		PublicBase: cfg.R2PublicBase,
+	}
+
+	// Fail-closed BEFORE MySQL, lock, operational_runs, uploads, or migration DB writes.
+	if modeExec {
+		if err := validateExecuteR2Config(r2cfg); err != nil {
+			log.Fatalf("execute refused: %v", err)
+		}
+	}
+
 	db, err := store.OpenMySQL(cfg.MySQLDSN)
 	if err != nil {
 		log.Fatalf("mysql: %v", err)
@@ -65,14 +81,15 @@ func main() {
 		log.Fatal("R2_BUCKET is empty")
 	}
 
-	localStore, err := media.NewLocalStore(cfg.OleHdTvLocalObjectsDir, cfg.OleHdTvMediaPublicBase)
-	if err != nil {
-		log.Fatalf("local store: %v", err)
+	var obj media.ObjectStore
+	if modeExec {
+		// Authoritative remote R2 only — no LocalStore destination/fallback.
+		obj = media.NewR2StoreRegion(
+			r2cfg.Endpoint, r2cfg.Bucket, r2cfg.AccessKey, r2cfg.SecretKey,
+			r2cfg.Region, r2cfg.PublicBase, nil,
+		)
 	}
-	var obj media.ObjectStore = localStore
-	if cfg.R2Endpoint != "" && cfg.R2AccessKey != "" && cfg.R2SecretKey != "" {
-		obj = media.NewR2StoreRegion(cfg.R2Endpoint, cfg.R2Bucket, cfg.R2AccessKey, cfg.R2SecretKey, cfg.R2Region, cfg.R2PublicBase, localStore)
-	}
+	// Dry-run InspectSource does not upload; Store may stay nil.
 
 	mig := &mediamigrate.Migrator{
 		Store:    obj,
@@ -86,8 +103,12 @@ func main() {
 
 	if modeDry {
 		fmt.Println("=== media migration dry-run ===")
+		if !r2ExecuteConfigReady(r2cfg) {
+			fmt.Println("note: R2 execute configuration is unavailable — dry-run inspect/plan only; --execute would be refused")
+		}
 	} else {
 		fmt.Println("=== media migration EXECUTE ===")
+		fmt.Println("object_store=r2 (remote authoritative; no local fallback)")
 	}
 	fmt.Printf("bucket=%s media_cdn_base=%s auth_mode=%s trigger=%s\n",
 		cfg.R2Bucket, displayCDNBase(cdn.BaseURL), cfg.CDNURLAuthMode, trig)
