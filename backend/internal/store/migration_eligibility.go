@@ -67,7 +67,8 @@ func listMigratableEpisodesQuery(limit int, episodeID uint64, now time.Time) (st
 		q += ` AND e.id=?`
 		args = append(args, episodeID)
 	}
-	q += ` ORDER BY e.id ASC LIMIT ?`
+	// Newest-first: prefer current OLEHDTV HLS over legacy dead URLs.
+	q += ` ORDER BY e.id DESC LIMIT ?`
 	args = append(args, limit)
 	return q, args
 }

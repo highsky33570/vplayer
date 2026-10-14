@@ -194,14 +194,20 @@ func TestListAndCountQueriesShareCanonicalWhere(t *testing.T) {
 	if !strings.Contains(listQ, join) || !strings.Contains(countQ, join) {
 		t.Fatal("list/count must share migratableEpisodesJoinFrom")
 	}
-	if !strings.Contains(listQ, "ORDER BY e.id ASC LIMIT") {
-		t.Fatal("list must preserve ORDER BY e.id ASC LIMIT")
+	if !strings.Contains(listQ, "ORDER BY e.id DESC LIMIT") {
+		t.Fatal("batch list must use newest-first ORDER BY e.id DESC LIMIT")
+	}
+	if strings.Contains(listQ, "ORDER BY e.id ASC") {
+		t.Fatal("batch list must not use oldest-first ORDER BY e.id ASC")
 	}
 	if !strings.Contains(listQ, MigratableWorkerCooldownSQL) {
 		t.Fatal("batch list must include worker failure cooldown")
 	}
 	if strings.Contains(countQ, MigratableWorkerCooldownSQL) {
 		t.Fatal("count/Admin eligible must NOT apply worker cooldown")
+	}
+	if strings.Contains(countQ, "ORDER BY") {
+		t.Fatal("count query must not apply batch ordering")
 	}
 	if len(listArgs) != 2 {
 		t.Fatalf("list args want cooldown cutoff + limit, got %d", len(listArgs))
@@ -210,8 +216,28 @@ func TestListAndCountQueriesShareCanonicalWhere(t *testing.T) {
 	if strings.Contains(epListQ, MigratableWorkerCooldownSQL) {
 		t.Fatal("explicit episode-id list must bypass worker cooldown")
 	}
+	if !strings.Contains(epListQ, "AND e.id=?") {
+		t.Fatal("explicit episode-id list must filter by e.id")
+	}
 	if len(epArgs) != 2 || epArgs[0] != uint64(99) {
 		t.Fatalf("episode-id args=%v", epArgs)
+	}
+}
+
+func TestBatchListOrderingNewestFirst(t *testing.T) {
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	q, _ := listMigratableEpisodesQuery(1, 0, now)
+	orderIdx := strings.Index(q, "ORDER BY e.id DESC")
+	if orderIdx < 0 {
+		t.Fatal("expected ORDER BY e.id DESC")
+	}
+	whereIdx := strings.Index(q, MigratableEpisodeWhereSQL)
+	if whereIdx < 0 || whereIdx > orderIdx {
+		t.Fatal("canonical WHERE must precede newest-first ORDER BY")
+	}
+	coolIdx := strings.Index(q, MigratableWorkerCooldownSQL)
+	if coolIdx < 0 || coolIdx > orderIdx {
+		t.Fatal("worker cooldown must precede newest-first ORDER BY")
 	}
 }
 
