@@ -10,12 +10,12 @@ import (
 
 // Hard caps for maccms_recent (first live bounded version).
 const (
-	RecentMaxLimit            = 20
-	RecentMinDelayMs          = 1000
-	RecentMaxConcurrency      = 2
-	RecentMaxPlayPerVideo     = 3
-	RecentMaxPlayTotal        = 20
-	RecentListingPagesPerCat  = 1 // page 1 only — never /page/2+
+	RecentMaxLimit           = 20
+	RecentMinDelayMs         = 1000
+	RecentMaxConcurrency     = 2
+	RecentMaxPlayPerVideo    = 3
+	RecentMaxPlayTotal       = 20
+	RecentListingPagesPerCat = 1 // page 1 only — never /page/2+
 )
 
 // RecentCategoryAllowlist is the homepage navigation set (excludes 体育直播/短剧).
@@ -243,9 +243,40 @@ func (e *Engine) CrawlRecent(ctx context.Context, limit int) (RecentCrawlResult,
 	return out, nil
 }
 
+// OLEHDTV source type id for 午夜影院 (VPlayer slug midnight).
+// Classification precedence uses source provenance — not title/content heuristics.
+const OLESourceTypeMidnight = "5"
+
+// listingTypePrecedence ranks OLEHDTV listing type ids for multi-category videos.
+// Higher wins. Type 5 / midnight outranks general categories (movie, tv, …).
+// Extend carefully when the source taxonomy needs more specific-over-general rules.
+func listingTypePrecedence(typeID string) int {
+	switch strings.TrimSpace(typeID) {
+	case OLESourceTypeMidnight:
+		return 100
+	default:
+		if strings.TrimSpace(typeID) != "" {
+			return 1
+		}
+		return 0
+	}
+}
+
+// PreferListingTypeID reports whether incoming listing TypeID should replace current.
+func PreferListingTypeID(incoming, current string) bool {
+	return listingTypePrecedence(incoming) > listingTypePrecedence(current)
+}
+
+// SelectInterleavedForTest exposes selectInterleaved for unit tests.
+func SelectInterleavedForTest(perCat [][]CatalogItem, limit int) []CatalogItem {
+	return selectInterleaved(perCat, limit)
+}
+
 // selectInterleaved round-robins page-1 cards across categories until limit unique vod IDs.
+// When the same VodID appears under multiple types, TypeID is upgraded by listing
+// precedence (e.g. type 5/midnight beats type 1/movie) using all scanned listings.
 func selectInterleaved(perCat [][]CatalogItem, limit int) []CatalogItem {
-	seen := map[string]bool{}
+	byIndex := map[string]int{} // vodID -> index in out
 	out := make([]CatalogItem, 0, limit)
 	idx := make([]int, len(perCat))
 	for len(out) < limit {
@@ -254,10 +285,16 @@ func selectInterleaved(perCat [][]CatalogItem, limit int) []CatalogItem {
 			for idx[i] < len(perCat[i]) {
 				c := perCat[i][idx[i]]
 				idx[i]++
-				if c.VodID == "" || seen[c.VodID] {
+				if c.VodID == "" {
 					continue
 				}
-				seen[c.VodID] = true
+				if j, ok := byIndex[c.VodID]; ok {
+					if PreferListingTypeID(c.TypeID, out[j].TypeID) {
+						out[j].TypeID = c.TypeID
+					}
+					continue
+				}
+				byIndex[c.VodID] = len(out)
 				out = append(out, c)
 				progress = true
 				break
@@ -268,6 +305,17 @@ func selectInterleaved(perCat [][]CatalogItem, limit int) []CatalogItem {
 		}
 		if !progress {
 			break
+		}
+	}
+	// Full listing pass: type-5 (etc.) may appear after selection stopped at limit.
+	for _, cards := range perCat {
+		for _, c := range cards {
+			if c.VodID == "" {
+				continue
+			}
+			if j, ok := byIndex[c.VodID]; ok && PreferListingTypeID(c.TypeID, out[j].TypeID) {
+				out[j].TypeID = c.TypeID
+			}
 		}
 	}
 	return out

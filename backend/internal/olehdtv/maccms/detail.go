@@ -8,23 +8,23 @@ import (
 )
 
 var (
-	reH1Title = regexp.MustCompile(`(?is)<h1\b([^>]*)>(.*?)</h1>`)
-	reHTitle  = regexp.MustCompile(`(?is)<h([123])\b([^>]*)>(.*?)</h[123]>`)
-	reDocTitle = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
-	reOGTitle  = regexp.MustCompile(`(?is)<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']`)
-	reOGDesc   = regexp.MustCompile(`(?is)<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']`)
-	reOGImage  = regexp.MustCompile(`(?is)<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']`)
-	reJSONLD   = regexp.MustCompile(`(?is)<script[^>]+type=["']application/ld\+json["'][^>]*>(.*?)</script>`)
-	reMetaDesc = regexp.MustCompile(`(?is)<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']|<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']`)
-	reLabeled  = regexp.MustCompile(`(?is)(?:主演|演员|actors?)\s*[:：]</?\w*>?\s*([^<]{1,200})|(?:导演|director)\s*[:：]</?\w*>?\s*([^<]{1,120})|(?:地区|area|region)\s*[:：]</?\w*>?\s*([^<]{1,80})|(?:年份|year)\s*[:：]</?\w*>?\s*([^<]{1,20})|(?:状态|更新|remarks?)\s*[:：]</?\w*>?\s*([^<]{1,80})`)
-	reYearLoose   = regexp.MustCompile(`(?i)(?:年份|year)[^0-9]{0,20}(19\d{2}|20\d{2})`)
-	reAreaLoose   = regexp.MustCompile(`(?is)(?:地区|area)[^<\n]{0,10}[:：]\s*([^<\n|]{1,40})`)
-	reDirector    = regexp.MustCompile(`(?is)(?:导演|director)[^<\n]{0,10}[:：]\s*([^<\n|]{1,80})`)
-	reActors      = regexp.MustCompile(`(?is)(?:主演|演员|actors?)[^<\n]{0,10}[:：]\s*([^<\n]{1,200})`)
-	reStatusLoose = regexp.MustCompile(`(?is)(?:状态|更新)[^<\n]{0,10}[:：]\s*([^<\n|]{1,80})`)
-	reContent     = regexp.MustCompile(`(?is)(?:class=["'][^"']*(?:content|desc|detail|sketch|txt)[^"']*["'][^>]*>)([\s\S]+?)</`)
-	rePlayLink    = regexp.MustCompile(`(?is)<a[^>]+href=["']([^"']*vod/play/id/\d+/sid/\d+/nid/\d+[^"']*)["'][^>]*>(.*?)</a>`)
-	reScore       = regexp.MustCompile(`(?i)(?:评分|score)[^0-9]{0,12}(\d+(?:\.\d+)?)`)
+	reH1Title      = regexp.MustCompile(`(?is)<h1\b([^>]*)>(.*?)</h1>`)
+	reHTitle       = regexp.MustCompile(`(?is)<h([123])\b([^>]*)>(.*?)</h[123]>`)
+	reDocTitle     = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+	reOGTitle      = regexp.MustCompile(`(?is)<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']`)
+	reOGDesc       = regexp.MustCompile(`(?is)<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']`)
+	reOGImage      = regexp.MustCompile(`(?is)<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']`)
+	reJSONLD       = regexp.MustCompile(`(?is)<script[^>]+type=["']application/ld\+json["'][^>]*>(.*?)</script>`)
+	reMetaDesc     = regexp.MustCompile(`(?is)<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']|<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']`)
+	reLabeled      = regexp.MustCompile(`(?is)(?:主演|演员|actors?)\s*[:：]</?\w*>?\s*([^<]{1,200})|(?:导演|director)\s*[:：]</?\w*>?\s*([^<]{1,120})|(?:地区|area|region)\s*[:：]</?\w*>?\s*([^<]{1,80})|(?:年份|year)\s*[:：]</?\w*>?\s*([^<]{1,20})|(?:状态|更新|remarks?)\s*[:：]</?\w*>?\s*([^<]{1,80})`)
+	reYearLoose    = regexp.MustCompile(`(?i)(?:年份|year)[^0-9]{0,20}(19\d{2}|20\d{2})`)
+	reAreaLoose    = regexp.MustCompile(`(?is)(?:地区|area)[^<\n]{0,10}[:：]\s*([^<\n|]{1,40})`)
+	reDirector     = regexp.MustCompile(`(?is)(?:导演|director)[^<\n]{0,10}[:：]\s*([^<\n|]{1,80})`)
+	reActors       = regexp.MustCompile(`(?is)(?:主演|演员|actors?)[^<\n]{0,10}[:：]\s*([^<\n]{1,200})`)
+	reStatusLoose  = regexp.MustCompile(`(?is)(?:状态|更新)[^<\n]{0,10}[:：]\s*([^<\n|]{1,80})`)
+	reContent      = regexp.MustCompile(`(?is)(?:class=["'][^"']*(?:content|desc|detail|sketch|txt)[^"']*["'][^>]*>)([\s\S]+?)</`)
+	rePlayLink     = regexp.MustCompile(`(?is)<a[^>]+href=["']([^"']*vod/play/id/\d+/sid/\d+/nid/\d+[^"']*)["'][^>]*>(.*?)</a>`)
+	reScore        = regexp.MustCompile(`(?i)(?:评分|score)[^0-9]{0,12}(\d+(?:\.\d+)?)`)
 	reDetailRegion = regexp.MustCompile(`(?is)<(?:div|section)[^>]+class=["'][^"']*(?:myui-content__detail|stui-content__detail|content__detail|vod-detail|detail-info|myui-panel__bd)[^"']*["'][^>]*>`)
 	reTitleClass   = regexp.MustCompile(`(?i)\b(?:title|page-title|vod-title|detail-title|movie-title|myui-content__title)\b`)
 )
@@ -103,14 +103,12 @@ func ParseDetailPage(html, detailURL string) DetailMeta {
 			meta.Rating = v
 		}
 	}
+	// Detail URLs are /vod/detail/id/{n}.html — ExtractTypeID almost never matches.
+	// Do NOT invent TypeID from site navigation chrome (often first link = 电影/1).
+	// Leave TypeID empty when there is no genuine title-specific type metadata;
+	// listing card TypeID is applied in MergeDetailWithCatalog.
 	if tid, ok := ExtractTypeID(detailURL); ok {
 		meta.TypeID = tid
-	}
-	if meta.TypeID == "" {
-		for _, c := range ParseNavigationCategories(html, detailURL) {
-			meta.TypeID = c.SourceID
-			break
-		}
 	}
 	meta.Episodes = ParseEpisodeLinks(html, detailURL)
 	meta.Episodes = DedupEpisodes(meta.Episodes)
@@ -119,14 +117,19 @@ func ParseDetailPage(html, detailURL string) DetailMeta {
 }
 
 // MergeDetailWithCatalog applies detail fields onto catalog card data without
-// letting generic site chrome overwrite a valid listing title/poster.
+// letting generic site chrome overwrite a valid listing title/poster/category.
 func MergeDetailWithCatalog(card CatalogItem, detail DetailMeta) DetailMeta {
 	out := detail
 	if out.VodID == "" {
 		out.VodID = card.VodID
 	}
-	if out.TypeID == "" {
-		out.TypeID = card.TypeID
+	// Listing discovery TypeID is authoritative for classification. Detail pages
+	// currently have no reliable title-specific type parser (e.g. 类型：未知), and
+	// must not override listing provenance with empty or chrome-derived values.
+	if tid := strings.TrimSpace(card.TypeID); tid != "" {
+		out.TypeID = tid
+	} else if strings.TrimSpace(out.TypeID) == "" {
+		out.TypeID = ""
 	}
 	if out.DetailURL == "" {
 		out.DetailURL = card.DetailURL

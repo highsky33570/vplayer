@@ -121,4 +121,32 @@ func TestFetchDetailVideo_invalidID(t *testing.T) {
 	}
 }
 
+func TestFetchDetailVideo_doesNotInventCategoryFromNav(t *testing.T) {
+	html := `
+<html><body>
+<ul class="nav">
+  <a href="/index.php/vod/type/id/1.html">电影</a>
+  <a href="/index.php/vod/type/id/5.html">午夜影院</a>
+</ul>
+<div class="myui-content__detail">
+  <h1 class="title">日本少女初尝巨根</h1>
+  <p>类型：未知</p>
+</div>
+<div class="playlist">
+  <a href="/index.php/vod/play/id/85551/sid/1/nid/1.html">正片</a>
+</div>
+</body></html>`
+	mock := &detailMockFetcher{byURL: map[string]string{
+		"/index.php/vod/detail/id/85551.html": html,
+	}}
+	src := NewMacCMSHTTPRecentWithFetcher("https://www.olehdtv.com", mock, 1)
+	v, _, err := src.FetchDetailVideo(context.Background(), "85551")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.SourceCategoryID != "" {
+		t.Fatalf("targeted detail-only must not invent SourceCategoryID from nav: %q", v.SourceCategoryID)
+	}
+}
+
 var _ maccms.PageFetcher = (*detailMockFetcher)(nil)

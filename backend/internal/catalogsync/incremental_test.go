@@ -19,6 +19,7 @@ type memStore struct {
 	locked           bool
 	videos           map[string]*model.Video
 	episodes         map[string]*store.EpisodeSyncRow
+	catBySource      map[string]*model.Category // optional; when set, category lookups use it
 	nextVID          uint64
 	nextEID          uint64
 	deactivateCalled bool
@@ -114,13 +115,28 @@ func (m *memStore) RejectOperationalRun(in store.RejectOperationalRunInput) (uin
 }
 
 func (m *memStore) UpsertCategoryResult(in store.CategoryUpsert) (uint64, bool, bool, error) {
-	_ = in
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.catBySource != nil {
+		if c, ok := m.catBySource[in.SourceID]; ok {
+			return c.ID, false, false, nil
+		}
+	}
 	return 1, false, false, nil
 }
 
 func (m *memStore) GetCategoryBySource(system, sourceID string) (*model.Category, error) {
 	_ = system
 	if strings.TrimSpace(sourceID) == "" {
+		return nil, nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.catBySource != nil {
+		if c, ok := m.catBySource[sourceID]; ok {
+			cp := *c
+			return &cp, nil
+		}
 		return nil, nil
 	}
 	return &model.Category{ID: 1, SourceID: sourceID}, nil
@@ -1030,5 +1046,54 @@ func TestMustPreserve_terminalUnavailable(t *testing.T) {
 	ep := olehdtv.SourceEpisode{PlaybackStatus: "pending_enrichment", PlaybackURL: ""}
 	if !mustPreserveExistingPlayback(ex, ep) {
 		t.Fatal("terminal unavailable must be preserved vs pending empty")
+	}
+}
+
+func TestVideoCatalogChanged_sourceCategory1to5(t *testing.T) {
+	existing := &model.Video{
+		Title: "t", Status: "ready", IsActive: true,
+		CategoryID: 2, SourceCategoryID: "1",
+	}
+	in := store.VideoUpsert{
+		Title: "t", Status: "ready", IsActive: true,
+		CategoryID: 16, SourceCategoryID: "5",
+	}
+	if !VideoCatalogChanged(existing, in) {
+		t.Fatal("authoritative SourceCategoryID 1→5 must mark catalog changed")
+	}
+}
+
+func TestIncremental_repairsCategoryMovieToMidnight(t *testing.T) {
+	st := newMemStore()
+	st.catBySource = map[string]*model.Category{
+		"1": {ID: 2, SourceID: "1", Name: "电影", Slug: "movie"},
+		"5": {ID: 16, SourceID: "5", Name: "午夜影院", Slug: "midnight"},
+	}
+	if _, err := st.InsertVideoCatalog(store.VideoUpsert{
+		SourceSystem: olehdtv.SourceSystem, SourceID: "85551", Title: "日本少女初尝巨根",
+		CategoryID: 2, SourceCategoryID: "1", IsActive: true, Status: "ready",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	src := &memSource{
+		cats: []olehdtv.SourceCategory{
+			{SourceID: "1", Name: "电影", Slug: "movie"},
+			{SourceID: "5", Name: "午夜影院", Slug: "midnight"},
+		},
+		videos: []olehdtv.SourceVideo{{
+			SourceID: "85551", SourceCategoryID: "5", Title: "日本少女初尝巨根", IsActive: true,
+			Episodes: []olehdtv.SourceEpisode{{SID: 1, NID: 1, Title: "正片", PlaybackStatus: "pending_enrichment"}},
+		}},
+	}
+	sum, err := NewIncrementalSync(st, src).Run(context.Background(), 5, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.UpdatedVideos != 1 {
+		t.Fatalf("expected category repair update: %+v", sum)
+	}
+	v := st.videos[olehdtv.SourceSystem+"|85551"]
+	if v.SourceCategoryID != "5" || v.CategoryID != 16 {
+		t.Fatalf("category not repaired: source_cat=%q cat_id=%d", v.SourceCategoryID, v.CategoryID)
 	}
 }
