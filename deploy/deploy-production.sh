@@ -10,6 +10,7 @@ readonly API_BIN="/usr/local/bin/vplayer-api"
 readonly WORKER_BIN_DIR="${PROD_ROOT}/backend/bin"
 readonly SYNC_BIN="${WORKER_BIN_DIR}/syncincremental"
 readonly ENRICH_BIN="${WORKER_BIN_DIR}/enrichpending"
+readonly MIGRATE_BIN="${WORKER_BIN_DIR}/migratemedia"
 readonly FRONTEND_DIST="${PROD_ROOT}/frontend/dist"
 readonly MIGRATIONS_SRC="${REPO_DIR}/backend/migrations"
 readonly MIGRATIONS_RUNTIME="${PROD_ROOT}/backend/migrations"
@@ -169,6 +170,9 @@ rollback_from_backup() {
   fi
   if [[ -f "${BACKUP_DIR}/enrichpending" ]]; then
     atomic_install_bin "${BACKUP_DIR}/enrichpending" "${ENRICH_BIN}" || ok=0
+  fi
+  if [[ -f "${BACKUP_DIR}/migratemedia" ]]; then
+    atomic_install_bin "${BACKUP_DIR}/migratemedia" "${MIGRATE_BIN}" || ok=0
   fi
   if [[ -d "${BACKUP_DIR}/frontend-dist" ]]; then
     local new_dist="${FRONTEND_DIST}.rollback-new"
@@ -363,12 +367,13 @@ main() {
     go test ./...
   )
 
-  log "backend: build cmd/api, syncincremental, enrichpending"
+  log "backend: build cmd/api, syncincremental, enrichpending, migratemedia"
   (
     cd "${REPO_DIR}/backend"
     go build -o "${STAGING}/bin/vplayer-api" ./cmd/api
     go build -o "${STAGING}/bin/syncincremental" ./cmd/syncincremental
     go build -o "${STAGING}/bin/enrichpending" ./cmd/enrichpending
+    go build -o "${STAGING}/bin/migratemedia" ./cmd/migratemedia
   )
 
   log "staging backend SQL migrations…"
@@ -391,6 +396,7 @@ main() {
   backup_path_if_exists "${API_BIN}" "vplayer-api"
   backup_path_if_exists "${SYNC_BIN}" "syncincremental"
   backup_path_if_exists "${ENRICH_BIN}" "enrichpending"
+  backup_path_if_exists "${MIGRATE_BIN}" "migratemedia"
   if [[ -d "${FRONTEND_DIST}" ]]; then
     cp -a "${FRONTEND_DIST}" "${BACKUP_DIR}/frontend-dist"
   fi
@@ -417,6 +423,7 @@ main() {
   atomic_install_bin "${STAGING}/bin/vplayer-api" "${API_BIN}"
   atomic_install_bin "${STAGING}/bin/syncincremental" "${SYNC_BIN}"
   atomic_install_bin "${STAGING}/bin/enrichpending" "${ENRICH_BIN}"
+  atomic_install_bin "${STAGING}/bin/migratemedia" "${MIGRATE_BIN}"
 
   log "replacing frontend dist…"
   local dist_new="${FRONTEND_DIST}.new"
