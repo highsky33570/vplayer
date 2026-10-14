@@ -32,28 +32,31 @@ type HTTPDoer interface {
 
 // Migrator performs authorized HLS → private R2 migration.
 type Migrator struct {
-	Store      ObjectStore
-	Episodes   EpisodeRepo
-	HTTP       HTTPDoer
-	CDN        media.CDNURLOptions
-	MaxBytes   int64
-	Log        *log.Logger
-	Provider   string
+	Store    ObjectStore
+	Episodes EpisodeRepo
+	HTTP     HTTPDoer
+	CDN      media.CDNURLOptions
+	MaxBytes int64
+	Log      *log.Logger
+	Provider string
 
 	// Source download reliability (0 = defaults).
-	SourceMaxAttempts  int
-	SourceRetryBase    time.Duration
-	SourceHTTPTimeout  time.Duration
+	SourceMaxAttempts int
+	SourceRetryBase   time.Duration
+	SourceHTTPTimeout time.Duration
+
+	// SegmentWorkers caps per-episode segment transfer concurrency (0 = maxSegmentWorkers).
+	SegmentWorkers int
 }
 
 type MigrateResult struct {
-	Plan           Plan
-	Downloaded     []string // redacted source URLs
-	UploadedKeys   []string
-	PlaylistKind   PlaylistKind
+	Plan            Plan
+	Downloaded      []string // redacted source URLs
+	UploadedKeys    []string
+	PlaylistKind    PlaylistKind
 	AlreadyMigrated bool
-	Skipped        bool
-	Error          string
+	Skipped         bool
+	Error           string
 }
 
 func (m *Migrator) logger() *log.Logger {
@@ -201,24 +204,11 @@ func (m *Migrator) MigrateEpisode(ctx context.Context, ep store.MigratableEpisod
 		return res
 	}
 	// Rewrite uses the resolved media playlist body (not the master).
+	// Segment LocalNames alone drive rewrite — bodies are not required.
 	body = []byte(parsed.Raw)
 
 	prefix := EpisodePrefix(ep.VideoID, ep.ID)
 	playlistKey := media.EpisodeHLSObjectKey(ep.VideoID, ep.ID)
-
-	// Download segments first; keep prior successes in this attempt.
-	segBodies := make([][]byte, len(parsed.Segments))
-	for i, seg := range parsed.Segments {
-		b, err := m.fetchBytesLabeled(ctx, seg.SourceURL, "segment", i, seg.LocalName)
-		if err != nil {
-			res.Error = "segment_download_failed"
-			m.logger().Printf("episode=%d segment_download_failed index=%d name=%s src=%s", ep.ID, i, seg.LocalName, RedactURL(seg.SourceURL))
-			m.fail(ep.ID, res.Error)
-			return res
-		}
-		segBodies[i] = b
-		res.Downloaded = append(res.Downloaded, RedactURL(seg.SourceURL))
-	}
 
 	rewritten, err := RewriteMediaPlaylist(string(body), parsed.Segments)
 	if err != nil {
@@ -234,29 +224,18 @@ func (m *Migrator) MigrateEpisode(ctx context.Context, ep store.MigratableEpisod
 	}
 	m.wirePutAttemptLogger(ep.ID)
 
-	segmentKeys := make([]string, len(parsed.Segments))
-	uploaded := make([]string, 0, len(parsed.Segments)+1)
-	for i, seg := range parsed.Segments {
-		key := prefix + seg.LocalName
-		segmentKeys[i] = key
-		if _, err := m.ensureObject(ctx, ep.ID, key, segBodies[i], contentTypeFor(seg.LocalName)); err != nil {
-			res.Error = "segment_upload_failed"
-			m.logger().Printf("episode=%d segment_upload_failed key=%s", ep.ID, key)
-			m.fail(ep.ID, res.Error)
-			return res
-		}
-		uploaded = append(uploaded, key)
+	// Bounded per-segment: GET → ensureObject → verify → release body.
+	// index.m3u8 is uploaded only after every segment succeeds.
+	segKeys, segDownloaded, segErr := m.transferSegmentsBounded(ctx, ep.ID, prefix, parsed.Segments)
+	res.Downloaded = append(res.Downloaded, segDownloaded...)
+	if segErr != "" {
+		res.Error = segErr
+		m.fail(ep.ID, res.Error)
+		return res
 	}
 
-	// All segments must be present with expected size before index.m3u8.
-	for i, key := range segmentKeys {
-		if err := m.verifyObjectSize(ctx, ep.ID, key, int64(len(segBodies[i]))); err != nil {
-			res.Error = "verification_failed"
-			m.logger().Printf("episode=%d verification_failed key=%s phase=segments", ep.ID, key)
-			m.fail(ep.ID, res.Error)
-			return res
-		}
-	}
+	uploaded := make([]string, 0, len(segKeys)+1)
+	uploaded = append(uploaded, segKeys...)
 
 	playlistBody := []byte(rewritten)
 	if _, err := m.ensureObject(ctx, ep.ID, playlistKey, playlistBody, "application/vnd.apple.mpegurl"); err != nil {
