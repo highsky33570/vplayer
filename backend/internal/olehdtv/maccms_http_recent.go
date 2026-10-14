@@ -12,11 +12,11 @@ import (
 // MacCMSHTTPRecent is a bounded live RecentSource (OLEHDTV_SOURCE_MODE=maccms_recent).
 // It uses Engine.CrawlRecent only — never Engine.Crawl().
 type MacCMSHTTPRecent struct {
-	BaseURL     string
-	engine      *maccms.Engine
-	lastBudget  maccms.RequestBudget
-	lastNote    string
-	catsCache   []SourceCategory
+	BaseURL    string
+	engine     *maccms.Engine
+	lastBudget maccms.RequestBudget
+	lastNote   string
+	catsCache  []SourceCategory
 }
 
 // NewMacCMSHTTPRecent builds a safe HTTP recent adapter. Delay/concurrency are clamped.
@@ -31,11 +31,19 @@ func NewMacCMSHTTPRecent(baseURL string, delayMs, timeoutSec, concurrency, retri
 		timeout = 20 * time.Second
 	}
 	fetcher := maccms.NewHTTPFetcher(timeout, delayMs, retries, "VPlayerCatalogSync/1.0-recent")
+	return NewMacCMSHTTPRecentWithFetcher(baseURL, fetcher, concurrency), nil
+}
+
+// NewMacCMSHTTPRecentWithFetcher builds a MacCMSHTTPRecent around an injected PageFetcher (tests / offline).
+func NewMacCMSHTTPRecentWithFetcher(baseURL string, fetcher maccms.PageFetcher, concurrency int) *MacCMSHTTPRecent {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	eng := maccms.NewEngine(fetcher, baseURL)
-	eng.Concurrency = concurrency
+	if concurrency > 0 {
+		eng.Concurrency = concurrency
+	}
 	eng.FetchPlay = false // enrichment handled inside CrawlRecent with hard caps
 	eng.MaxPages = 1      // defensive; CrawlRecent ignores pagination anyway
-	return &MacCMSHTTPRecent{BaseURL: baseURL, engine: eng}, nil
+	return &MacCMSHTTPRecent{BaseURL: baseURL, engine: eng}
 }
 
 func (a *MacCMSHTTPRecent) Name() string { return "maccms_recent:" + a.BaseURL }
@@ -117,53 +125,7 @@ func (a *MacCMSHTTPRecent) ListRecentVideos(ctx context.Context, limit int) ([]S
 
 	videos := make([]SourceVideo, 0, len(res.Items))
 	for _, d := range res.Items {
-		eps := make([]SourceEpisode, 0, len(d.Episodes))
-		for _, e := range d.Episodes {
-			url := strings.TrimSpace(e.StreamURL)
-			status := "ok"
-			switch {
-			case url != "":
-				status = "ok"
-			case e.EnrichmentSkipped:
-				// Bounded run intentionally omitted play-page fetch.
-				status = "pending_enrichment"
-			case !e.Available:
-				status = "unavailable"
-			default:
-				// Listed on detail page without a resolved stream yet.
-				status = "pending_enrichment"
-			}
-			eps = append(eps, SourceEpisode{
-				SID:            e.SID,
-				NID:            e.NID,
-				Title:          e.Label,
-				PlaybackSource: e.From,
-				PlaybackURL:    url,
-				PlayPageURL:    e.PlayURL,
-				PlaybackStatus: status,
-			})
-		}
-		poster := d.PosterURL
-		if poster != "" && strings.HasPrefix(poster, "/") {
-			poster = a.BaseURL + poster
-		}
-		videos = append(videos, SourceVideo{
-			SourceID:         d.VodID,
-			SourceCategoryID: d.TypeID,
-			Title:            d.Title,
-			Description:      d.Description,
-			Year:             d.Year,
-			Area:             d.Area,
-			Director:         d.Director,
-			Actors:           d.Actors,
-			Rating:           d.Rating,
-			PosterURL:        poster,
-			IsActive:         true,
-			Episodes:         eps,
-			DetailURL:        d.DetailURL,
-			StatusText:       d.Status,
-			// No invented timestamps — detail parser has no reliable update time.
-		})
+		videos = append(videos, SourceVideoFromDetailMeta(a.BaseURL, d))
 	}
 
 	meta := RecentMeta{
@@ -189,3 +151,83 @@ func (a *MacCMSHTTPRecent) ListRecentVideos(ctx context.Context, limit int) ([]S
 
 // LastBudget returns the HTTP budget from the most recent ListRecentVideos call.
 func (a *MacCMSHTTPRecent) LastBudget() maccms.RequestBudget { return a.lastBudget }
+
+// FetchDetailVideo loads one OLEHDTV detail page by source/vod id (no catalog crawl, no play-page enrichment).
+func (a *MacCMSHTTPRecent) FetchDetailVideo(ctx context.Context, sourceID string) (SourceVideo, RecentMeta, error) {
+	if err := ValidateSourceID(sourceID); err != nil {
+		return SourceVideo{}, RecentMeta{}, err
+	}
+	sourceID = strings.TrimSpace(sourceID)
+	if a.engine == nil || a.engine.Fetcher == nil {
+		return SourceVideo{}, RecentMeta{}, fmt.Errorf("maccms_recent: fetcher not configured")
+	}
+	durl := fmt.Sprintf("%s/index.php/vod/detail/id/%s.html", a.BaseURL, sourceID)
+	body, err := a.engine.Fetcher.Fetch(ctx, durl)
+	meta := RecentMeta{
+		ReliableWatermark: false,
+		Note:              "targeted detail fetch (no recent crawl; no play enrichment)",
+		DetailRequests:    1,
+		TotalHTTPRequests: 1,
+		MaxSourceID:       sourceID,
+	}
+	if err != nil {
+		return SourceVideo{}, meta, err
+	}
+	card := maccms.CatalogItem{VodID: sourceID, DetailURL: durl}
+	detail := maccms.MergeDetailWithCatalog(card, maccms.ParseDetailPage(body, durl))
+	// Detail-only: leave StreamURL empty so episodes map to pending_enrichment;
+	// incremental preserve rules keep existing playback / terminal unavailable.
+	for i := range detail.Episodes {
+		detail.Episodes[i].StreamURL = ""
+		detail.Episodes[i].EnrichmentSkipped = true
+	}
+	return SourceVideoFromDetailMeta(a.BaseURL, detail), meta, nil
+}
+
+// SourceVideoFromDetailMeta maps a parsed detail into SourceVideo (shared by recent crawl + targeted repair).
+func SourceVideoFromDetailMeta(baseURL string, d maccms.DetailMeta) SourceVideo {
+	eps := make([]SourceEpisode, 0, len(d.Episodes))
+	for _, e := range d.Episodes {
+		url := strings.TrimSpace(e.StreamURL)
+		status := "ok"
+		switch {
+		case url != "":
+			status = "ok"
+		case e.EnrichmentSkipped:
+			status = "pending_enrichment"
+		case !e.Available:
+			status = "unavailable"
+		default:
+			status = "pending_enrichment"
+		}
+		eps = append(eps, SourceEpisode{
+			SID:            e.SID,
+			NID:            e.NID,
+			Title:          e.Label,
+			PlaybackSource: e.From,
+			PlaybackURL:    url,
+			PlayPageURL:    e.PlayURL,
+			PlaybackStatus: status,
+		})
+	}
+	poster := d.PosterURL
+	if poster != "" && strings.HasPrefix(poster, "/") {
+		poster = strings.TrimRight(baseURL, "/") + poster
+	}
+	return SourceVideo{
+		SourceID:         d.VodID,
+		SourceCategoryID: d.TypeID,
+		Title:            d.Title,
+		Description:      d.Description,
+		Year:             d.Year,
+		Area:             d.Area,
+		Director:         d.Director,
+		Actors:           d.Actors,
+		Rating:           d.Rating,
+		PosterURL:        poster,
+		IsActive:         true,
+		Episodes:         eps,
+		DetailURL:        d.DetailURL,
+		StatusText:       d.Status,
+	}
+}

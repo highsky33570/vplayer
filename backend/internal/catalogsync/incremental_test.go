@@ -120,7 +120,9 @@ func (m *memStore) UpsertCategoryResult(in store.CategoryUpsert) (uint64, bool, 
 
 func (m *memStore) GetCategoryBySource(system, sourceID string) (*model.Category, error) {
 	_ = system
-	_ = sourceID
+	if strings.TrimSpace(sourceID) == "" {
+		return nil, nil
+	}
 	return &model.Category{ID: 1, SourceID: sourceID}, nil
 }
 
@@ -176,6 +178,8 @@ func (m *memStore) UpdateVideoCatalog(id uint64, in store.VideoUpsert) error {
 			v.Actors = in.Actors
 			v.Rating = in.Rating
 			v.PosterSourceURL = in.PosterSourceURL
+			v.CoverKey = in.CoverKey
+			v.CoverR2Key = in.CoverR2Key
 			v.PlaybackURL = in.PlaybackURL
 			v.PlaybackSource = in.PlaybackSource
 			v.PlaySID = in.PlaySID
@@ -270,8 +274,12 @@ func (m *memStore) DeactivateMissingVideos(system string, keep []string) (int, e
 }
 
 type memSource struct {
-	videos []olehdtv.SourceVideo
-	cats   []olehdtv.SourceCategory
+	videos      []olehdtv.SourceVideo
+	cats        []olehdtv.SourceCategory
+	listCalls   int
+	detailCalls int
+	detailByID  map[string]olehdtv.SourceVideo
+	detailErr   error
 }
 
 func (s *memSource) Name() string { return "mem" }
@@ -281,12 +289,34 @@ func (s *memSource) ListCategories(ctx context.Context) ([]olehdtv.SourceCategor
 }
 func (s *memSource) ListRecentVideos(ctx context.Context, limit int) ([]olehdtv.SourceVideo, olehdtv.RecentMeta, error) {
 	_ = ctx
+	s.listCalls++
 	out := s.videos
 	if limit < len(out) {
 		out = out[:limit]
 	}
 	return out, olehdtv.RecentMeta{Note: "test", ReliableWatermark: false}, nil
 }
+
+func (s *memSource) FetchDetailVideo(ctx context.Context, sourceID string) (olehdtv.SourceVideo, olehdtv.RecentMeta, error) {
+	_ = ctx
+	s.detailCalls++
+	if s.detailErr != nil {
+		return olehdtv.SourceVideo{}, olehdtv.RecentMeta{}, s.detailErr
+	}
+	if s.detailByID != nil {
+		if v, ok := s.detailByID[sourceID]; ok {
+			return v, olehdtv.RecentMeta{Note: "targeted", DetailRequests: 1, TotalHTTPRequests: 1, MaxSourceID: sourceID}, nil
+		}
+	}
+	for _, v := range s.videos {
+		if v.SourceID == sourceID {
+			return v, olehdtv.RecentMeta{Note: "targeted", DetailRequests: 1, TotalHTTPRequests: 1, MaxSourceID: sourceID}, nil
+		}
+	}
+	return olehdtv.SourceVideo{}, olehdtv.RecentMeta{}, fmt.Errorf("detail not found: %s", sourceID)
+}
+
+var _ olehdtv.DetailVideoSource = (*memSource)(nil)
 
 func sampleVideo(id, title, url string) olehdtv.SourceVideo {
 	return olehdtv.SourceVideo{
@@ -787,5 +817,218 @@ func TestFixtureRecentRespectsLimit(t *testing.T) {
 	}
 	if len(vids) != 3 {
 		t.Fatalf("got %d", len(vids))
+	}
+}
+
+func TestRunSourceID_processesExactlyOneWithoutRecentDiscovery(t *testing.T) {
+	st := newMemStore()
+	const site = "https://static.olelive.com/upload/site/chrome.png"
+	const vod = "https://static.olelive.com/upload/vod/2026/title.jpg"
+	if _, err := st.InsertVideoCatalog(store.VideoUpsert{
+		SourceSystem: olehdtv.SourceSystem, SourceID: "84839", Title: "Old", CategoryID: 7,
+		SourceCategoryID: "2", PosterSourceURL: site,
+		CoverKey: "posters/84839.jpg", CoverR2Key: "posters/84839.jpg",
+		IsActive: true, Status: "ready",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	src := &memSource{
+		cats: []olehdtv.SourceCategory{{SourceID: "1", Name: "电影", Slug: "movie"}},
+		videos: []olehdtv.SourceVideo{
+			sampleVideo("111", "noise-a", "https://x/a.m3u8"),
+			sampleVideo("222", "noise-b", "https://x/b.m3u8"),
+		},
+		detailByID: map[string]olehdtv.SourceVideo{
+			"84839": {
+				SourceID: "84839", Title: "穿古代捞金带回绝色美女", PosterURL: vod, IsActive: true,
+				// Detail-only: no SourceCategoryID, episodes pending.
+				Episodes: []olehdtv.SourceEpisode{
+					{SID: 1, NID: 1, Title: "正片", PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p"},
+				},
+			},
+		},
+	}
+	svc := NewIncrementalSync(st, src)
+	sum, err := svc.RunSourceID(context.Background(), "84839", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.listCalls != 0 {
+		t.Fatalf("targeted mode must not call ListRecentVideos; calls=%d", src.listCalls)
+	}
+	if src.detailCalls != 1 {
+		t.Fatalf("detailCalls=%d", src.detailCalls)
+	}
+	if sum.Discovered != 1 || sum.SourceID != "84839" || sum.Limit != 1 {
+		t.Fatalf("sum=%+v", sum)
+	}
+	if sum.UpdatedVideos != 1 {
+		t.Fatalf("expected poster repair update: %+v", sum)
+	}
+	v := st.videos[olehdtv.SourceSystem+"|84839"]
+	if v.PosterSourceURL != vod {
+		t.Fatalf("poster not repaired: %q", v.PosterSourceURL)
+	}
+	if v.CoverR2Key != "posters/84839.jpg" || v.CoverKey != "posters/84839.jpg" {
+		t.Fatalf("migrated covers damaged: cover=%q r2=%q", v.CoverKey, v.CoverR2Key)
+	}
+	if v.CategoryID != 7 || v.SourceCategoryID != "2" {
+		t.Fatalf("category must be preserved: cat=%d srcCat=%q", v.CategoryID, v.SourceCategoryID)
+	}
+}
+
+func TestRunSourceID_preservesUnavailableAndOkEpisodes(t *testing.T) {
+	st := newMemStore()
+	if _, err := st.InsertVideoCatalog(store.VideoUpsert{
+		SourceSystem: olehdtv.SourceSystem, SourceID: "99", Title: "T", CategoryID: 1,
+		SourceCategoryID: "1", IsActive: true, Status: "ready",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	st.episodes[epKey(olehdtv.SourceSystem, "99", 1, 1)] = &store.EpisodeSyncRow{
+		ID: 1, VideoID: 1, SID: 1, NID: 1, Title: "正片",
+		PlaybackURL: "", PlaybackStatus: "unavailable", IsActive: false,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	st.episodes[epKey(olehdtv.SourceSystem, "99", 1, 2)] = &store.EpisodeSyncRow{
+		ID: 2, VideoID: 1, SID: 1, NID: 2, Title: "第2集",
+		PlaybackURL: "https://keep.example/2.m3u8", PlaybackStatus: "ok", IsActive: true,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	src := &memSource{
+		cats: []olehdtv.SourceCategory{{SourceID: "1", Name: "电影", Slug: "movie"}},
+		detailByID: map[string]olehdtv.SourceVideo{
+			"99": {
+				SourceID: "99", Title: "T", SourceCategoryID: "1", IsActive: true,
+				Episodes: []olehdtv.SourceEpisode{
+					{SID: 1, NID: 1, Title: "正片", PlaybackStatus: "pending_enrichment", PlaybackURL: ""},
+					{SID: 1, NID: 2, Title: "第2集", PlaybackStatus: "pending_enrichment", PlaybackURL: ""},
+				},
+			},
+		},
+	}
+	if _, err := NewIncrementalSync(st, src).RunSourceID(context.Background(), "99", false); err != nil {
+		t.Fatal(err)
+	}
+	ep1 := st.episodes[epKey(olehdtv.SourceSystem, "99", 1, 1)]
+	if ep1.PlaybackStatus != "unavailable" || ep1.PlaybackURL != "" || ep1.IsActive {
+		t.Fatalf("unavailable must stay terminal: %+v", ep1)
+	}
+	ep2 := st.episodes[epKey(olehdtv.SourceSystem, "99", 1, 2)]
+	if ep2.PlaybackStatus != "ok" || ep2.PlaybackURL != "https://keep.example/2.m3u8" || !ep2.IsActive {
+		t.Fatalf("ok episode wiped: %+v", ep2)
+	}
+}
+
+func TestRunSourceID_dryRunNoWritesWouldUpdate(t *testing.T) {
+	st := newMemStore()
+	if _, err := st.InsertVideoCatalog(store.VideoUpsert{
+		SourceSystem: olehdtv.SourceSystem, SourceID: "5", Title: "Old", CategoryID: 1,
+		PosterSourceURL: "https://static/site.png", CoverR2Key: "posters/5.jpg", CoverKey: "posters/5.jpg",
+		IsActive: true, Status: "ready",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before := *st.videos[olehdtv.SourceSystem+"|5"]
+	src := &memSource{
+		cats: []olehdtv.SourceCategory{{SourceID: "1", Name: "电影", Slug: "movie"}},
+		detailByID: map[string]olehdtv.SourceVideo{
+			"5": {
+				SourceID: "5", Title: "New", PosterURL: "https://static/vod.jpg", IsActive: true,
+				Episodes: []olehdtv.SourceEpisode{{SID: 1, NID: 1, Title: "正片", PlaybackStatus: "pending_enrichment"}},
+			},
+		},
+	}
+	sum, err := NewIncrementalSync(st, src).RunSourceID(context.Background(), "5", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.UpdatedVideos != 1 || !sum.DryRun {
+		t.Fatalf("sum=%+v", sum)
+	}
+	after := st.videos[olehdtv.SourceSystem+"|5"]
+	if after.Title != before.Title || after.PosterSourceURL != before.PosterSourceURL {
+		t.Fatal("dry-run mutated video")
+	}
+	if st.syncRuns != 0 || len(st.opRuns) != 0 {
+		t.Fatal("dry-run wrote audit rows")
+	}
+}
+
+func TestRunSourceID_invalidID(t *testing.T) {
+	st := newMemStore()
+	src := &memSource{cats: []olehdtv.SourceCategory{{SourceID: "1", Name: "电影"}}}
+	_, err := NewIncrementalSync(st, src).RunSourceID(context.Background(), "0", false)
+	if err == nil {
+		t.Fatal("expected invalid source-id")
+	}
+	if src.listCalls != 0 || src.detailCalls != 0 || st.locked {
+		t.Fatal("must fail before lock/discovery")
+	}
+}
+
+func TestRunSourceID_rejectsNonDetailSource(t *testing.T) {
+	st := newMemStore()
+	src := &limitOnlySource{
+		cats:   []olehdtv.SourceCategory{{SourceID: "1", Name: "电影"}},
+		videos: []olehdtv.SourceVideo{sampleVideo("1", "a", "u")},
+	}
+	_, err := NewIncrementalSync(st, src).RunSourceID(context.Background(), "1", true)
+	if err == nil || !strings.Contains(err.Error(), "maccms_recent") {
+		t.Fatalf("expected fail-closed: %v", err)
+	}
+	if src.listCalls != 0 {
+		t.Fatal("must not fall back to recent discovery")
+	}
+}
+
+// limitOnlySource implements RecentSource but not DetailVideoSource (fail-closed for --source-id).
+type limitOnlySource struct {
+	videos    []olehdtv.SourceVideo
+	cats      []olehdtv.SourceCategory
+	listCalls int
+}
+
+func (s *limitOnlySource) Name() string { return "limit-only" }
+func (s *limitOnlySource) ListCategories(ctx context.Context) ([]olehdtv.SourceCategory, error) {
+	_ = ctx
+	return s.cats, nil
+}
+func (s *limitOnlySource) ListRecentVideos(ctx context.Context, limit int) ([]olehdtv.SourceVideo, olehdtv.RecentMeta, error) {
+	_ = ctx
+	s.listCalls++
+	out := s.videos
+	if limit < len(out) {
+		out = out[:limit]
+	}
+	return out, olehdtv.RecentMeta{Note: "test"}, nil
+}
+
+func TestRun_limitPathUnchanged(t *testing.T) {
+	st := newMemStore()
+	src := &memSource{
+		cats:   []olehdtv.SourceCategory{{SourceID: "1", Name: "电影", Slug: "movie"}},
+		videos: []olehdtv.SourceVideo{sampleVideo("100", "A", "https://example.com/a.m3u8"), sampleVideo("101", "B", "https://example.com/b.m3u8")},
+	}
+	sum, err := NewIncrementalSync(st, src).Run(context.Background(), 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.listCalls != 1 || src.detailCalls != 0 {
+		t.Fatalf("limit path must use ListRecentVideos only: list=%d detail=%d", src.listCalls, src.detailCalls)
+	}
+	if sum.Discovered != 1 || sum.NewVideos != 1 || sum.SourceID != "" {
+		t.Fatalf("sum=%+v", sum)
+	}
+	if len(st.videos) != 1 {
+		t.Fatalf("videos=%d", len(st.videos))
+	}
+}
+
+func TestMustPreserve_terminalUnavailable(t *testing.T) {
+	ex := &store.EpisodeSyncRow{PlaybackStatus: "unavailable", PlaybackURL: ""}
+	ep := olehdtv.SourceEpisode{PlaybackStatus: "pending_enrichment", PlaybackURL: ""}
+	if !mustPreserveExistingPlayback(ex, ep) {
+		t.Fatal("terminal unavailable must be preserved vs pending empty")
 	}
 }

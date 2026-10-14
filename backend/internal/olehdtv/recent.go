@@ -33,6 +33,12 @@ type RecentSource interface {
 	ListRecentVideos(ctx context.Context, limit int) ([]SourceVideo, RecentMeta, error)
 }
 
+// DetailVideoSource fetches exactly one source video by OLEHDTV vod id (detail page only; no recent crawl).
+// Implemented by MacCMSHTTPRecent (maccms_recent). Other modes fail closed for --source-id.
+type DetailVideoSource interface {
+	FetchDetailVideo(ctx context.Context, sourceID string) (SourceVideo, RecentMeta, error)
+}
+
 // RecentSourceOpts configures NewRecentSource.
 type RecentSourceOpts struct {
 	Mode              string

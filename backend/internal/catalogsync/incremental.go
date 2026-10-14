@@ -46,6 +46,7 @@ type IncrementalSummary struct {
 	DryRun                  bool               `json:"dry_run"`
 	Adapter                 string             `json:"adapter"`
 	Limit                   int                `json:"limit"`
+	SourceID                string             `json:"source_id,omitempty"`
 	Discovered              int                `json:"discovered"`
 	NewVideos               int                `json:"new_videos"`
 	UpdatedVideos           int                `json:"updated_videos"`
@@ -69,10 +70,10 @@ type IncrementalSummary struct {
 
 // IncrementalSync performs bounded OLEHDTV catalog synchronization.
 type IncrementalSync struct {
-	Store       IncrementalStore
-	Source      olehdtv.RecentSource
-	Log         *slog.Logger
-	LockName    string
+	Store             IncrementalStore
+	Source            olehdtv.RecentSource
+	Log               *slog.Logger
+	LockName          string
 	TriggerType       string // cli|timer|admin (validated); empty defaults to cli
 	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
 }
@@ -87,12 +88,14 @@ func NewIncrementalSync(st IncrementalStore, src olehdtv.RecentSource) *Incremen
 	}
 }
 
+type discoverFn func(ctx context.Context) ([]olehdtv.SourceVideo, olehdtv.RecentMeta, error)
+
 // Run executes incremental sync. dryRun performs zero catalog/R2 writes (advisory lock still used;
 // operational_runs are not written on dry-run to preserve zero-mutation semantics).
 func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (IncrementalSummary, error) {
 	sum := IncrementalSummary{
 		DryRun:                  dryRun,
-		Adapter:                 s.Source.Name(),
+		Adapter:                 adapterName(s.Source),
 		Limit:                   limit,
 		Actions:                 make([]ItemAction, 0, limit*2),
 		DeactivateMissingCalled: false,
@@ -101,9 +104,55 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 		sum.Error = "limit must be > 0"
 		return sum, fmt.Errorf("%s", sum.Error)
 	}
+	return s.execute(ctx, &sum, dryRun, func(ctx context.Context) ([]olehdtv.SourceVideo, olehdtv.RecentMeta, error) {
+		return s.Source.ListRecentVideos(ctx, limit)
+	})
+}
+
+// RunSourceID processes exactly one OLEHDTV source video via detail-page fetch (no recent crawl, no play enrichment).
+func (s *IncrementalSync) RunSourceID(ctx context.Context, sourceID string, dryRun bool) (IncrementalSummary, error) {
+	sourceID = strings.TrimSpace(sourceID)
+	sum := IncrementalSummary{
+		DryRun:                  dryRun,
+		Adapter:                 adapterName(s.Source),
+		Limit:                   1,
+		SourceID:                sourceID,
+		Actions:                 make([]ItemAction, 0, 4),
+		DeactivateMissingCalled: false,
+	}
+	if err := olehdtv.ValidateSourceID(sourceID); err != nil {
+		sum.Error = err.Error()
+		return sum, err
+	}
+	detailSrc, ok := s.Source.(olehdtv.DetailVideoSource)
+	if !ok {
+		sum.Error = "targeted source-id sync requires OLEHDTV_SOURCE_MODE=maccms_recent"
+		return sum, fmt.Errorf("%s", sum.Error)
+	}
+	return s.execute(ctx, &sum, dryRun, func(ctx context.Context) ([]olehdtv.SourceVideo, olehdtv.RecentMeta, error) {
+		v, meta, err := detailSrc.FetchDetailVideo(ctx, sourceID)
+		if err != nil {
+			return nil, meta, err
+		}
+		return []olehdtv.SourceVideo{v}, meta, nil
+	})
+}
+
+func adapterName(src olehdtv.RecentSource) string {
+	if src == nil {
+		return ""
+	}
+	return src.Name()
+}
+
+func (s *IncrementalSync) execute(ctx context.Context, sum *IncrementalSummary, dryRun bool, discover discoverFn) (IncrementalSummary, error) {
 	if s.Store == nil || s.Source == nil {
 		sum.Error = "store and source are required"
-		return sum, fmt.Errorf("%s", sum.Error)
+		return *sum, fmt.Errorf("%s", sum.Error)
+	}
+	if discover == nil {
+		sum.Error = "discover function is required"
+		return *sum, fmt.Errorf("%s", sum.Error)
 	}
 
 	trigger := s.TriggerType
@@ -113,11 +162,11 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 	trigger, err := store.ValidateTriggerType(trigger)
 	if err != nil {
 		sum.Error = err.Error()
-		return sum, err
+		return *sum, err
 	}
 	if err := store.ValidateTriggerRequester(trigger, s.RequestedByUserID); err != nil {
 		sum.Error = err.Error()
-		return sum, err
+		return *sum, err
 	}
 	reqBy := store.RequestedByPtr(s.RequestedByUserID)
 
@@ -135,11 +184,11 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 					s.Log.Warn("reject operational run failed", "err", rerr)
 				}
 			}
-			return sum, fmt.Errorf("%w: %s", store.ErrOperationLocked, sum.Error)
+			return *sum, fmt.Errorf("%w: %s", store.ErrOperationLocked, sum.Error)
 		}
 		sum.Error = "advisory lock error"
 		s.Log.Error("advisory lock acquire failed", "err", err)
-		return sum, err
+		return *sum, err
 	}
 	sum.LockAcquired = true
 	defer func() { _ = hold.Release() }()
@@ -186,7 +235,7 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 			code = store.ErrCodeTimeout
 		}
 		finishOp(store.OpStatusFailed, code, true)
-		return sum, err
+		return *sum, err
 	}
 
 	catMap := map[string]uint64{}
@@ -218,16 +267,20 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 		catMap[c.SourceID] = id
 	}
 
-	videos, meta, err := s.Source.ListRecentVideos(ctx, limit)
+	videos, meta, err := discover(ctx)
 	if err != nil {
 		sum.Failures++
-		sum.Error = "list recent videos: " + err.Error()
+		label := "list recent videos"
+		if sum.SourceID != "" {
+			label = "fetch detail video"
+		}
+		sum.Error = label + ": " + err.Error()
 		code := store.ErrCodeSourceUnavailable
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			code = store.ErrCodeTimeout
 		}
 		finishOp(store.OpStatusFailed, code, true)
-		return sum, err
+		return *sum, err
 	}
 	sum.Watermark = meta
 	sum.ListingRequests = meta.ListingRequests
@@ -245,7 +298,7 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 			timedOut = errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 			break
 		}
-		if err := s.processVideo(ctx, &sum, catMap, v, dryRun); err != nil {
+		if err := s.processVideo(ctx, sum, catMap, v, dryRun); err != nil {
 			s.Log.Error("video failed", "source_id", v.SourceID, "err", err)
 			sum.Failures++
 			sum.Actions = append(sum.Actions, ItemAction{
@@ -274,27 +327,30 @@ func (s *IncrementalSync) Run(ctx context.Context, limit int, dryRun bool) (Incr
 			sum,
 			errText,
 		)
-		// sync_run_id left NULL: InsertSyncRunDetailed does not expose LastInsertId.
 	}
 
 	if timedOut {
 		finishOp(store.OpStatusFailed, store.ErrCodeTimeout, true)
-		return sum, fmt.Errorf("%s", sum.Error)
+		return *sum, fmt.Errorf("%s", sum.Error)
 	}
 	if sum.Failures > 0 {
 		finishOp(store.OpStatusFailed, store.ErrCodePartialFailure, true)
-		return sum, fmt.Errorf("incremental sync completed with %d failures", sum.Failures)
+		return *sum, fmt.Errorf("incremental sync completed with %d failures", sum.Failures)
 	}
 	finishOp(store.OpStatusSucceeded, "", false)
-	return sum, nil
+	return *sum, nil
 }
 
 func (s *IncrementalSync) processVideo(ctx context.Context, sum *IncrementalSummary, catMap map[string]uint64, v olehdtv.SourceVideo, dryRun bool) error {
 	_ = ctx
-	catID := catMap[v.SourceCategoryID]
-	if catID == 0 {
-		if c, e := s.Store.GetCategoryBySource(olehdtv.SourceSystem, v.SourceCategoryID); e == nil && c != nil {
-			catID = c.ID
+	srcCatID := strings.TrimSpace(v.SourceCategoryID)
+	catID := uint64(0)
+	if srcCatID != "" {
+		catID = catMap[srcCatID]
+		if catID == 0 {
+			if c, e := s.Store.GetCategoryBySource(olehdtv.SourceSystem, srcCatID); e == nil && c != nil {
+				catID = c.ID
+			}
 		}
 	}
 
@@ -315,6 +371,13 @@ func (s *IncrementalSync) processVideo(ctx context.Context, sum *IncrementalSumm
 		if coverKey == "" {
 			coverKey = existing.CoverKey
 		}
+		// Detail-only / partial discovery may omit TypeID — never zero an existing category.
+		if srcCatID == "" {
+			srcCatID = existing.SourceCategoryID
+			catID = existing.CategoryID
+		} else if catID == 0 {
+			catID = existing.CategoryID
+		}
 		// Partial recent discovery must not clear an existing primary playback URL.
 		if playURL == "" {
 			playURL = existing.PlaybackURL
@@ -334,7 +397,7 @@ func (s *IncrementalSync) processVideo(ctx context.Context, sum *IncrementalSumm
 		SourceSystem:     olehdtv.SourceSystem,
 		SourceID:         v.SourceID,
 		CategoryID:       catID,
-		SourceCategoryID: v.SourceCategoryID,
+		SourceCategoryID: srcCatID,
 		Title:            v.Title,
 		Description:      v.Description,
 		Year:             v.Year,
@@ -501,18 +564,30 @@ func (s *IncrementalSync) processEpisode(sum *IncrementalSummary, videoID uint64
 }
 
 // mustPreserveExistingPlayback is true when the DB episode already has usable
-// playback (URL and/or migrated HLS) and the incoming observation would clear it.
+// playback (URL and/or migrated HLS) and the incoming observation would clear it,
+// OR when the episode is already terminal unavailable and the incoming observation
+// is empty/pending (detail-only repair must not reopen source-restricted episodes).
 func mustPreserveExistingPlayback(existing *store.EpisodeSyncRow, ep olehdtv.SourceEpisode) bool {
 	if existing == nil {
-		return false
-	}
-	hasGood := strings.TrimSpace(existing.PlaybackURL) != "" || episodeHasMigratedMedia(existing)
-	if !hasGood {
 		return false
 	}
 	incomingEmpty := strings.TrimSpace(ep.PlaybackURL) == ""
 	st := strings.ToLower(strings.TrimSpace(ep.PlaybackStatus))
 	destructive := incomingEmpty || st == "unavailable" || st == "pending_enrichment" || st == "pending_player_parse" || st == "observed"
+
+	existingSt := strings.ToLower(strings.TrimSpace(existing.PlaybackStatus))
+	if existingSt == "unavailable" && destructive {
+		// Confirmed unavailable is terminal vs weak/empty detail-only observations.
+		incomingPlayable := strings.TrimSpace(ep.PlaybackURL) != "" && (st == "ok" || st == "")
+		if !incomingPlayable {
+			return true
+		}
+	}
+
+	hasGood := strings.TrimSpace(existing.PlaybackURL) != "" || episodeHasMigratedMedia(existing)
+	if !hasGood {
+		return false
+	}
 	return destructive
 }
 
