@@ -78,6 +78,9 @@ export type Category = {
   name: string;
   slug: string;
   sort: number;
+  /** null/undefined => top-level; set for OLEHDTV child types */
+  parent_id?: number | null;
+  source_id?: string | number | null;
 };
 
 export type Video = {
