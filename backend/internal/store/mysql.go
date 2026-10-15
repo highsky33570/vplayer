@@ -51,7 +51,7 @@ func splitSQL(sqlText string) []string {
 
 func (m *MySQL) ListCategories() ([]model.Category, error) {
 	rows, err := m.DB.Query(`
-		SELECT id, name, slug, sort,
+		SELECT id, parent_id, name, slug, sort,
 		       COALESCE(source_system,''), COALESCE(source_id,''),
 		       COALESCE(is_active,1), created_at
 		FROM categories
@@ -64,14 +64,25 @@ func (m *MySQL) ListCategories() ([]model.Category, error) {
 	var out []model.Category
 	for rows.Next() {
 		var c model.Category
+		var parentID sql.NullInt64
 		var active int
-		if err := rows.Scan(&c.ID, &c.Name, &c.Slug, &c.Sort, &c.SourceSystem, &c.SourceID, &active, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &parentID, &c.Name, &c.Slug, &c.Sort, &c.SourceSystem, &c.SourceID, &active, &c.CreatedAt); err != nil {
 			return nil, err
 		}
+		c.ParentID = nullUint64Ptr(parentID)
 		c.IsActive = active == 1
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// nullUint64Ptr maps a nullable BIGINT to *uint64 (nil when SQL NULL).
+func nullUint64Ptr(n sql.NullInt64) *uint64 {
+	if !n.Valid {
+		return nil
+	}
+	v := uint64(n.Int64)
+	return &v
 }
 
 func (m *MySQL) ListReadyVideos(limit, offset int) ([]model.Video, error) {
@@ -86,8 +97,13 @@ func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query, excludeCategor
 	if limit <= 0 || limit > 200 {
 		limit = 48
 	}
+	browse, err := m.resolveCategoryBrowse(categoryID)
+	if err != nil {
+		return nil, err
+	}
 	q := `
 		SELECT id, COALESCE(source_system,''), COALESCE(source_id,''), category_id, COALESCE(source_category_id,''),
+		       COALESCE(leaf_source_id,''),
 		       title, COALESCE(description,''), COALESCE(year,''), COALESCE(area,''), COALESCE(director,''),
 		       COALESCE(actors,''), COALESCE(rating,0), cover_key, COALESCE(cover_r2_key,''), COALESCE(poster_source_url,''),
 		       duration_sec, view_count, hls_master_key, COALESCE(playback_source,''), COALESCE(play_sid,1), COALESCE(play_nid,1),
@@ -96,7 +112,7 @@ func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query, excludeCategor
 		FROM videos
 		WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
 	args := []any{}
-	q, args = AppendReadyVideosWhere(q, args, categoryID, query, excludeCategorySlug)
+	q, args = AppendReadyVideosWhere(q, args, browse, query, excludeCategorySlug)
 	// Newest-added first: created_at (insert time), then id as stable tie-breaker.
 	// Exclusion (if any) is already in WHERE above — applied before ORDER BY/LIMIT/OFFSET.
 	q += ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
@@ -120,6 +136,7 @@ func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query, excludeCategor
 func (m *MySQL) GetVideo(id uint64) (*model.Video, error) {
 	row := m.DB.QueryRow(`
 		SELECT id, COALESCE(source_system,''), COALESCE(source_id,''), category_id, COALESCE(source_category_id,''),
+		       COALESCE(leaf_source_id,''),
 		       title, COALESCE(description,''), COALESCE(year,''), COALESCE(area,''), COALESCE(director,''),
 		       COALESCE(actors,''), COALESCE(rating,0), cover_key, COALESCE(cover_r2_key,''), COALESCE(poster_source_url,''),
 		       duration_sec, view_count, hls_master_key, COALESCE(playback_source,''), COALESCE(play_sid,1), COALESCE(play_nid,1),
@@ -127,4 +144,15 @@ func (m *MySQL) GetVideo(id uint64) (*model.Video, error) {
 		       COALESCE(is_active,1), status, created_at
 		FROM videos WHERE id = ?`, id)
 	return scanVideo(row)
+}
+
+func (m *MySQL) resolveCategoryBrowse(categoryID uint64) (CategoryBrowseFilter, error) {
+	if categoryID == 0 {
+		return CategoryBrowseFilter{}, nil
+	}
+	cat, err := m.GetCategoryByID(categoryID)
+	if err != nil {
+		return CategoryBrowseFilter{}, err
+	}
+	return CategoryBrowseFromRow(categoryID, cat), nil
 }

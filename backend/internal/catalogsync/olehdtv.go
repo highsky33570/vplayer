@@ -52,34 +52,15 @@ func (s *OleHdTvSyncService) Run(ctx context.Context, trigger string) (model.Syn
 		return sum, err
 	}
 
-	catMap := map[string]uint64{}
-	for _, c := range categories {
-		slug := c.Slug
-		if slug == "" {
-			slug = "src-" + c.SourceID
-		}
-		id, created, updated, err := s.Store.UpsertCategoryResult(store.CategoryUpsert{
-			SourceSystem: olehdtv.SourceSystem,
-			SourceID:     c.SourceID,
-			Name:         c.Name,
-			Slug:         NormalizeSlug(slug),
-			Sort:         c.Sort,
-			IsActive:     true,
-		})
-		if err != nil {
-			s.Log.Error("category upsert failed", "source_id", c.SourceID, "err", err)
-			sum.Failed++
-			continue
-		}
-		catMap[c.SourceID] = id
-		if created {
-			sum.Created++
-		} else if updated {
-			sum.Updated++
-		} else {
-			sum.Unchanged++
-		}
+	catMap, catStats, err := UpsertCategoriesTwoPhase(s.Store, categories, false, s.Log)
+	if err != nil {
+		_ = s.Store.InsertSyncRun(olehdtv.SourceSystem, trigger, sum, err.Error())
+		return sum, err
 	}
+	sum.Created += catStats.Created
+	sum.Updated += catStats.Updated
+	sum.Unchanged += catStats.Unchanged
+	sum.Failed += catStats.Failed
 
 	var videos []olehdtv.SourceVideo
 	err = s.withRetry(ctx, "videos", func(c context.Context) error {

@@ -93,6 +93,16 @@ func ExtractPageNumber(rawURL string) int {
 	return 1
 }
 
+// TypeListingURL builds the MacCMS type listing URL for page 1 (no /page/N).
+func TypeListingURL(baseURL, typeID string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	typeID = strings.TrimSpace(typeID)
+	if baseURL == "" || typeID == "" {
+		return ""
+	}
+	return baseURL + "/index.php/vod/type/id/" + typeID + ".html"
+}
+
 func Slugify(name string) string {
 	name = strings.TrimSpace(strings.ToLower(name))
 	name = strings.ReplaceAll(name, " ", "-")

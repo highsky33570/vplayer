@@ -27,7 +27,7 @@ func TestNormalizeExcludeCategorySlug(t *testing.T) {
 
 func TestAppendReadyVideosWhere_excludeBeforeLimit(t *testing.T) {
 	base := `SELECT id FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
-	q, args := AppendReadyVideosWhere(base, nil, 0, "", "midnight")
+	q, args := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{}, "", "midnight")
 	q += ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
 	args = append(args, 12, 0)
 
@@ -46,7 +46,6 @@ func TestAppendReadyVideosWhere_excludeBeforeLimit(t *testing.T) {
 	if len(args) != 3 || args[0] != "midnight" || args[1] != 12 || args[2] != 0 {
 		t.Fatalf("args=%v", args)
 	}
-	// Parameterized: slug only as bound arg, never spliced into SQL text.
 	if strings.Contains(q, "'midnight'") {
 		t.Fatal("slug must not be interpolated into SQL")
 	}
@@ -54,7 +53,7 @@ func TestAppendReadyVideosWhere_excludeBeforeLimit(t *testing.T) {
 
 func TestAppendReadyVideosWhere_noExcludeByDefault(t *testing.T) {
 	base := `SELECT COUNT(*) FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
-	q, args := AppendReadyVideosWhere(base, nil, 0, "", "")
+	q, args := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{}, "", "")
 	if strings.Contains(q, "NOT IN") || strings.Contains(q, "categories") {
 		t.Fatalf("empty exclude must not alter SQL: %s", q)
 	}
@@ -65,9 +64,13 @@ func TestAppendReadyVideosWhere_noExcludeByDefault(t *testing.T) {
 
 func TestAppendReadyVideosWhere_categoryAndSearchUnchanged(t *testing.T) {
 	base := `SELECT id FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
-	q, args := AppendReadyVideosWhere(base, nil, 16, "foo", "")
+	browse := CategoryBrowseFilter{CanonicalCategoryID: 16}
+	q, args := AppendReadyVideosWhere(base, nil, browse, "foo", "")
 	if !strings.Contains(q, "category_id=?") || !strings.Contains(q, "title LIKE ?") {
 		t.Fatalf("%s", q)
+	}
+	if strings.Contains(q, "leaf_source_id") {
+		t.Fatal("top-level must not filter leaf_source_id")
 	}
 	if strings.Contains(q, "NOT IN") {
 		t.Fatal("search/category without exclude must not exclude midnight")
@@ -79,11 +82,37 @@ func TestAppendReadyVideosWhere_categoryAndSearchUnchanged(t *testing.T) {
 
 func TestAppendReadyVideosWhere_countSharesExclusion(t *testing.T) {
 	base := `SELECT COUNT(*) FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
-	q, args := AppendReadyVideosWhere(base, nil, 0, "", "midnight")
+	q, args := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{}, "", "midnight")
 	if !strings.Contains(q, `category_id NOT IN (SELECT id FROM categories WHERE slug=?)`) {
 		t.Fatalf("%s", q)
 	}
 	if len(args) != 1 || args[0] != "midnight" {
+		t.Fatalf("args=%v", args)
+	}
+}
+
+func TestAppendReadyVideosWhere_childLeafAndParent(t *testing.T) {
+	base := `SELECT id FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
+	browse := CategoryBrowseFilter{CanonicalCategoryID: 2, LeafSourceID: "101"}
+	q, args := AppendReadyVideosWhere(base, nil, browse, "", "")
+	if !strings.Contains(q, `category_id=? AND leaf_source_id=?`) {
+		t.Fatalf("%s", q)
+	}
+	if len(args) != 2 || args[0] != uint64(2) || args[1] != "101" {
+		t.Fatalf("args=%v", args)
+	}
+}
+
+func TestAppendReadyVideosWhere_failClosed(t *testing.T) {
+	base := `SELECT id FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
+	q, args := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{FailClosed: true}, "", "")
+	if !strings.Contains(q, "AND 1=0") {
+		t.Fatalf("%s", q)
+	}
+	if strings.Contains(q, "category_id=?") || strings.Contains(q, "leaf_source_id") {
+		t.Fatal("fail-closed must not broaden to category/leaf match")
+	}
+	if len(args) != 0 {
 		t.Fatalf("args=%v", args)
 	}
 }

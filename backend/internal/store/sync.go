@@ -17,6 +17,8 @@ type CategoryUpsert struct {
 	Slug         string
 	Sort         int
 	IsActive     bool
+	// ParentID is the local categories.id of the parent. nil => SQL NULL (top-level).
+	ParentID *uint64
 }
 
 type VideoUpsert struct {
@@ -63,20 +65,54 @@ type EpisodeUpsert struct {
 
 func (m *MySQL) GetCategoryBySource(system, sourceID string) (*model.Category, error) {
 	var c model.Category
+	var parentID sql.NullInt64
 	var srcSys, srcID sql.NullString
 	var last sql.NullTime
 	var active int
 	err := m.DB.QueryRow(`
-		SELECT id, name, slug, sort, COALESCE(source_system,''), COALESCE(source_id,''),
+		SELECT id, parent_id, name, slug, sort, COALESCE(source_system,''), COALESCE(source_id,''),
 		       is_active, last_synced_at, created_at
 		FROM categories WHERE source_system = ? AND source_id = ?`, system, sourceID).
-		Scan(&c.ID, &c.Name, &c.Slug, &c.Sort, &srcSys, &srcID, &active, &last, &c.CreatedAt)
+		Scan(&c.ID, &parentID, &c.Name, &c.Slug, &c.Sort, &srcSys, &srcID, &active, &last, &c.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	c.ParentID = nullUint64Ptr(parentID)
+	c.SourceSystem = srcSys.String
+	c.SourceID = srcID.String
+	c.IsActive = active == 1
+	if last.Valid {
+		t := last.Time
+		c.LastSyncedAt = &t
+	}
+	return &c, nil
+}
+
+// GetCategoryByID loads a category by local id (includes parent_id / source_id for browse).
+func (m *MySQL) GetCategoryByID(id uint64) (*model.Category, error) {
+	if id == 0 {
+		return nil, nil
+	}
+	var c model.Category
+	var parentID sql.NullInt64
+	var srcSys, srcID sql.NullString
+	var last sql.NullTime
+	var active int
+	err := m.DB.QueryRow(`
+		SELECT id, parent_id, name, slug, sort, COALESCE(source_system,''), COALESCE(source_id,''),
+		       is_active, last_synced_at, created_at
+		FROM categories WHERE id = ?`, id).
+		Scan(&c.ID, &parentID, &c.Name, &c.Slug, &c.Sort, &srcSys, &srcID, &active, &last, &c.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c.ParentID = nullUint64Ptr(parentID)
 	c.SourceSystem = srcSys.String
 	c.SourceID = srcID.String
 	c.IsActive = active == 1
@@ -89,20 +125,22 @@ func (m *MySQL) GetCategoryBySource(system, sourceID string) (*model.Category, e
 
 func (m *MySQL) GetCategoryBySlug(slug string) (*model.Category, error) {
 	var c model.Category
+	var parentID sql.NullInt64
 	var srcSys, srcID sql.NullString
 	var last sql.NullTime
 	var active int
 	err := m.DB.QueryRow(`
-		SELECT id, name, slug, sort, COALESCE(source_system,''), COALESCE(source_id,''),
+		SELECT id, parent_id, name, slug, sort, COALESCE(source_system,''), COALESCE(source_id,''),
 		       is_active, last_synced_at, created_at
 		FROM categories WHERE slug = ? LIMIT 1`, slug).
-		Scan(&c.ID, &c.Name, &c.Slug, &c.Sort, &srcSys, &srcID, &active, &last, &c.CreatedAt)
+		Scan(&c.ID, &parentID, &c.Name, &c.Slug, &c.Sort, &srcSys, &srcID, &active, &last, &c.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	c.ParentID = nullUint64Ptr(parentID)
 	c.SourceSystem = srcSys.String
 	c.SourceID = srcID.String
 	c.IsActive = active == 1
@@ -125,9 +163,11 @@ func (m *MySQL) ReassignVideosCategory(fromID, toID uint64) error {
 // UpsertCategoryResult returns id and whether the row was newly created or content-changed.
 // Prefer merging into an existing seed category with the same slug (e.g. movie)
 // instead of creating duplicates like movie-1.
+// ParentID nil persists SQL NULL (top-level); non-nil sets categories.parent_id.
 func (m *MySQL) UpsertCategoryResult(in CategoryUpsert) (id uint64, created, updated bool, err error) {
 	now := time.Now()
 	active := boolToInt(in.IsActive)
+	parentArg := parentIDSQL(in.ParentID)
 
 	existing, err := m.GetCategoryBySource(in.SourceSystem, in.SourceID)
 	if err != nil {
@@ -153,10 +193,10 @@ func (m *MySQL) UpsertCategoryResult(in CategoryUpsert) (id uint64, created, upd
 
 	if existing == nil && canonical != nil {
 		_, err = m.DB.Exec(`
-			UPDATE categories SET name=?, sort=?, source_system=?, source_id=?,
+			UPDATE categories SET name=?, sort=?, source_system=?, source_id=?, parent_id=?,
 			  last_synced_at=?, sync_status='ok', is_active=?
 			WHERE id=?`,
-			in.Name, in.Sort, in.SourceSystem, in.SourceID, now, active, canonical.ID)
+			in.Name, in.Sort, in.SourceSystem, in.SourceID, parentArg, now, active, canonical.ID)
 		if err != nil {
 			return 0, false, false, err
 		}
@@ -165,17 +205,17 @@ func (m *MySQL) UpsertCategoryResult(in CategoryUpsert) (id uint64, created, upd
 
 	if existing == nil {
 		res, err := m.DB.Exec(`
-			INSERT INTO categories (name, slug, sort, source_system, source_id, last_synced_at, sync_status, is_active)
-			VALUES (?, ?, ?, ?, ?, ?, 'ok', ?)`,
-			in.Name, in.Slug, in.Sort, in.SourceSystem, in.SourceID, now, active)
+			INSERT INTO categories (name, slug, sort, source_system, source_id, parent_id, last_synced_at, sync_status, is_active)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 'ok', ?)`,
+			in.Name, in.Slug, in.Sort, in.SourceSystem, in.SourceID, parentArg, now, active)
 		if err != nil && strings.Contains(strings.ToLower(err.Error()), "duplicate") {
 			// Race: slug claimed — attach source to that row.
 			if again, e2 := m.GetCategoryBySlug(in.Slug); e2 == nil && again != nil {
 				_, err = m.DB.Exec(`
-					UPDATE categories SET name=?, sort=?, source_system=?, source_id=?,
+					UPDATE categories SET name=?, sort=?, source_system=?, source_id=?, parent_id=?,
 					  last_synced_at=?, sync_status='ok', is_active=?
 					WHERE id=?`,
-					in.Name, in.Sort, in.SourceSystem, in.SourceID, now, active, again.ID)
+					in.Name, in.Sort, in.SourceSystem, in.SourceID, parentArg, now, active, again.ID)
 				return again.ID, false, true, err
 			}
 			return 0, false, false, err
@@ -187,16 +227,35 @@ func (m *MySQL) UpsertCategoryResult(in CategoryUpsert) (id uint64, created, upd
 		return uint64(lid), true, false, nil
 	}
 
-	changed := existing.Name != in.Name || existing.Sort != in.Sort || existing.IsActive != in.IsActive
+	changed := existing.Name != in.Name || existing.Sort != in.Sort || existing.IsActive != in.IsActive ||
+		!parentIDEqual(existing.ParentID, in.ParentID)
 	_, err = m.DB.Exec(`
-		UPDATE categories SET name=?, sort=?, last_synced_at=?, sync_status='ok', is_active=?
-		WHERE id=?`, in.Name, in.Sort, now, active, existing.ID)
+		UPDATE categories SET name=?, sort=?, parent_id=?, last_synced_at=?, sync_status='ok', is_active=?
+		WHERE id=?`, in.Name, in.Sort, parentArg, now, active, existing.ID)
 	return existing.ID, false, changed, err
+}
+
+func parentIDSQL(p *uint64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func parentIDEqual(a, b *uint64) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }
 
 func (m *MySQL) GetVideoBySource(system, sourceID string) (*model.Video, error) {
 	row := m.DB.QueryRow(`
 		SELECT id, COALESCE(source_system,''), COALESCE(source_id,''), category_id, COALESCE(source_category_id,''),
+		       COALESCE(leaf_source_id,''),
 		       title, COALESCE(description,''), COALESCE(year,''), COALESCE(area,''), COALESCE(director,''),
 		       COALESCE(actors,''), COALESCE(rating,0), cover_key, COALESCE(cover_r2_key,''), COALESCE(poster_source_url,''),
 		       duration_sec, view_count, hls_master_key, COALESCE(playback_source,''), play_sid, play_nid,
@@ -337,11 +396,15 @@ func (m *MySQL) CountReadyVideos(categoryID uint64) (int, error) {
 }
 
 func (m *MySQL) CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string) (int, error) {
+	browse, err := m.resolveCategoryBrowse(categoryID)
+	if err != nil {
+		return 0, err
+	}
 	q := `SELECT COUNT(*) FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
 	args := []any{}
-	q, args = AppendReadyVideosWhere(q, args, categoryID, query, excludeCategorySlug)
+	q, args = AppendReadyVideosWhere(q, args, browse, query, excludeCategorySlug)
 	var n int
-	err := m.DB.QueryRow(q, args...).Scan(&n)
+	err = m.DB.QueryRow(q, args...).Scan(&n)
 	return n, err
 }
 
@@ -560,7 +623,7 @@ func scanVideo(row scannable) (*model.Video, error) {
 	var active int
 	var actors sql.NullString
 	err := row.Scan(
-		&v.ID, &v.SourceSystem, &v.SourceID, &v.CategoryID, &v.SourceCategoryID,
+		&v.ID, &v.SourceSystem, &v.SourceID, &v.CategoryID, &v.SourceCategoryID, &v.LeafSourceID,
 		&v.Title, &v.Description, &v.Year, &v.Area, &v.Director, &actors, &v.Rating,
 		&v.CoverKey, &v.CoverR2Key, &v.PosterSourceURL,
 		&v.DurationSec, &v.ViewCount, &v.HLSMasterKey, &v.PlaybackSource, &v.PlaySID, &v.PlayNID,

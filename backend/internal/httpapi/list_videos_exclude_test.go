@@ -231,3 +231,27 @@ func TestListVideos_searchWithoutExcludeFindsMidnight(t *testing.T) {
 		t.Fatalf("list=%+v", mem.lastList)
 	}
 }
+
+func TestListVideos_excludeMidnightStillDropsLeafMembership(t *testing.T) {
+	// Phase 3: leaf_source_id must not bypass exclude_category_slug=midnight
+	// (exclusion remains on canonical videos.category_id).
+	mem := samplePublicCatalog()
+	for i := range mem.videos {
+		if mem.videos[i].CategoryID == 16 {
+			mem.videos[i].LeafSourceID = "506"
+		}
+	}
+	r := testListVideosRouter(mem)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/videos?limit=12&exclude_category_slug=midnight", nil)
+	r.ServeHTTP(w, req)
+	ids, total := decodeVideoList(t, w)
+	for _, id := range ids {
+		if id == 101 || id == 103 {
+			t.Fatalf("midnight+leaf leaked: %v", ids)
+		}
+	}
+	if total != 3 {
+		t.Fatalf("total=%d want 3", total)
+	}
+}

@@ -99,30 +99,15 @@ func (imp *JSONLImporter) RunImport(ctx context.Context, root string, dryRun boo
 		return sum, err
 	}
 
-	catMap := map[string]uint64{}
-	for _, c := range cats {
-		id, created, updated, err := imp.Store.UpsertCategoryResult(store.CategoryUpsert{
-			SourceSystem: olehdtv.SourceSystem,
-			SourceID:     c.SourceID,
-			Name:         c.Name,
-			Slug:         NormalizeSlug(c.Slug),
-			Sort:         c.Sort,
-			IsActive:     true,
-		})
-		if err != nil {
-			imp.Log.Error("category upsert failed", "source_id", c.SourceID, "err", err)
-			sum.CategoriesFailed++
-			continue
-		}
-		catMap[c.SourceID] = id
-		if created {
-			sum.CategoriesCreated++
-		} else if updated {
-			sum.CategoriesUpdated++
-		} else {
-			sum.CategoriesSkipped++
-		}
+	catMap, catStats, err := UpsertCategoriesTwoPhase(imp.Store, cats, false, imp.Log)
+	if err != nil {
+		sum.Error = err.Error()
+		return sum, err
 	}
+	sum.CategoriesCreated += catStats.Created
+	sum.CategoriesUpdated += catStats.Updated
+	sum.CategoriesSkipped += catStats.Unchanged
+	sum.CategoriesFailed += catStats.Failed
 
 	epsByVod, _, err := olehdtv.LoadEpisodesByVod(root)
 	if err != nil {

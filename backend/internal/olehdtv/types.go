@@ -5,10 +5,11 @@ import "time"
 const SourceSystem = "olehdtv"
 
 type SourceCategory struct {
-	SourceID string
-	Name     string
-	Slug     string
-	Sort     int
+	SourceID       string
+	Name           string
+	Slug           string
+	Sort           int
+	ParentSourceID string // optional; OLEHDTV parent type id when this row is a child
 }
 
 type SourcePlayback struct {

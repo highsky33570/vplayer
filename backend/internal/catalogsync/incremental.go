@@ -238,34 +238,14 @@ func (s *IncrementalSync) execute(ctx context.Context, sum *IncrementalSummary, 
 		return *sum, err
 	}
 
-	catMap := map[string]uint64{}
-	for _, c := range cats {
-		slug := c.Slug
-		if slug == "" {
-			slug = "src-" + c.SourceID
-		}
-		if dryRun {
-			existing, _ := s.Store.GetCategoryBySource(olehdtv.SourceSystem, c.SourceID)
-			if existing != nil {
-				catMap[c.SourceID] = existing.ID
-			}
-			continue
-		}
-		id, _, _, err := s.Store.UpsertCategoryResult(store.CategoryUpsert{
-			SourceSystem: olehdtv.SourceSystem,
-			SourceID:     c.SourceID,
-			Name:         c.Name,
-			Slug:         NormalizeSlug(slug),
-			Sort:         c.Sort,
-			IsActive:     true,
-		})
-		if err != nil {
-			s.Log.Error("category upsert failed", "source_id", c.SourceID, "err", err)
-			sum.Failures++
-			continue
-		}
-		catMap[c.SourceID] = id
+	catMap, catStats, err := UpsertCategoriesTwoPhase(s.Store, cats, dryRun, s.Log)
+	if err != nil {
+		sum.Failures++
+		sum.Error = "upsert categories: " + err.Error()
+		finishOp(store.OpStatusFailed, store.ErrCodePartialFailure, true)
+		return *sum, err
 	}
+	sum.Failures += catStats.Failed
 
 	videos, meta, err := discover(ctx)
 	if err != nil {

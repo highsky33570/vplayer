@@ -12,7 +12,7 @@ Application secrets live **outside** the Git checkout.
 | Repo env link | `/opt/vplayer-repo/.env` → `/opt/vplayer/.env` (symlink only) |
 | API binary | `/usr/local/bin/vplayer-api` |
 | API unit | `vplayer-api.service` |
-| Worker binaries | `/opt/vplayer/backend/bin/syncincremental`, `enrichpending`, `migratemedia` |
+| Worker binaries | `/opt/vplayer/backend/bin/syncincremental`, `enrichpending`, `migratemedia`, `syncleafmembership` (CLI only; no timer) |
 | Backend SQL migrations (runtime) | `/opt/vplayer/backend/migrations` (from repo `backend/migrations`) |
 | Discovery unit + timer | `vplayer-syncincremental.service` / `.timer` |
 | Enrichment unit + timer | `vplayer-enrichpending.service` / `.timer` |

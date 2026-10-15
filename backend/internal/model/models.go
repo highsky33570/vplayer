@@ -4,6 +4,7 @@ import "time"
 
 type Category struct {
 	ID           uint64     `json:"id"`
+	ParentID     *uint64    `json:"parent_id"` // nil => top-level; JSON null when unset
 	Name         string     `json:"name"`
 	Slug         string     `json:"slug"`
 	Sort         int        `json:"sort"`
@@ -18,9 +19,15 @@ type Video struct {
 	ID               uint64     `json:"id"`
 	SourceSystem     string     `json:"source_system,omitempty"`
 	SourceID         string     `json:"source_id,omitempty"`
-	CategoryID       uint64     `json:"category_id"`
-	SourceCategoryID string     `json:"source_category_id,omitempty"`
-	Title            string     `json:"title"`
+	// CategoryID is canonical/top-level VPlayer ownership (homepage sections, midnight exclude).
+	CategoryID uint64 `json:"category_id"`
+	// SourceCategoryID is existing source/provenance (listing type used for ownership repair).
+	// Unchanged by child-browse membership.
+	SourceCategoryID string `json:"source_category_id,omitempty"`
+	// LeafSourceID is optional OLEHDTV child type id (e.g. "101") for child-category browse.
+	// Empty means unknown/unset. Never aliases VIP 601↔ movie 101.
+	LeafSourceID string `json:"leaf_source_id,omitempty"`
+	Title        string `json:"title"`
 	Description      string     `json:"description"`
 	Year             string     `json:"year,omitempty"`
 	Area             string     `json:"area,omitempty"`
