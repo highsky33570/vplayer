@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/tycdn/vplayer/internal/model"
 	"github.com/tycdn/vplayer/internal/olehdtv"
@@ -323,224 +322,32 @@ func (s *IncrementalSync) execute(ctx context.Context, sum *IncrementalSummary, 
 
 func (s *IncrementalSync) processVideo(ctx context.Context, sum *IncrementalSummary, catMap map[string]uint64, v olehdtv.SourceVideo, dryRun bool) error {
 	_ = ctx
-	srcCatID := strings.TrimSpace(v.SourceCategoryID)
-	catID := uint64(0)
-	if srcCatID != "" {
-		catID = catMap[srcCatID]
-		if catID == 0 {
-			if c, e := s.Store.GetCategoryBySource(olehdtv.SourceSystem, srcCatID); e == nil && c != nil {
-				catID = c.ID
-			}
-		}
-	}
-
-	var srcUpdated *time.Time
-	if !v.SourceUpdatedAt.IsZero() {
-		t := v.SourceUpdatedAt
-		srcUpdated = &t
-	}
-	playSrc, sid, nid, playURL := primaryPlayback(v)
-	existing, err := s.Store.GetVideoBySource(olehdtv.SourceSystem, v.SourceID)
-	if err != nil {
-		return err
-	}
-
-	coverKey := ""
-	if existing != nil {
-		coverKey = existing.CoverR2Key
-		if coverKey == "" {
-			coverKey = existing.CoverKey
-		}
-		// Detail-only / partial discovery may omit TypeID — never zero an existing category.
-		if srcCatID == "" {
-			srcCatID = existing.SourceCategoryID
-			catID = existing.CategoryID
-		} else if catID == 0 {
-			catID = existing.CategoryID
-		}
-		// Partial recent discovery must not clear an existing primary playback URL.
-		if playURL == "" {
-			playURL = existing.PlaybackURL
-			if playSrc == "" {
-				playSrc = existing.PlaybackSource
-			}
-			if sid == 0 {
-				sid = existing.PlaySID
-			}
-			if nid == 0 {
-				nid = existing.PlayNID
-			}
-		}
-	}
-
-	in := store.VideoUpsert{
-		SourceSystem:     olehdtv.SourceSystem,
-		SourceID:         v.SourceID,
-		CategoryID:       catID,
-		SourceCategoryID: srcCatID,
-		Title:            v.Title,
-		Description:      v.Description,
-		Year:             v.Year,
-		Area:             v.Area,
-		Director:         v.Director,
-		Actors:           v.Actors,
-		Rating:           v.Rating,
-		PosterSourceURL:  v.PosterURL,
-		CoverR2Key:       coverKey,
-		CoverKey:         coverKey,
-		DurationSec:      v.DurationSec,
-		ViewCount:        v.ViewCount,
-		PlaybackSource:   playSrc,
-		PlaySID:          sid,
-		PlayNID:          nid,
-		PlaybackURL:      playURL,
-		SourceUpdatedAt:  srcUpdated,
-		IsActive:         v.IsActive,
-		Status:           statusFor(v),
-	}
-
-	var videoID uint64
-	switch {
-	case existing == nil:
-		sum.NewVideos++
-		sum.Actions = append(sum.Actions, ItemAction{Action: "NEW VIDEO", SourceID: v.SourceID, Title: v.Title})
-		if dryRun {
-			videoID = 0
-		} else {
-			videoID, err = s.Store.InsertVideoCatalog(in)
-			if err != nil {
-				return err
-			}
-		}
-	case VideoCatalogChanged(existing, in):
-		sum.UpdatedVideos++
-		sum.Actions = append(sum.Actions, ItemAction{Action: "UPDATE VIDEO", SourceID: v.SourceID, Title: v.Title})
-		videoID = existing.ID
-		if !dryRun {
-			if err := s.Store.UpdateVideoCatalog(existing.ID, in); err != nil {
-				return err
-			}
-		}
-	default:
-		sum.UnchangedVideos++
-		sum.Actions = append(sum.Actions, ItemAction{Action: "UNCHANGED", SourceID: v.SourceID, Title: v.Title, Detail: "video"})
-		videoID = existing.ID
-		// intentionally no UPDATE — preserves updated_at / created_at
-	}
-
-	for _, ep := range v.Episodes {
-		if err := s.processEpisode(sum, videoID, v.SourceID, ep, dryRun); err != nil {
-			return err
-		}
-	}
-	return nil
+	res, err := ApplySourceVideoCatalog(s.Store, catMap, v, dryRun)
+	// Always merge counters, including on error, to preserve pre-extract processVideo
+	// failure-path semantics (e.g. NewVideos++ before a failed InsertVideoCatalog,
+	// and episode counters accumulated before a later episode failure).
+	mergeCatalogApplyCounters(sum, res)
+	return err
 }
 
-func (s *IncrementalSync) processEpisode(sum *IncrementalSummary, videoID uint64, sourceVideoID string, ep olehdtv.SourceEpisode, dryRun bool) error {
-	status := ep.PlaybackStatus
-	if status == "" {
-		status = "ok"
+func mergeCatalogApplyCounters(sum *IncrementalSummary, res CatalogApplyResult) {
+	if sum == nil {
+		return
 	}
-	active := ep.PlaybackURL != "" && status != "unavailable" && status != "pending_enrichment"
-	existing, err := s.Store.GetEpisodeForSync(olehdtv.SourceSystem, sourceVideoID, ep.SID, ep.NID)
-	if err != nil {
-		return err
+	if res.NewVideo {
+		sum.NewVideos++
 	}
-
-	// Never wipe good playback / migrated R2 state with a partial or failed observation.
-	if existing != nil && mustPreserveExistingPlayback(existing, ep) {
-		titleOrPage := existing.Title != ep.Title || (ep.PlayPageURL != "" && existing.PlayPageURL != ep.PlayPageURL)
-		if !titleOrPage {
-			sum.UnchangedEpisodes++
-			sum.Actions = append(sum.Actions, ItemAction{
-				Action: "UNCHANGED", SourceID: sourceVideoID, SID: ep.SID, NID: ep.NID, Title: ep.Title,
-				Detail: "preserve_existing_playback",
-			})
-			return nil
-		}
-		inSoft := store.EpisodeUpsert{
-			VideoID:        existing.VideoID,
-			SourceSystem:   olehdtv.SourceSystem,
-			SourceVideoID:  sourceVideoID,
-			SID:            ep.SID,
-			NID:            ep.NID,
-			Title:          ep.Title,
-			PlaybackSource: existing.PlaybackSource,
-			PlaybackURL:    existing.PlaybackURL,
-			PlayPageURL:    firstNonEmptyStr(ep.PlayPageURL, existing.PlayPageURL),
-			PlaybackStatus: existing.PlaybackStatus,
-			IsActive:       existing.IsActive,
-		}
-		sum.UpdatedEpisodes++
-		sum.Actions = append(sum.Actions, ItemAction{
-			Action: "UPDATE EPISODE", SourceID: sourceVideoID, SID: ep.SID, NID: ep.NID, Title: ep.Title,
-			Detail: "metadata_only_preserve_playback",
-		})
-		if dryRun {
-			return nil
-		}
-		return s.Store.UpdateEpisodeCatalog(existing.ID, inSoft)
+	if res.UpdatedVideo {
+		sum.UpdatedVideos++
 	}
-
-	in := store.EpisodeUpsert{
-		VideoID:        videoID,
-		SourceSystem:   olehdtv.SourceSystem,
-		SourceVideoID:  sourceVideoID,
-		SID:            ep.SID,
-		NID:            ep.NID,
-		Title:          ep.Title,
-		PlaybackSource: ep.PlaybackSource,
-		PlaybackURL:    ep.PlaybackURL,
-		PlayPageURL:    ep.PlayPageURL,
-		PlaybackStatus: status,
-		IsActive:       active,
+	if res.UnchangedVideo {
+		sum.UnchangedVideos++
 	}
-
-	if existing == nil {
-		sum.NewEpisodes++
-		sum.Actions = append(sum.Actions, ItemAction{
-			Action: "NEW EPISODE", SourceID: sourceVideoID, SID: ep.SID, NID: ep.NID, Title: ep.Title,
-		})
-		if dryRun {
-			return nil
-		}
-		if videoID == 0 {
-			return fmt.Errorf("missing video id for new episode %s s%d n%d", sourceVideoID, ep.SID, ep.NID)
-		}
-		return s.Store.InsertEpisodeCatalog(in)
-	}
-
-	mediaChanged := EpisodeMediaSourceChanged(existing, ep)
-	if mediaChanged {
-		sum.MediaSourceChanged++
-	}
-
-	if !EpisodeCatalogChanged(existing, ep) {
-		sum.UnchangedEpisodes++
-		sum.Actions = append(sum.Actions, ItemAction{
-			Action: "UNCHANGED", SourceID: sourceVideoID, SID: ep.SID, NID: ep.NID, Title: ep.Title, Detail: "episode",
-		})
-		return nil
-	}
-
-	sum.UpdatedEpisodes++
-	act := ItemAction{
-		Action: "UPDATE EPISODE", SourceID: sourceVideoID, SID: ep.SID, NID: ep.NID, Title: ep.Title,
-		MediaSrcChanged: mediaChanged,
-	}
-	if mediaChanged {
-		act.Detail = "MEDIA_SOURCE_CHANGED"
-	}
-	sum.Actions = append(sum.Actions, act)
-
-	if dryRun {
-		return nil
-	}
-	in.VideoID = existing.VideoID
-	if videoID != 0 {
-		in.VideoID = videoID
-	}
-	return s.Store.UpdateEpisodeCatalog(existing.ID, in)
+	sum.NewEpisodes += res.NewEpisodes
+	sum.UpdatedEpisodes += res.UpdatedEpisodes
+	sum.UnchangedEpisodes += res.UnchangedEpisodes
+	sum.MediaSourceChanged += res.MediaSourceChanged
+	sum.Actions = append(sum.Actions, res.Actions...)
 }
 
 // mustPreserveExistingPlayback is true when the DB episode already has usable

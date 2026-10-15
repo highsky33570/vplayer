@@ -12,7 +12,8 @@ Application secrets live **outside** the Git checkout.
 | Repo env link | `/opt/vplayer-repo/.env` → `/opt/vplayer/.env` (symlink only) |
 | API binary | `/usr/local/bin/vplayer-api` |
 | API unit | `vplayer-api.service` |
-| Worker binaries | `/opt/vplayer/backend/bin/syncincremental`, `enrichpending`, `migratemedia`, `syncleafmembership` (CLI only; no timer) |
+| Worker binaries | `/opt/vplayer/backend/bin/syncincremental`, `enrichpending`, `migratemedia` |
+| Leaf CLI binaries | `/opt/vplayer/backend/bin/syncleafmembership`, `syncleafimport` — **manual CLI only**; no systemd service; no timer; not executed by deploy |
 | Backend SQL migrations (runtime) | `/opt/vplayer/backend/migrations` (from repo `backend/migrations`) |
 | Discovery unit + timer | `vplayer-syncincremental.service` / `.timer` |
 | Enrichment unit + timer | `vplayer-enrichpending.service` / `.timer` |
@@ -49,11 +50,11 @@ What the script does (summary):
 1. Requires root; refuses dirty **tracked** Git changes (ignored `.env` symlink is OK).
 2. `git fetch origin main` and hard-updates the checkout to the exact `origin/main` commit (no merge).
 3. Ensures `/opt/vplayer-repo/.env` is a symlink to `/opt/vplayer/.env` (never copies secrets into Git).
-4. Aborts if `vplayer-syncincremental.service`, `vplayer-enrichpending.service`, or `vplayer-migratemedia.service` is currently active, and aborts if the production worker binaries `syncincremental`, `enrichpending`, or `migratemedia` are executing. An early check runs before build/staging; a final check runs again immediately before `INSTALL_STARTED` / first runtime binary install.
-5. Builds/tests into a staging directory first (`go test`, API + worker Go binaries including `migratemedia`, stages `backend/migrations`, `npm ci` + frontend build).
-6. After success only: backs up current API/worker binaries, frontend dist, and runtime migrations dir (not `.env`).
+4. Aborts if `vplayer-syncincremental.service`, `vplayer-enrichpending.service`, or `vplayer-migratemedia.service` is currently active, and aborts if production worker/CLI binaries `syncincremental`, `enrichpending`, `migratemedia`, `syncleafmembership`, or `syncleafimport` are executing. An early check runs before build/staging; a final check runs again immediately before `INSTALL_STARTED` / first runtime binary install.
+5. Builds/tests into a staging directory first (`go test`, API + worker Go binaries including `migratemedia`, `syncleafmembership`, `syncleafimport`, stages `backend/migrations`, `npm ci` + frontend build). Does **not** execute leaf CLIs.
+6. After success only: backs up current API/worker/leaf CLI binaries (if present), frontend dist, and runtime migrations dir (not `.env`). First deploy of `syncleafimport` safely skips restore when no prior backup exists.
 7. Atomically installs binaries (temp file + `mv`), swaps frontend dist via rename, then atomically swaps `/opt/vplayer/backend/migrations` (prepare `.new` fully → rename; dirs `755`, SQL files `644`).
-8. Restarts **only** `vplayer-api.service` **after** migrations are in place so startup can discover/apply new SQL. Does **not** start oneshot workers. Does **not** run a separate migrate CLI.
+8. Restarts **only** `vplayer-api.service` **after** migrations are in place so startup can discover/apply new SQL. Does **not** start oneshot workers. Does **not** run a separate migrate CLI. Does **not** run `syncleafmembership` or `syncleafimport`.
 9. Installs/updates `vplayer-migratemedia.service` + `.timer`, `daemon-reload`, `enable` + `restart` on the **timer only** (never starts the migratemedia oneshot; timer must not `Requires=` the oneshot).
 10. Verifies API + sync/enrichment/migration **timers** active, migratemedia **service** not active, `nginx -t`, local `/health`, and local homepage HTTP.
 11. Keeps the newest 5 backup directories under `/opt/vplayer/releases/backups/`.

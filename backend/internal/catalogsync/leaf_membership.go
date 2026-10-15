@@ -9,10 +9,9 @@ import (
 
 	"github.com/tycdn/vplayer/internal/model"
 	"github.com/tycdn/vplayer/internal/olehdtv"
-	"github.com/tycdn/vplayer/internal/olehdtv/maccms"
 )
 
-// Hard bounds for leaf membership enrichment (first implementation).
+// Hard bounds for leaf membership enrichment (membership-only mode).
 const (
 	LeafMembershipMaxPagesPerLeaf = 1
 	LeafMembershipConcurrency     = 1
@@ -55,11 +54,6 @@ type leafTarget struct {
 	Name           string
 	ParentLocalID  uint64
 	ParentSourceID string
-}
-
-type leafDiscovery struct {
-	leafSourceID  string
-	parentLocalID uint64
 }
 
 // LeafMembershipSync enriches videos.leaf_source_id from bounded leaf listings.
@@ -119,6 +113,7 @@ func SelectLeafTargets(cats []model.Category) []leafTarget {
 
 // Run performs bounded leaf listing inspection and optional membership writes.
 // limitLeaves <= 0 means all selected leaves (still capped by MaxRequests).
+// Page-1 only; no imports; no detail requests.
 func (s *LeafMembershipSync) Run(ctx context.Context, dryRun bool, limitLeaves int) (LeafMembershipSummary, error) {
 	sum := LeafMembershipSummary{DryRun: dryRun, BaseURL: s.BaseURL, DetailRequests: 0}
 	if limitLeaves > 0 {
@@ -150,43 +145,16 @@ func (s *LeafMembershipSync) Run(ctx context.Context, dryRun bool, limitLeaves i
 	}
 	sum.LeavesSelected = len(leaves)
 
-	// Pass 1: fetch page-1 listings only; collect vod -> leaf source ids.
-	vodLeaves := map[string][]leafDiscovery{} // source vod id -> discoveries
-
-	for _, leaf := range leaves {
-		if err := ctx.Err(); err != nil {
-			sum.Error = err.Error()
-			sum.Failed++
-			return sum, err
-		}
-		pageURL := maccms.TypeListingURL(s.BaseURL, leaf.SourceID)
-		if pageURL == "" {
-			sum.Failed++
-			s.Log.Error("empty leaf listing url", "leaf_source_id", leaf.SourceID)
-			continue
-		}
-		body, ferr := s.Fetcher.Fetch(ctx, pageURL)
-		sum.Requests++
-		if ferr != nil {
-			sum.Failed++
-			s.Log.Error("leaf listing fetch failed", "url", pageURL, "err", ferr)
-			continue
-		}
-		sum.LeavesScanned++
-		items, _ := maccms.ParseCatalogPage(body, pageURL, leaf.SourceID)
-		// Bound: page 1 only — never follow pagination.
-		for _, it := range items {
-			vod := strings.TrimSpace(it.VodID)
-			if vod == "" {
-				continue
-			}
-			sum.ListingItems++
-			vodLeaves[vod] = append(vodLeaves[vod], leafDiscovery{
-				leafSourceID:  leaf.SourceID,
-				parentLocalID: leaf.ParentLocalID,
-			})
-		}
+	vodLeaves, scan, err := scanLeafListings(ctx, s.Fetcher, s.BaseURL, leaves, LeafMembershipMaxPagesPerLeaf, LeafMembershipMaxRequests, 0)
+	if err != nil {
+		sum.Error = err.Error()
+		sum.Failed++
+		return sum, err
 	}
+	sum.LeavesScanned = scan.LeavesScanned
+	sum.Requests = scan.ListingRequests
+	sum.ListingItems = scan.ListingItems
+	sum.Failed += scan.Failed
 
 	// Detect multi-leaf ambiguity before any write (no last-writer-wins).
 	type plan struct {
@@ -207,7 +175,6 @@ func (s *LeafMembershipSync) Run(ctx context.Context, dryRun bool, limitLeaves i
 		if len(uniq) == 0 {
 			continue
 		}
-		// Use first discovery's parent (all same leaf).
 		var parentLocal uint64
 		for _, d := range disc {
 			if d.leafSourceID == uniq[0] {
@@ -224,7 +191,6 @@ func (s *LeafMembershipSync) Run(ctx context.Context, dryRun bool, limitLeaves i
 		return plans[i].vodID < plans[j].vodID
 	})
 
-	// Pass 2: resolve local videos and assign (or dry-run).
 	for _, p := range plans {
 		if err := ctx.Err(); err != nil {
 			sum.Error = err.Error()
@@ -285,19 +251,4 @@ func (s *LeafMembershipSync) Run(ctx context.Context, dryRun bool, limitLeaves i
 		return sum, fmt.Errorf("%s", sum.Error)
 	}
 	return sum, nil
-}
-
-func uniqueLeafSources(disc []leafDiscovery) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, d := range disc {
-		id := strings.TrimSpace(d.leafSourceID)
-		if id == "" || seen[id] {
-			continue
-		}
-		seen[id] = true
-		out = append(out, id)
-	}
-	sort.Strings(out)
-	return out
 }

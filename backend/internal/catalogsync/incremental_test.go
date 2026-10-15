@@ -1097,3 +1097,50 @@ func TestIncremental_repairsCategoryMovieToMidnight(t *testing.T) {
 		t.Fatalf("category not repaired: source_cat=%q cat_id=%d", v.SourceCategoryID, v.CategoryID)
 	}
 }
+
+func TestIncremental_insertFailureCountsNewVideos(t *testing.T) {
+	// Pre-extract processVideo incremented NewVideos before InsertVideoCatalog failed.
+	st := &failInsertStore{memStore: *newMemStore()}
+	sum, err := NewIncrementalSync(st, testIncSource()).Run(context.Background(), 5, false)
+	if err == nil {
+		t.Fatal("expected failure")
+	}
+	if sum.NewVideos != 1 {
+		t.Fatalf("NewVideos=%d want 1 on insert failure (failure-path counter parity)", sum.NewVideos)
+	}
+	if sum.Failures < 1 {
+		t.Fatalf("Failures=%d", sum.Failures)
+	}
+	if len(st.videos) != 0 {
+		t.Fatal("no video row on insert failure")
+	}
+}
+
+type failEpisodeInsertStore struct {
+	memStore
+}
+
+func (m *failEpisodeInsertStore) InsertEpisodeCatalog(in store.EpisodeUpsert) error {
+	return fmt.Errorf("episode insert failed")
+}
+
+func TestIncremental_episodeFailureKeepsPriorCounters(t *testing.T) {
+	// Video insert succeeds; episode insert fails after NewEpisodes was counted.
+	st := &failEpisodeInsertStore{memStore: *newMemStore()}
+	sum, err := NewIncrementalSync(st, testIncSource()).Run(context.Background(), 5, false)
+	if err == nil {
+		t.Fatal("expected failure")
+	}
+	if sum.NewVideos != 1 {
+		t.Fatalf("NewVideos=%d want 1", sum.NewVideos)
+	}
+	if sum.NewEpisodes != 1 {
+		t.Fatalf("NewEpisodes=%d want 1 (counted before episode insert failure)", sum.NewEpisodes)
+	}
+	if sum.Failures < 1 {
+		t.Fatalf("Failures=%d", sum.Failures)
+	}
+	if len(st.videos) != 1 {
+		t.Fatalf("video should remain after episode failure: %d", len(st.videos))
+	}
+}

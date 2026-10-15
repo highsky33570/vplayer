@@ -31,9 +31,9 @@ if grep -E '[^[:alnum:]_]syncleafmembership[[:space:]]+--' "${DEPLOY}"; then
   fail "deploy must not execute syncleafmembership with flags"
 fi
 
-# Worker guard must include leaf binary.
-grep -q 'worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}"' "${DEPLOY}" \
-  || fail "worker_bins_running must include LEAF_BIN"
+# Worker guard must include leaf binaries (membership + import).
+grep -q 'worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}" "${LEAF_IMPORT_BIN}"' "${DEPLOY}" \
+  || fail "worker_bins_running must include LEAF_BIN and LEAF_IMPORT_BIN"
 
 # Migrations 008/009 must exist in repo (applied via normal API startup path).
 [[ -f "${ROOT}/backend/migrations/008_category_parent_id.sql" ]] || fail "missing migration 008"

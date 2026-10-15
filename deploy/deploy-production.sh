@@ -12,6 +12,7 @@ readonly SYNC_BIN="${WORKER_BIN_DIR}/syncincremental"
 readonly ENRICH_BIN="${WORKER_BIN_DIR}/enrichpending"
 readonly MIGRATE_BIN="${WORKER_BIN_DIR}/migratemedia"
 readonly LEAF_BIN="${WORKER_BIN_DIR}/syncleafmembership"
+readonly LEAF_IMPORT_BIN="${WORKER_BIN_DIR}/syncleafimport"
 readonly FRONTEND_DIST="${PROD_ROOT}/frontend/dist"
 readonly MIGRATIONS_SRC="${REPO_DIR}/backend/migrations"
 readonly MIGRATIONS_RUNTIME="${PROD_ROOT}/backend/migrations"
@@ -206,6 +207,9 @@ rollback_from_backup() {
   if [[ -f "${BACKUP_DIR}/syncleafmembership" ]]; then
     atomic_install_bin "${BACKUP_DIR}/syncleafmembership" "${LEAF_BIN}" || ok=0
   fi
+  if [[ -f "${BACKUP_DIR}/syncleafimport" ]]; then
+    atomic_install_bin "${BACKUP_DIR}/syncleafimport" "${LEAF_IMPORT_BIN}" || ok=0
+  fi
   if [[ -d "${BACKUP_DIR}/frontend-dist" ]]; then
     local new_dist="${FRONTEND_DIST}.rollback-new"
     local old_dist="${FRONTEND_DIST}.rollback-old"
@@ -383,7 +387,7 @@ main() {
     die "${MIGRATE_UNIT} is active; aborting to avoid interrupting a running worker"
   fi
   # Admin-launched / timer oneshots may not appear as active units in every edge case.
-  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}"; then
+  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}" "${LEAF_IMPORT_BIN}"; then
     die "deployment refused: VPlayer worker process is active"
   fi
 
@@ -402,7 +406,7 @@ main() {
     go test ./...
   )
 
-  log "backend: build cmd/api, syncincremental, enrichpending, migratemedia, syncleafmembership"
+  log "backend: build cmd/api, syncincremental, enrichpending, migratemedia, syncleafmembership, syncleafimport"
   (
     cd "${REPO_DIR}/backend"
     go build -o "${STAGING}/bin/vplayer-api" ./cmd/api
@@ -410,6 +414,7 @@ main() {
     go build -o "${STAGING}/bin/enrichpending" ./cmd/enrichpending
     go build -o "${STAGING}/bin/migratemedia" ./cmd/migratemedia
     go build -o "${STAGING}/bin/syncleafmembership" ./cmd/syncleafmembership
+    go build -o "${STAGING}/bin/syncleafimport" ./cmd/syncleafimport
   )
 
   log "staging backend SQL migrations…"
@@ -434,6 +439,7 @@ main() {
   backup_path_if_exists "${ENRICH_BIN}" "enrichpending"
   backup_path_if_exists "${MIGRATE_BIN}" "migratemedia"
   backup_path_if_exists "${LEAF_BIN}" "syncleafmembership"
+  backup_path_if_exists "${LEAF_IMPORT_BIN}" "syncleafimport"
   if [[ -d "${FRONTEND_DIST}" ]]; then
     cp -a "${FRONTEND_DIST}" "${BACKUP_DIR}/frontend-dist"
   fi
@@ -451,7 +457,7 @@ main() {
   if is_active "${MIGRATE_UNIT}"; then
     die "${MIGRATE_UNIT} is active; aborting to avoid interrupting a running worker"
   fi
-  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}"; then
+  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}" "${LEAF_IMPORT_BIN}"; then
     die "deployment refused: VPlayer worker process is active"
   fi
 
@@ -465,6 +471,7 @@ main() {
   atomic_install_bin "${STAGING}/bin/enrichpending" "${ENRICH_BIN}"
   atomic_install_bin "${STAGING}/bin/migratemedia" "${MIGRATE_BIN}"
   atomic_install_bin "${STAGING}/bin/syncleafmembership" "${LEAF_BIN}"
+  atomic_install_bin "${STAGING}/bin/syncleafimport" "${LEAF_IMPORT_BIN}"
 
   log "replacing frontend dist…"
   local dist_new="${FRONTEND_DIST}.new"
