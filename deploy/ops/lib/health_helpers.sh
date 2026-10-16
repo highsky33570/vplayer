@@ -44,34 +44,72 @@ freshness_status() {
   fi
 }
 
-# Compute timer age from systemd LastTriggerUSecRealtime (microseconds since Unix epoch).
-# now_sec: current CLOCK_REALTIME seconds (e.g. date +%s).
+# Convert /proc/uptime-style seconds (integer or fractional) to integer microseconds.
+# Example: "762847.254703" -> 762847254703
+proc_uptime_seconds_to_usec() {
+  local sec="${1:-}"
+  local whole frac
+
+  if [[ -z "${sec}" ]]; then
+    return 1
+  fi
+  whole="${sec%%.*}"
+  if ! [[ "${whole}" =~ ^[0-9]+$ ]]; then
+    return 1
+  fi
+  if [[ "${sec}" == *.* ]]; then
+    frac="${sec#*.}"
+    frac="${frac}000000"
+    frac="${frac:0:6}"
+    if ! [[ "${frac}" =~ ^[0-9]+$ ]]; then
+      return 1
+    fi
+  else
+    frac="000000"
+  fi
+  printf '%s' "$((10#${whole} * 1000000 + 10#${frac}))"
+}
+
+# Current Linux monotonic/uptime clock in microseconds.
+# Prefers CLOCK_MONOTONIC via python3 when available (closest to systemd); else /proc/uptime.
+linux_monotonic_now_usec() {
+  local v line
+  if command -v python3 >/dev/null 2>&1; then
+    v="$(python3 -c 'import time; print(int(time.clock_gettime(time.CLOCK_MONOTONIC) * 1_000_000))' 2>/dev/null || true)"
+    if [[ "${v}" =~ ^[0-9]+$ ]]; then
+      printf '%s' "${v}"
+      return 0
+    fi
+  fi
+  line="$(awk '{print $1}' /proc/uptime 2>/dev/null || true)"
+  proc_uptime_seconds_to_usec "${line}"
+}
+
+# Compute timer age from systemd LastTriggerUSecMonotonic (uint64 microseconds).
+# now_usec: current monotonic/uptime microseconds (same unit).
 # Prints:
 #   -1  never triggered / unset (usec empty or 0)
-#   -2  invalid or in the future (fail closed — never a false positive stale age)
+#   -2  invalid or trigger > now (fail closed — never a false positive stale age)
 #   >=0 age in whole seconds
 #
 # Does NOT parse human-readable systemd timestamps (avoids ambiguous CST/CDT/etc.).
-timer_age_from_realtime_usec() {
-  local usec="${1:-}"
-  local now_sec="${2:-}"
+timer_age_from_monotonic_usec() {
+  local last_usec="${1:-}"
+  local now_usec="${2:-}"
 
-  if [[ -z "${usec}" || "${usec}" == "0" ]]; then
+  if [[ -z "${last_usec}" || "${last_usec}" == "0" ]]; then
     printf '%s' "-1"
     return 0
   fi
-  if ! [[ "${usec}" =~ ^[0-9]+$ ]] || ! [[ "${now_sec}" =~ ^[0-9]+$ ]]; then
+  if ! [[ "${last_usec}" =~ ^[0-9]+$ ]] || ! [[ "${now_usec}" =~ ^[0-9]+$ ]]; then
     printf '%s' "-2"
     return 0
   fi
-
-  # Whole seconds since epoch; usec is timezone-independent.
-  local last_sec=$((usec / 1000000))
-  if (( last_sec > now_sec )); then
+  if (( last_usec > now_usec )); then
     printf '%s' "-2"
     return 0
   fi
-  printf '%s' "$((now_sec - last_sec))"
+  printf '%s' "$(( (now_usec - last_usec) / 1000000 ))"
 }
 
 # Worker timer defaults (~3h / ~6h schedules + slack for RandomizedDelaySec).

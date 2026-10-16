@@ -39,9 +39,10 @@ unit_is_active() {
   systemctl is-active --quiet "$1"
 }
 
-# Read LastTriggerUSecRealtime as raw uint64 microseconds via busctl (not systemctl's
-# human LastTriggerUSec string, which uses ambiguous TZ abbreviations like "CST").
-timer_last_trigger_realtime_usec() {
+# Read LastTriggerUSecMonotonic as raw uint64 microseconds via busctl.
+# Do NOT parse systemctl's human LastTriggerUSec (ambiguous CST / timespans).
+# Do NOT use the Realtime trigger property name (absent on some production systemd builds).
+timer_last_trigger_monotonic_usec() {
   local unit="$1"
   local path prop usec
 
@@ -53,8 +54,8 @@ timer_last_trigger_realtime_usec() {
   fi
 
   prop="$(busctl get-property org.freedesktop.systemd1 "${path}" \
-    org.freedesktop.systemd1.Timer LastTriggerUSecRealtime 2>/dev/null || true)"
-  # Terse busctl form: "t 1729076513123456"
+    org.freedesktop.systemd1.Timer LastTriggerUSecMonotonic 2>/dev/null || true)"
+  # Terse busctl form: "t 762847254703"
   usec="$(printf '%s\n' "${prop}" | awk '/^t / { print $2; exit }')"
   if [[ -z "${usec}" ]]; then
     return 1
@@ -64,17 +65,20 @@ timer_last_trigger_realtime_usec() {
 
 timer_last_trigger_age_sec() {
   local unit="$1"
-  local usec now age
+  local last_usec now_usec age
 
-  usec="$(timer_last_trigger_realtime_usec "${unit}" 2>/dev/null || true)"
-  if [[ -z "${usec}" ]]; then
-    # Missing busctl/property → treat as unknown (WARN via freshness_status), not "never"
-    # unless usec is explicitly 0 from a successful read.
+  last_usec="$(timer_last_trigger_monotonic_usec "${unit}" 2>/dev/null || true)"
+  if [[ -z "${last_usec}" ]]; then
+    # Missing busctl/property → unknown (WARN), distinct from successful read of 0 (never).
     printf '%s' "-2"
     return 0
   fi
-  now="$(date +%s)"
-  age="$(timer_age_from_realtime_usec "${usec}" "${now}")"
+  now_usec="$(linux_monotonic_now_usec 2>/dev/null || true)"
+  if [[ -z "${now_usec}" ]]; then
+    printf '%s' "-2"
+    return 0
+  fi
+  age="$(timer_age_from_monotonic_usec "${last_usec}" "${now_usec}")"
   printf '%s' "${age}"
 }
 

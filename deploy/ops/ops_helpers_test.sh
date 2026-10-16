@@ -152,29 +152,40 @@ pass "disk thresholds"
 [[ "$(freshness_status '-48714' 3600 7200)" == "warn" ]] || fail "negative age must not be ok/fail-stale"
 pass "timer freshness helper"
 
-# --- timer age from realtime usec (no human TZ parsing; fixes CST bug) ---
-# Production bug: "Fri 2026-10-16 09:01:53 CST" misparsed by GNU date → negative age.
-# Implementation must use numeric LastTriggerUSecRealtime usec, not that string.
-now_sec=1729054800 # fixed fixture
-# 1 hour earlier in usec
-usec_1h=$(( (now_sec - 3600) * 1000000 ))
-[[ "$(timer_age_from_realtime_usec "${usec_1h}" "${now_sec}")" == "3600" ]] || fail "1h age"
-[[ "$(timer_age_from_realtime_usec 0 "${now_sec}")" == "-1" ]] || fail "usec 0 = never"
-[[ "$(timer_age_from_realtime_usec "" "${now_sec}")" == "-1" ]] || fail "empty usec = never"
-# Future timestamp → -2 (not a large positive / not negative arithmetic surprise)
-future_usec=$(( (now_sec + 3600) * 1000000 ))
-[[ "$(timer_age_from_realtime_usec "${future_usec}" "${now_sec}")" == "-2" ]] || fail "future = -2"
-[[ "$(timer_age_from_realtime_usec "not-a-number" "${now_sec}")" == "-2" ]] || fail "bad usec = -2"
-# Ambiguous CST human string must NOT be accepted as usec input
-[[ "$(timer_age_from_realtime_usec 'Fri 2026-10-16 09:01:53 CST' "${now_sec}")" == "-2" ]] || fail "CST string rejected"
-# Healthcheck must not parse LastTriggerUSec via date -d (regression lock)
-if grep -nE 'date -d.*LastTrigger|LastTriggerUSec[^R].*date -d|date -d "\$\{raw\}"' "${ROOT}/deploy/ops/vplayer-healthcheck.sh"; then
-  fail "healthcheck must not date -d parse LastTriggerUSec human strings"
+# --- timer age from monotonic usec (production: LastTriggerUSecMonotonic) ---
+# Production evidence: LastTriggerUSecRealtime does not exist; use Monotonic uint64 usec.
+# Do not parse human LastTriggerUSec ("… CST") or systemctl timespans ("1w 1d 19h…").
+[[ "$(proc_uptime_seconds_to_usec '762847.254703')" == "762847254703" ]] || fail "uptime→usec"
+[[ "$(proc_uptime_seconds_to_usec '10')" == "10000000" ]] || fail "uptime integer"
+now_mono=762847254703
+# 1 hour earlier
+last_1h=$(( now_mono - 3600 * 1000000 ))
+[[ "$(timer_age_from_monotonic_usec "${last_1h}" "${now_mono}")" == "3600" ]] || fail "1h age"
+[[ "$(timer_age_from_monotonic_usec 0 "${now_mono}")" == "-1" ]] || fail "usec 0 = never"
+[[ "$(timer_age_from_monotonic_usec "" "${now_mono}")" == "-1" ]] || fail "empty usec = never"
+[[ "$(timer_age_from_monotonic_usec "$((now_mono + 1))" "${now_mono}")" == "-2" ]] || fail "future = -2"
+[[ "$(timer_age_from_monotonic_usec "not-a-number" "${now_mono}")" == "-2" ]] || fail "bad usec = -2"
+[[ "$(timer_age_from_monotonic_usec 'Fri 2026-10-16 09:01:53 CST' "${now_mono}")" == "-2" ]] || fail "CST string rejected"
+[[ "$(timer_age_from_monotonic_usec '1w 1d 19h 54min 7.254703s' "${now_mono}")" == "-2" ]] || fail "timespan rejected"
+HC="${ROOT}/deploy/ops/vplayer-healthcheck.sh"
+grep -q 'LastTriggerUSecMonotonic' "${HC}" || fail "must use LastTriggerUSecMonotonic"
+if grep -qE 'LastTriggerUSecRealtime|timer_age_from_realtime_usec|timer_last_trigger_realtime' "${HC}"; then
+  fail "must not reference Realtime trigger property/helpers"
 fi
-grep -q 'LastTriggerUSecRealtime' "${ROOT}/deploy/ops/vplayer-healthcheck.sh" || fail "must use LastTriggerUSecRealtime"
-grep -q 'timer_age_from_realtime_usec' "${ROOT}/deploy/ops/vplayer-healthcheck.sh" || fail "must use usec age helper"
-grep -q 'busctl' "${ROOT}/deploy/ops/vplayer-healthcheck.sh" || fail "must read raw usec via busctl"
-pass "timer age realtime usec / CST regression"
+grep -q 'timer_age_from_monotonic_usec' "${HC}" || fail "must use monotonic age helper"
+grep -q 'linux_monotonic_now_usec' "${HC}" || fail "must sample monotonic/uptime now"
+grep -q 'busctl' "${HC}" || fail "must read raw usec via busctl"
+if grep -qE 'date -d' "${HC}"; then
+  fail "healthcheck must not date -d parse timestamps"
+fi
+if grep -qE 'systemctl show.*LastTriggerUSec' "${HC}"; then
+  fail "must not systemctl show LastTriggerUSec"
+fi
+# get-property must target Monotonic only (not bare LastTriggerUSec)
+if grep -E 'get-property.*LastTriggerUSec([^M]|$)' "${HC}"; then
+  fail "must not get-property LastTriggerUSec (use Monotonic only)"
+fi
+pass "timer age monotonic usec / CST regression"
 
 [[ "$(overall_status ok ok warn)" == "warn" ]] || fail "overall warn"
 [[ "$(overall_status ok fail warn)" == "fail" ]] || fail "overall fail"
