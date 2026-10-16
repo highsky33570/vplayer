@@ -1,19 +1,55 @@
 package media
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
 
-// CDNURLOptions controls how object keys become browser-facing CDN URLs.
-// TYCDN/CDNfly private-R2 origins require the bucket name in the request path:
-//
-//	https://MEDIA_CDN_HOST/dongman/posters/100.jpg
+// CDNPathMode controls whether browser-facing media URLs include the bucket
+// name as a path prefix.
+type CDNPathMode string
+
+const (
+	// CDNPathModeBucketPrefix builds {base}/{bucket}/{key} (historical default).
+	CDNPathModeBucketPrefix CDNPathMode = "bucket_prefix"
+	// CDNPathModeObjectKey builds {base}/{key} for hosts that already map to the bucket root.
+	CDNPathModeObjectKey CDNPathMode = "object_key"
+)
+
+// ParseCDNPathMode accepts MEDIA_CDN_PATH_MODE values.
+// Empty/unset → bucket_prefix (production-compatible default).
+// Unsupported values return an error (no silent fallback).
+func ParseCDNPathMode(raw string) (CDNPathMode, error) {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	if s == "" {
+		return CDNPathModeBucketPrefix, nil
+	}
+	mode := CDNPathMode(s)
+	switch mode {
+	case CDNPathModeBucketPrefix, CDNPathModeObjectKey:
+		return mode, nil
+	default:
+		return "", fmt.Errorf("unsupported MEDIA_CDN_PATH_MODE %q (supported: %s, %s)",
+			raw, CDNPathModeBucketPrefix, CDNPathModeObjectKey)
+	}
+}
+
+func (m CDNPathMode) normalized() CDNPathMode {
+	if m == "" {
+		return CDNPathModeBucketPrefix
+	}
+	return m
+}
+
+// CDNURLOptions controls how object keys become browser-facing media URLs.
 type CDNURLOptions struct {
 	// BaseURL is MEDIA_CDN_BASE_URL (or CDN_BASE_URL fallback), without trailing slash.
 	BaseURL string
-	// Bucket is the R2 bucket name that must appear as the first path segment (e.g. dongman).
+	// Bucket is the R2 bucket name (used when PathMode is bucket_prefix).
 	Bucket string
+	// PathMode selects URL path shape. Empty means CDNPathModeBucketPrefix.
+	PathMode CDNPathMode
 }
 
 // ObjectPathWithBucket returns bucket/key for CDN path construction (no host).
@@ -32,10 +68,22 @@ func ObjectPathWithBucket(bucket, objectPath string) string {
 	return bucket + "/" + key
 }
 
-// BuildMediaURL turns a relative object key into a CDN URL under /{bucket}/...
+// DeliveryObjectPath returns the URL path (no leading slash, no host) for a relative object key.
+func DeliveryObjectPath(opts CDNURLOptions, objectPath string) string {
+	key := strings.TrimLeft(filepathToSlash(strings.TrimSpace(objectPath)), "/")
+	switch opts.PathMode.normalized() {
+	case CDNPathModeObjectKey:
+		return key
+	default:
+		return ObjectPathWithBucket(opts.Bucket, objectPath)
+	}
+}
+
+// BuildMediaURL turns a relative object key into a browser-facing media URL.
 // Absolute http(s) URLs are returned unchanged for progressive migration.
-// Signing is intentionally not applied here — CDNfly authenticates to private R2.
-// Callers that need VPlayer's legacy exp/sig can wrap the result with play.SignURL.
+// Signing is intentionally not applied here.
+// Callers that need VPlayer's legacy exp/sig can wrap the result with play.SignURL
+// using DeliveryObjectPath for the signed path.
 func BuildMediaURL(opts CDNURLOptions, objectPath string) string {
 	objectPath = strings.TrimSpace(objectPath)
 	if objectPath == "" {
@@ -46,11 +94,14 @@ func BuildMediaURL(opts CDNURLOptions, objectPath string) string {
 	}
 
 	base := strings.TrimRight(strings.TrimSpace(opts.BaseURL), "/")
-	pathWithBucket := ObjectPathWithBucket(opts.Bucket, objectPath)
-	if base == "" {
-		return "/" + pathWithBucket
+	path := DeliveryObjectPath(opts, objectPath)
+	if path == "" {
+		return base
 	}
-	return base + "/" + pathWithBucket
+	if base == "" {
+		return "/" + path
+	}
+	return base + "/" + path
 }
 
 // ResolveMediaURL prefers an object key (R2/CDN) over a legacy absolute source URL.
@@ -62,12 +113,17 @@ func ResolveMediaURL(opts CDNURLOptions, objectKey, fallbackURL string) string {
 }
 
 // OptionsFromEnv builds CDNURLOptions from common config fields.
-func OptionsFromEnv(mediaCDNBase, cdnBase, bucket string) CDNURLOptions {
+// pathMode should already be validated (e.g. via ParseCDNPathMode / config.Load).
+func OptionsFromEnv(mediaCDNBase, cdnBase, bucket string, pathMode CDNPathMode) CDNURLOptions {
 	base := strings.TrimRight(strings.TrimSpace(mediaCDNBase), "/")
 	if base == "" {
 		base = strings.TrimRight(strings.TrimSpace(cdnBase), "/")
 	}
-	return CDNURLOptions{BaseURL: base, Bucket: strings.TrimSpace(bucket)}
+	return CDNURLOptions{
+		BaseURL:  base,
+		Bucket:   strings.TrimSpace(bucket),
+		PathMode: pathMode.normalized(),
+	}
 }
 
 func isAbsoluteURL(s string) bool {

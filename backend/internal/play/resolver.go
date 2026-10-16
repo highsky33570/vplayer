@@ -96,7 +96,7 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 		hlsObjectKey = v.HLSMasterKey
 	}
 
-	cdn := media.OptionsFromEnv(r.Cfg.MediaCDNBaseURL, r.Cfg.CDNBaseURL, r.Cfg.R2Bucket)
+	cdn := media.OptionsFromEnv(r.Cfg.MediaCDNBaseURL, r.Cfg.CDNBaseURL, r.Cfg.R2Bucket, r.Cfg.MediaCDNPathMode)
 	final := media.ResolveMediaURL(cdn, hlsObjectKey, url)
 	if final == "" {
 		if v.Status == "demo" {
@@ -116,12 +116,12 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 		key := final
 		final = media.BuildMediaURL(cdn, key)
 		if r.Cfg.CDNURLAuthMode == "legacy_hmac" {
-			final = SignURL(cdn.BaseURL, r.Cfg.CDNSignSecret, media.ObjectPathWithBucket(cdn.Bucket, key), r.Cfg.PlayTicketTTL)
+			final = SignURL(cdn.BaseURL, r.Cfg.CDNSignSecret, media.DeliveryObjectPath(cdn, key), r.Cfg.PlayTicketTTL)
 		}
 	} else if hlsObjectKey != "" && r.Cfg.CDNURLAuthMode == "legacy_hmac" &&
 		!strings.HasPrefix(strings.ToLower(hlsObjectKey), "http://") &&
 		!strings.HasPrefix(strings.ToLower(hlsObjectKey), "https://") {
-		final = SignURL(cdn.BaseURL, r.Cfg.CDNSignSecret, media.ObjectPathWithBucket(cdn.Bucket, hlsObjectKey), r.Cfg.PlayTicketTTL)
+		final = SignURL(cdn.BaseURL, r.Cfg.CDNSignSecret, media.DeliveryObjectPath(cdn, hlsObjectKey), r.Cfg.PlayTicketTTL)
 	}
 
 	playType := "hls"

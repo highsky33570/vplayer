@@ -2,10 +2,13 @@ package config
 
 import (
 	"bufio"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/tycdn/vplayer/internal/media"
 )
 
 func filepathJoin(elem ...string) string { return filepath.Join(elem...) }
@@ -54,11 +57,13 @@ type Config struct {
 	R2Endpoint    string
 	R2Region      string
 	R2PublicBase  string
-	// MediaCDNBaseURL is the browser-facing TYCDN/CDNfly host (no trailing slash).
+	// MediaCDNBaseURL is the browser-facing media delivery host (no trailing slash).
 	// Falls back to CDNBaseURL when empty.
 	MediaCDNBaseURL string
 	CDNBaseURL      string
-	// CDNURLAuthMode: none (default; CDNfly origin auth to private R2) | legacy_hmac
+	// MediaCDNPathMode: bucket_prefix (default) | object_key — see media.CDNPathMode.
+	MediaCDNPathMode media.CDNPathMode
+	// CDNURLAuthMode: none (default) | legacy_hmac
 	CDNURLAuthMode string
 	CDNSignSecret  string
 	// AuthSecret signs user session Bearer tokens (separate from CDN URL/ticket signing).
@@ -96,28 +101,33 @@ func loadEnvFiles() {
 
 func Load() Config {
 	loadEnvFiles()
+	pathMode, err := media.ParseCDNPathMode(os.Getenv("MEDIA_CDN_PATH_MODE"))
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 	return Config{
-		AppEnv:          getenv("APP_ENV", "local"),
-		HTTPAddr:        getenv("HTTP_ADDR", ":8080"),
-		CORSOrigins:     strings.Split(getenv("CORS_ORIGINS", "http://localhost:5173"), ","),
-		MySQLDSN:        getenv("MYSQL_DSN", "vplayer:vplayer@tcp(127.0.0.1:3306)/vplayer?charset=utf8mb4&parseTime=True&loc=Local"),
-		RedisAddr:       getenv("REDIS_ADDR", "127.0.0.1:6379"),
-		RedisPassword:   getenv("REDIS_PASSWORD", ""),
-		RedisDB:         getenvInt("REDIS_DB", 0),
-		R2AccountID:     getenv("R2_ACCOUNT_ID", ""),
-		R2AccessKey:     getenv("R2_ACCESS_KEY_ID", ""),
-		R2SecretKey:     getenv("R2_SECRET_ACCESS_KEY", ""),
-		R2Bucket:        getenv("R2_BUCKET", "dongman"),
-		R2Endpoint:      getenv("R2_ENDPOINT", ""),
-		R2Region:        getenv("R2_REGION", "auto"),
-		R2PublicBase:    strings.TrimRight(getenv("R2_PUBLIC_BASE", ""), "/"),
-		MediaCDNBaseURL: strings.TrimRight(firstNonEmpty(getenv("MEDIA_CDN_BASE_URL", ""), getenv("CDN_BASE_URL", "http://localhost:8080")), "/"),
-		CDNBaseURL:      strings.TrimRight(getenv("CDN_BASE_URL", "http://localhost:8080"), "/"),
-		CDNURLAuthMode:  strings.ToLower(getenv("CDN_URL_AUTH_MODE", "none")),
-		CDNSignSecret:   getenv("CDN_SIGN_SECRET", "dev-cdn-secret"),
-		AuthSecret:      getenv("AUTH_SECRET", "dev-auth-secret"),
-		PlayTicketTTL:   getenvInt("PLAY_TICKET_TTL_SEC", 300),
-		HLSKeySecret:    getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
+		AppEnv:             getenv("APP_ENV", "local"),
+		HTTPAddr:           getenv("HTTP_ADDR", ":8080"),
+		CORSOrigins:        strings.Split(getenv("CORS_ORIGINS", "http://localhost:5173"), ","),
+		MySQLDSN:           getenv("MYSQL_DSN", "vplayer:vplayer@tcp(127.0.0.1:3306)/vplayer?charset=utf8mb4&parseTime=True&loc=Local"),
+		RedisAddr:          getenv("REDIS_ADDR", "127.0.0.1:6379"),
+		RedisPassword:      getenv("REDIS_PASSWORD", ""),
+		RedisDB:            getenvInt("REDIS_DB", 0),
+		R2AccountID:        getenv("R2_ACCOUNT_ID", ""),
+		R2AccessKey:        getenv("R2_ACCESS_KEY_ID", ""),
+		R2SecretKey:        getenv("R2_SECRET_ACCESS_KEY", ""),
+		R2Bucket:           getenv("R2_BUCKET", "dongman"),
+		R2Endpoint:         getenv("R2_ENDPOINT", ""),
+		R2Region:           getenv("R2_REGION", "auto"),
+		R2PublicBase:       strings.TrimRight(getenv("R2_PUBLIC_BASE", ""), "/"),
+		MediaCDNBaseURL:    strings.TrimRight(firstNonEmpty(getenv("MEDIA_CDN_BASE_URL", ""), getenv("CDN_BASE_URL", "http://localhost:8080")), "/"),
+		CDNBaseURL:         strings.TrimRight(getenv("CDN_BASE_URL", "http://localhost:8080"), "/"),
+		MediaCDNPathMode:   pathMode,
+		CDNURLAuthMode:     strings.ToLower(getenv("CDN_URL_AUTH_MODE", "none")),
+		CDNSignSecret:      getenv("CDN_SIGN_SECRET", "dev-cdn-secret"),
+		AuthSecret:         getenv("AUTH_SECRET", "dev-auth-secret"),
+		PlayTicketTTL:      getenvInt("PLAY_TICKET_TTL_SEC", 300),
+		HLSKeySecret:       getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
 
 		AdminAPIToken: getenv("ADMIN_API_TOKEN", "dev-admin-token"),
 

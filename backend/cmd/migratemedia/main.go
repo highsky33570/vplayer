@@ -76,7 +76,7 @@ func main() {
 		}
 	}
 
-	cdn := media.OptionsFromEnv(cfg.MediaCDNBaseURL, cfg.CDNBaseURL, cfg.R2Bucket)
+	cdn := media.OptionsFromEnv(cfg.MediaCDNBaseURL, cfg.CDNBaseURL, cfg.R2Bucket, cfg.MediaCDNPathMode)
 	if strings.TrimSpace(cdn.Bucket) == "" {
 		log.Fatal("R2_BUCKET is empty")
 	}

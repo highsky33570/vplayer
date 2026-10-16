@@ -8,18 +8,18 @@ Go API (Gin) ── Redis (sessions, play tickets, hot lists)
     │
     ├── MySQL (users, videos, episodes, categories)
     │
-    └── MEDIA_CDN_BASE_URL (TYCDN/CDNfly)
-              └── origin auth ──→ private R2 bucket (path must include /{bucket}/…)
+    └── MEDIA_CDN_BASE_URL (browser-facing media host)
+              └── R2 bucket objects (path shape via MEDIA_CDN_PATH_MODE)
 ```
 
-See [MEDIA_CDN.md](./MEDIA_CDN.md) for object keys, `/dongman/` path rule, migration dry-run, cache/CORS/DNS.
+See [MEDIA_CDN.md](./MEDIA_CDN.md) for object keys, path modes, migration dry-run, cache/CORS/DNS.
 
 ## Play flow
 
 1. Client requests play URL for `video_id` (+ optional `sid`/`nid`).
-2. API resolves episode: prefer `hls_object_key` → CDN URL under `/{R2_BUCKET}/…`; else legacy absolute `playback_url`.
-3. xgplayer (+ hls plugin) loads the m3u8 from the CDN host.
-4. Optional VPlayer play ticket remains in the JSON response for future auth; CDN URL auth defaults to `CDN_URL_AUTH_MODE=none` (CDNfly↔R2 origin auth).
+2. API resolves episode: prefer `hls_object_key` → media URL from `MEDIA_CDN_BASE_URL` + `MEDIA_CDN_PATH_MODE`; else legacy absolute `playback_url`.
+3. xgplayer (+ hls plugin) loads the m3u8 from the media host.
+4. Optional VPlayer play ticket remains in the JSON response for future auth; CDN URL auth defaults to `CDN_URL_AUTH_MODE=none`.
 
 ## Cover protection
 

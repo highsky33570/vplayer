@@ -234,7 +234,7 @@ func (a *API) withCoverURL(v model.Video) model.Video {
 	if key == "" {
 		key = v.CoverKey
 	}
-	cdn := media.OptionsFromEnv(a.Cfg.MediaCDNBaseURL, a.Cfg.CDNBaseURL, a.Cfg.R2Bucket)
+	cdn := media.OptionsFromEnv(a.Cfg.MediaCDNBaseURL, a.Cfg.CDNBaseURL, a.Cfg.R2Bucket, a.Cfg.MediaCDNPathMode)
 	switch {
 	case key != "" && (strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://")):
 		v.CoverURL = key
@@ -245,7 +245,7 @@ func (a *API) withCoverURL(v model.Video) model.Video {
 	case key != "":
 		url := media.BuildMediaURL(cdn, key)
 		if a.Cfg.CDNURLAuthMode == "legacy_hmac" {
-			url = play.SignURL(cdn.BaseURL, a.Cfg.CDNSignSecret, media.ObjectPathWithBucket(cdn.Bucket, key), a.Cfg.PlayTicketTTL)
+			url = play.SignURL(cdn.BaseURL, a.Cfg.CDNSignSecret, media.DeliveryObjectPath(cdn, key), a.Cfg.PlayTicketTTL)
 		}
 		v.CoverURL = url
 	case v.PosterSourceURL != "" && !maccms.IsPlaceholderPoster(v.PosterSourceURL):
