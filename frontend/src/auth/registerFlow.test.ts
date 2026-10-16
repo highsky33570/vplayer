@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { stateAfterRegisterStart } from './registerFlow.ts';
+import {
+  authFormSubmitPlan,
+  canSubmitRegistration,
+  registrationBlockMessage,
+  registrationConfigAfterFetch,
+  registerSubmitAction,
+  showsVerificationStep,
+  stateAfterRegisterStart,
+} from './registerFlow.ts';
 
 /** Mirrors AuthForm maskEmail for unit coverage without DOM. */
 function maskEmail(email: string): string {
@@ -26,6 +34,53 @@ describe('stateAfterRegisterStart', () => {
     assert.equal(next.password, '');
     assert.equal(next.code, '');
     assert.equal(next.registerStep, 'verify');
+  });
+});
+
+describe('email verification flag', () => {
+  it('config false uses direct registration', () => {
+    const status = registrationConfigAfterFetch({ ok: true, emailVerificationEnabled: false });
+    assert.equal(status, 'disabled');
+    assert.equal(registerSubmitAction(status), 'direct');
+    assert.equal(canSubmitRegistration(status), true);
+    assert.equal(showsVerificationStep(status, 'form'), false);
+    assert.equal(showsVerificationStep(status, 'verify'), false);
+  });
+
+  it('config true keeps the verification flow', () => {
+    const status = registrationConfigAfterFetch({ ok: true, emailVerificationEnabled: true });
+    assert.equal(status, 'enabled');
+    assert.equal(registerSubmitAction(status), 'start');
+    assert.equal(canSubmitRegistration(status), true);
+    const next = stateAfterRegisterStart();
+    assert.equal(showsVerificationStep(status, next.registerStep), true);
+    assert.equal(showsVerificationStep(status, 'form'), false);
+  });
+
+  it('config loading blocks registration submit', () => {
+    assert.equal(registerSubmitAction('loading'), 'blocked');
+    assert.equal(canSubmitRegistration('loading'), false);
+    assert.notEqual(registerSubmitAction('loading'), 'direct');
+    assert.equal(showsVerificationStep('loading', 'verify'), false);
+  });
+
+  it('config failure blocks registration and does not fall back to direct registration', () => {
+    const status = registrationConfigAfterFetch({ ok: false });
+    assert.equal(status, 'unavailable');
+    assert.notEqual(status, 'disabled');
+    assert.equal(registerSubmitAction(status), 'blocked');
+    assert.equal(canSubmitRegistration(status), false);
+    assert.notEqual(registerSubmitAction(status), 'direct');
+    assert.equal(registrationBlockMessage(status), '注册暂不可用，请稍后重试');
+  });
+
+  it('login stays usable when registration config is loading or failed', () => {
+    assert.equal(authFormSubmitPlan('login', 'loading'), 'login');
+    assert.equal(authFormSubmitPlan('login', 'unavailable'), 'login');
+    assert.equal(authFormSubmitPlan('login', 'disabled'), 'login');
+    assert.equal(authFormSubmitPlan('login', 'enabled'), 'login');
+    assert.equal(authFormSubmitPlan('register', 'unavailable'), 'blocked');
+    assert.equal(authFormSubmitPlan('register', 'loading'), 'blocked');
   });
 });
 

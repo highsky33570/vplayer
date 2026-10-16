@@ -1549,6 +1549,18 @@ html.dark .auth-modal {
   font-size: 13px;
 }
 
+.auth-error button {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .auth-verify-hint {
   margin: 0;
   font-size: 13px;

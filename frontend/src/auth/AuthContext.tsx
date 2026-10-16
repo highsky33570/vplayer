@@ -4,18 +4,22 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import {
   fetchMe,
+  fetchRegistrationOptions,
   login as apiLogin,
+  register as apiRegister,
   registerResend as apiRegisterResend,
   registerStart as apiRegisterStart,
   registerVerify as apiRegisterVerify,
   type AuthUser,
   type RegisterStartResult,
 } from '../api';
+import { registrationConfigAfterFetch, type RegistrationConfigStatus } from './registerFlow';
 
 const TOKEN_KEY = 'vplayer_auth_token';
 
@@ -29,6 +33,9 @@ type AuthContextValue = {
   authMode: 'login' | 'register';
   setAuthMode: (mode: 'login' | 'register') => void;
   login: (email: string, password: string) => Promise<void>;
+  registrationConfig: RegistrationConfigStatus;
+  retryRegistrationConfig: () => void;
+  register: (email: string, password: string, nickname?: string) => Promise<void>;
   registerStart: (email: string, password: string, nickname?: string) => Promise<RegisterStartResult>;
   registerVerify: (email: string, code: string) => Promise<void>;
   registerResend: (email: string) => Promise<RegisterStartResult>;
@@ -43,6 +50,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [registrationConfig, setRegistrationConfig] = useState<RegistrationConfigStatus>('loading');
+  const registrationRequest = useRef(0);
+
+  const retryRegistrationConfig = useCallback(() => {
+    const request = ++registrationRequest.current;
+    setRegistrationConfig('loading');
+    void fetchRegistrationOptions()
+      .then((opts) => {
+        if (registrationRequest.current !== request) return;
+        setRegistrationConfig(
+          registrationConfigAfterFetch({ ok: true, emailVerificationEnabled: opts.email_verification_enabled === true }),
+        );
+      })
+      .catch(() => {
+        if (registrationRequest.current !== request) return;
+        setRegistrationConfig(registrationConfigAfterFetch({ ok: false }));
+      });
+  }, []);
+
+  useEffect(() => {
+    retryRegistrationConfig();
+  }, [retryRegistrationConfig]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +111,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       const result = await apiLogin(email, password);
+      persist(result.token, result.user);
+      setLoginOpen(false);
+    },
+    [persist],
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, nickname?: string) => {
+      const result = await apiRegister(email, password, nickname);
       persist(result.token, result.user);
       setLoginOpen(false);
     },
@@ -129,6 +167,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authMode,
       setAuthMode,
       login,
+      registrationConfig,
+      retryRegistrationConfig,
+      register,
       registerStart,
       registerVerify,
       registerResend,
@@ -143,6 +184,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       closeLogin,
       authMode,
       login,
+      registrationConfig,
+      retryRegistrationConfig,
+      register,
       registerStart,
       registerVerify,
       registerResend,

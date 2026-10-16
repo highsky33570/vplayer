@@ -72,13 +72,15 @@ type Config struct {
 	HLSKeySecret  string
 
 	// Email verification / SMTP (registration only; login does not require these).
-	SMTPHost        string
-	SMTPPort        int
-	SMTPUsername    string
-	SMTPPassword    string
-	SMTPFromEmail   string
-	SMTPFromName    string
-	EmailCodePepper string
+	// EmailVerificationEnabled defaults false so registration works without SMTP.
+	EmailVerificationEnabled bool
+	SMTPHost                 string
+	SMTPPort                 int
+	SMTPUsername             string
+	SMTPPassword             string
+	SMTPFromEmail            string
+	SMTPFromName             string
+	EmailCodePepper          string
 
 	AdminAPIToken string
 
@@ -138,13 +140,14 @@ func Load() Config {
 		PlayTicketTTL:    getenvInt("PLAY_TICKET_TTL_SEC", 300),
 		HLSKeySecret:     getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
 
-		SMTPHost:        getenv("SMTP_HOST", ""),
-		SMTPPort:        getenvInt("SMTP_PORT", 587),
-		SMTPUsername:    getenv("SMTP_USERNAME", ""),
-		SMTPPassword:    getenv("SMTP_PASSWORD", ""),
-		SMTPFromEmail:   getenv("SMTP_FROM_EMAIL", ""),
-		SMTPFromName:    getenv("SMTP_FROM_NAME", "VPlayer"),
-		EmailCodePepper: getenv("EMAIL_CODE_PEPPER", ""),
+		EmailVerificationEnabled: getenvBool("EMAIL_VERIFICATION_ENABLED", false),
+		SMTPHost:                 getenv("SMTP_HOST", ""),
+		SMTPPort:                 getenvInt("SMTP_PORT", 587),
+		SMTPUsername:             getenv("SMTP_USERNAME", ""),
+		SMTPPassword:             getenv("SMTP_PASSWORD", ""),
+		SMTPFromEmail:            getenv("SMTP_FROM_EMAIL", ""),
+		SMTPFromName:             getenv("SMTP_FROM_NAME", "VPlayer"),
+		EmailCodePepper:          getenv("EMAIL_CODE_PEPPER", ""),
 
 		AdminAPIToken: getenv("ADMIN_API_TOKEN", "dev-admin-token"),
 

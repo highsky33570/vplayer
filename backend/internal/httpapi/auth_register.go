@@ -79,11 +79,69 @@ func (a *API) registerStartMeta() gin.H {
 	}
 }
 
-// Register is the legacy endpoint. It must never create users or issue tokens.
+// RegistrationOptions exposes only whether email verification is required.
+// It must not include SMTP settings or secrets.
+func (a *API) RegistrationOptions(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"ok": true,
+		"data": gin.H{
+			"email_verification_enabled": a.Cfg.EmailVerificationEnabled,
+		},
+	})
+}
+
+// Register creates a user immediately when email verification is disabled.
+// When EMAIL_VERIFICATION_ENABLED=true it refuses to create a user or token;
+// clients must use register/start and register/verify.
 func (a *API) Register(c *gin.Context) {
-	c.JSON(http.StatusBadRequest, gin.H{
-		"ok":      false,
-		"message": "请使用邮箱验证注册：先完成 /api/v1/auth/register/start，再调用 /api/v1/auth/register/verify",
+	if a.Cfg.EmailVerificationEnabled {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"ok":      false,
+			"message": "请使用邮箱验证注册：先完成 /api/v1/auth/register/start，再调用 /api/v1/auth/register/verify",
+		})
+		return
+	}
+
+	repo := a.users()
+	if repo == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "message": "认证服务暂不可用"})
+		return
+	}
+	var body authBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "请求格式错误"})
+		return
+	}
+	email := auth.NormalizeEmail(body.Email)
+	pass := body.Password
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "请输入账号或邮箱"})
+		return
+	}
+	if len(pass) < 6 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "密码至少 6 位"})
+		return
+	}
+	user, err := repo.CreateUser(email, pass, body.Nickname)
+	if errors.Is(err, store.ErrUserExists) {
+		c.JSON(http.StatusConflict, gin.H{"ok": false, "message": "该邮箱已注册"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": err.Error()})
+		return
+	}
+	token, err := auth.IssueToken(a.authSecret(), user.ID, user.Email, 30*24*time.Hour)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "签发登录凭证失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"ok": true,
+		"data": gin.H{
+			"token": token,
+			"user":  authUserJSON(user),
+		},
 	})
 }
 

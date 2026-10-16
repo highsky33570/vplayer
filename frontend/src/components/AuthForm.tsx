@@ -1,6 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { stateAfterRegisterStart } from '../auth/registerFlow';
+import {
+  authFormSubmitPlan,
+  canSubmitRegistration,
+  registrationBlockMessage,
+  registerSubmitAction,
+  showsVerificationStep,
+  stateAfterRegisterStart,
+} from '../auth/registerFlow';
 
 type Props = {
   /** Optional: close parent after success (AuthContext already closes modal). */
@@ -20,7 +27,17 @@ function maskEmail(email: string): string {
 }
 
 export function AuthForm({ onSuccess }: Props) {
-  const { authMode, setAuthMode, login, registerStart, registerVerify, registerResend } = useAuth();
+  const {
+    authMode,
+    setAuthMode,
+    login,
+    registrationConfig,
+    retryRegistrationConfig,
+    register,
+    registerStart,
+    registerVerify,
+    registerResend,
+  } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
@@ -34,7 +51,9 @@ export function AuthForm({ onSuccess }: Props) {
   const [cooldownLeft, setCooldownLeft] = useState(0);
 
   const isRegister = authMode === 'register';
-  const showVerify = isRegister && registerStep === 'verify';
+  const showVerify = isRegister && showsVerificationStep(registrationConfig, registerStep);
+  const registrationNotice = isRegister && !showVerify ? registrationBlockMessage(registrationConfig) : null;
+  const registrationReady = canSubmitRegistration(registrationConfig);
 
   useEffect(() => {
     if (cooldownLeft <= 0) return;
@@ -77,6 +96,12 @@ export function AuthForm({ onSuccess }: Props) {
       return;
     }
 
+    if (isRegister && authFormSubmitPlan('register', registrationConfig) === 'blocked') {
+      const blocked = registrationBlockMessage(registrationConfig);
+      if (blocked) setError(blocked);
+      return;
+    }
+
     if (!password) {
       setError('请输入密码');
       return;
@@ -89,7 +114,7 @@ export function AuthForm({ onSuccess }: Props) {
     setSubmitting(true);
     setError('');
     try {
-      if (isRegister) {
+      if (isRegister && registerSubmitAction(registrationConfig) === 'start') {
         const meta = await registerStart(account, password, nickname.trim() || undefined);
         const next = stateAfterRegisterStart();
         setPassword(next.password);
@@ -98,7 +123,10 @@ export function AuthForm({ onSuccess }: Props) {
         setExpiresInSec(meta.expires_in_sec || 600);
         setResendAfterSec(meta.resend_after_sec || 60);
         setCooldownLeft(meta.resend_after_sec || 60);
-      } else {
+      } else if (isRegister && registerSubmitAction(registrationConfig) === 'direct') {
+        await register(account, password, nickname.trim() || undefined);
+        onSuccess?.();
+      } else if (!isRegister) {
         await login(account, password);
         onSuccess?.();
       }
@@ -236,9 +264,17 @@ export function AuthForm({ onSuccess }: Props) {
         </>
       )}
 
-      {error && (
+      {(registrationNotice || error) && (
         <p className="auth-error" role="alert">
-          {error}
+          {registrationNotice ?? error}
+          {registrationNotice && (
+            <>
+              {' '}
+              <button type="button" className="auth-link-btn" onClick={retryRegistrationConfig}>
+                重试
+              </button>
+            </>
+          )}
         </p>
       )}
 
@@ -265,8 +301,8 @@ export function AuthForm({ onSuccess }: Props) {
             >
               返回登录
             </button>
-            <button type="submit" className="auth-btn-primary" disabled={submitting}>
-              {submitting ? '发送中...' : '注册'}
+            <button type="submit" className="auth-btn-primary" disabled={submitting || !registrationReady}>
+              {submitting ? (registrationConfig === 'enabled' ? '发送中...' : '注册中...') : '注册'}
             </button>
           </>
         ) : (

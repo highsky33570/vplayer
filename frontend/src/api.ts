@@ -273,6 +273,22 @@ export function login(email: string, password: string) {
   return postJSON<AuthResult>('/api/v1/auth/login', { email, password });
 }
 
+export type RegistrationOptions = {
+  email_verification_enabled: boolean;
+};
+
+export function fetchRegistrationOptions() {
+  return getJSON<RegistrationOptions>('/api/v1/auth/registration');
+}
+
+export function register(email: string, password: string, nickname?: string) {
+  return postJSON<AuthResult>('/api/v1/auth/register', {
+    email,
+    password,
+    nickname: nickname ?? '',
+  });
+}
+
 export function registerStart(email: string, password: string, nickname?: string) {
   return postJSON<RegisterStartResult>('/api/v1/auth/register/start', {
     email,

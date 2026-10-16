@@ -100,29 +100,32 @@ func TestAdminMeOKForAdmin(t *testing.T) {
 
 func TestRegisterCannotSelfPromoteToAdmin(t *testing.T) {
 	users := store.NewMemoryUsers()
-	r, api := testAuthAdminRouter(users)
-	// Legacy register must not create accounts (verification required).
+	r, _ := testAuthAdminRouter(users)
+	// Direct registration (verification disabled) must not grant is_admin.
 	body := []byte(`{"email":"newbie@example.com","password":"password1","nickname":"N","is_admin":true}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code == http.StatusOK {
-		t.Fatalf("legacy register must not succeed: %s", w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("register status=%d body=%s", w.Code, w.Body.String())
 	}
-	u, err := users.CreateUser("newbie@example.com", "password1", "N")
-	if err != nil {
+	var reg struct {
+		Data struct {
+			Token string `json:"token"`
+			User  struct {
+				IsAdmin bool `json:"is_admin"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &reg); err != nil {
 		t.Fatal(err)
 	}
-	if u.IsAdmin {
-		t.Fatal("CreateUser must not grant is_admin")
-	}
-	tok, err := auth.IssueToken(api.authSecret(), u.ID, u.Email, time.Hour)
-	if err != nil {
-		t.Fatal(err)
+	if reg.Data.Token == "" || reg.Data.User.IsAdmin {
+		t.Fatalf("register must return a token and is_admin=false: %+v", reg.Data)
 	}
 	reqMe := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
-	reqMe.Header.Set("Authorization", "Bearer "+tok)
+	reqMe.Header.Set("Authorization", "Bearer "+reg.Data.Token)
 	wMe := httptest.NewRecorder()
 	r.ServeHTTP(wMe, reqMe)
 	if wMe.Code != http.StatusOK {
@@ -140,7 +143,7 @@ func TestRegisterCannotSelfPromoteToAdmin(t *testing.T) {
 		t.Fatal("/auth/me must report is_admin=false")
 	}
 	reqAdmin := httptest.NewRequest(http.MethodGet, "/api/v1/admin/me", nil)
-	reqAdmin.Header.Set("Authorization", "Bearer "+tok)
+	reqAdmin.Header.Set("Authorization", "Bearer "+reg.Data.Token)
 	wAdmin := httptest.NewRecorder()
 	r.ServeHTTP(wAdmin, reqAdmin)
 	if wAdmin.Code != http.StatusForbidden {

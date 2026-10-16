@@ -113,6 +113,7 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/videos/:id", api.GetVideo)
 		v1.GET("/videos/:id/play", api.RequireUser, api.ResolvePlay)
 		v1.POST("/videos/:id/play", api.RequireUser, api.CreatePlaySession)
+		v1.GET("/auth/registration", api.RegistrationOptions)
 		v1.POST("/auth/register", api.Register)
 		v1.POST("/auth/register/start", api.RegisterStart)
 		v1.POST("/auth/register/verify", api.RegisterVerify)

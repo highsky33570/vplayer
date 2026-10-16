@@ -87,8 +87,9 @@ func testRegisterRouter(mem *store.MemoryAuth, m mail.Mailer) (*gin.Engine, *API
 	gin.SetMode(gin.TestMode)
 	api := &API{
 		Cfg: config.Config{
-			AuthSecret:      "test-auth-secret",
-			EmailCodePepper: "test-email-pepper",
+			AuthSecret:               "test-auth-secret",
+			EmailCodePepper:          "test-email-pepper",
+			EmailVerificationEnabled: true,
 		},
 		Users:       mem.MemoryUsers,
 		PendingRegs: mem.MemoryPendingRegistrations,
@@ -97,6 +98,7 @@ func testRegisterRouter(mem *store.MemoryAuth, m mail.Mailer) (*gin.Engine, *API
 	r := gin.New()
 	v1 := r.Group("/api/v1")
 	{
+		v1.GET("/auth/registration", api.RegistrationOptions)
 		v1.POST("/auth/register", api.Register)
 		v1.POST("/auth/register/start", api.RegisterStart)
 		v1.POST("/auth/register/verify", api.RegisterVerify)
@@ -115,6 +117,113 @@ func postJSON(r http.Handler, path string, body any) *httptest.ResponseRecorder 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	return w
+}
+
+func TestRegisterDirectWhenVerificationDisabled(t *testing.T) {
+	mem := store.NewMemoryAuth()
+	fm := &fakeMailer{err: errors.New("smtp must not be called")}
+	gin.SetMode(gin.TestMode)
+	api := &API{
+		Cfg:         config.Config{AuthSecret: "test-auth-secret"},
+		Users:       mem.MemoryUsers,
+		PendingRegs: mem.MemoryPendingRegistrations,
+		Mailer:      fm,
+	}
+	if api.Cfg.EmailVerificationEnabled {
+		t.Fatal("unset flag must be false")
+	}
+	r := gin.New()
+	v1 := r.Group("/api/v1")
+	v1.GET("/auth/registration", api.RegistrationOptions)
+	v1.POST("/auth/register", api.Register)
+	v1.POST("/auth/login", api.Login)
+	v1.GET("/auth/me", api.Me)
+	v1.GET("/admin/me", api.RequireUser, api.RequireAdmin, api.AdminMe)
+
+	opt := httptest.NewRecorder()
+	r.ServeHTTP(opt, httptest.NewRequest(http.MethodGet, "/api/v1/auth/registration", nil))
+	if opt.Code != http.StatusOK || !strings.Contains(opt.Body.String(), `"email_verification_enabled":false`) {
+		t.Fatalf("options status=%d body=%s", opt.Code, opt.Body.String())
+	}
+	if strings.Contains(strings.ToLower(opt.Body.String()), "smtp") || strings.Contains(opt.Body.String(), "pepper") {
+		t.Fatal("registration options must not expose mail config")
+	}
+
+	w := postJSON(r, "/api/v1/auth/register", map[string]string{
+		"email": " Direct@Example.com ", "password": "password1", "nickname": "Dee", "is_admin": "true",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			Token string `json:"token"`
+			User  struct {
+				Email   string `json:"email"`
+				IsAdmin bool   `json:"is_admin"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Data.Token == "" {
+		t.Fatal("token missing")
+	}
+	if resp.Data.User.Email != "direct@example.com" || resp.Data.User.IsAdmin {
+		t.Fatalf("user=%+v", resp.Data.User)
+	}
+	if fm.sends != 0 {
+		t.Fatalf("smtp sends=%d", fm.sends)
+	}
+	if _, err := mem.GetPendingRegistration("direct@example.com"); !errors.Is(err, store.ErrPendingNotFound) {
+		t.Fatalf("pending err=%v", err)
+	}
+	user, err := mem.Authenticate("direct@example.com", "password1")
+	if err != nil || user.IsAdmin {
+		t.Fatalf("authenticate err=%v admin=%v", err, user != nil && user.IsAdmin)
+	}
+	reqMe := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	reqMe.Header.Set("Authorization", "Bearer "+resp.Data.Token)
+	wMe := httptest.NewRecorder()
+	r.ServeHTTP(wMe, reqMe)
+	if wMe.Code != http.StatusOK {
+		t.Fatalf("me status=%d body=%s", wMe.Code, wMe.Body.String())
+	}
+	reqAdmin := httptest.NewRequest(http.MethodGet, "/api/v1/admin/me", nil)
+	reqAdmin.Header.Set("Authorization", "Bearer "+resp.Data.Token)
+	wAdmin := httptest.NewRecorder()
+	r.ServeHTTP(wAdmin, reqAdmin)
+	if wAdmin.Code != http.StatusForbidden {
+		t.Fatalf("admin/me status=%d", wAdmin.Code)
+	}
+
+	again := postJSON(r, "/api/v1/auth/register", map[string]string{
+		"email": "direct@example.com", "password": "password1",
+	})
+	if again.Code != http.StatusConflict {
+		t.Fatalf("duplicate status=%d body=%s", again.Code, again.Body.String())
+	}
+}
+
+func TestRegisterExplicitlyDisabledMatchesUnset(t *testing.T) {
+	mem := store.NewMemoryAuth()
+	gin.SetMode(gin.TestMode)
+	api := &API{
+		Cfg:   config.Config{AuthSecret: "test-auth-secret", EmailVerificationEnabled: false},
+		Users: mem.MemoryUsers,
+	}
+	r := gin.New()
+	r.POST("/api/v1/auth/register", api.Register)
+	w := postJSON(r, "/api/v1/auth/register", map[string]string{
+		"email": "off@example.com", "password": "password1",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if _, err := mem.Authenticate("off@example.com", "password1"); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRegisterLegacyCannotBypassVerification(t *testing.T) {
