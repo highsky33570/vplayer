@@ -79,12 +79,13 @@ type PlaySession struct {
 
 // PlaybackInfo is the normalized play response for the frontend.
 type PlaybackInfo struct {
-	Type   string `json:"type"`
-	URL    string `json:"url"`
-	Source string `json:"source"`
-	SID    int    `json:"sid"`
-	NID    int    `json:"nid"`
-	Ticket string `json:"ticket,omitempty"`
+	Type        string `json:"type"`
+	URL         string `json:"url"`
+	Source      string `json:"source"`
+	SID         int    `json:"sid"`
+	NID         int    `json:"nid"`
+	Ticket      string `json:"ticket,omitempty"`
+	FallbackURL string `json:"fallback_url,omitempty"`
 }
 
 type SyncSummary struct {

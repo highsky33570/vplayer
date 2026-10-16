@@ -26,6 +26,10 @@ type Resolver struct {
 	EpisodeState episodeStateLookup
 	// VideoByID optionally overrides Store.GetVideo (tests).
 	VideoByID func(id uint64) (*model.Video, error)
+	// DefaultEpisode optionally overrides Store.GetDefaultEpisode (tests).
+	DefaultEpisode func(videoID uint64) (*model.Episode, error)
+	// FindEpisode optionally overrides findEpisode (tests).
+	FindEpisode func(videoID uint64, sid, nid int) (*model.Episode, error)
 }
 
 func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, error) {
@@ -52,7 +56,9 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 	}
 
 	source := v.PlaybackSource
-	url := v.PlaybackURL
+	sourcePlaybackURL := strings.TrimSpace(v.PlaybackURL)
+	playbackStatus := ""
+	url := sourcePlaybackURL
 	if url == "" {
 		url = v.HLSMasterKey
 	}
@@ -69,35 +75,20 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 	}
 
 	var hlsObjectKey string
-	if ep, err := r.findEpisode(videoID, sid, nid); err == nil && ep != nil {
-		url = ep.PlaybackURL
-		hlsObjectKey = ep.HLSObjectKey
-		source = ep.PlaybackSource
-		outSID, outNID = ep.SID, ep.NID
-	} else if r.Store != nil {
-		if ep, err := r.Store.GetDefaultEpisode(videoID); err == nil && ep != nil {
-			if url == "" {
-				url = ep.PlaybackURL
-				source = ep.PlaybackSource
-				outSID, outNID = ep.SID, ep.NID
-			}
-			if hlsObjectKey == "" {
-				hlsObjectKey = ep.HLSObjectKey
-			}
-			if outSID == 0 {
-				outSID = ep.SID
-			}
-			if outNID == 0 {
-				outNID = ep.NID
-			}
-		}
+	if ep, err := r.loadEpisode(videoID, sid, nid); err == nil && ep != nil {
+		applyEpisodePlaybackMeta(ep, &source, &sourcePlaybackURL, &playbackStatus, &url, &hlsObjectKey, &outSID, &outNID)
+	} else if ep, err := r.loadDefaultEpisode(videoID); err == nil && ep != nil {
+		applyEpisodePlaybackMeta(ep, &source, &sourcePlaybackURL, &playbackStatus, &url, &hlsObjectKey, &outSID, &outNID)
 	}
 	if hlsObjectKey == "" {
 		hlsObjectKey = v.HLSMasterKey
 	}
 
+	objectKey := strings.TrimSpace(hlsObjectKey)
+	primaryFromObjectKey := objectKey != "" && !isAbsoluteHTTPURL(objectKey)
+
 	cdn := media.OptionsFromEnv(r.Cfg.MediaCDNBaseURL, r.Cfg.CDNBaseURL, r.Cfg.R2Bucket, r.Cfg.MediaCDNPathMode)
-	final := media.ResolveMediaURL(cdn, hlsObjectKey, url)
+	final := media.ResolveMediaURL(cdn, objectKey, url)
 	if final == "" {
 		if v.Status == "demo" {
 			return demoPlayback(videoID, r.Cfg), nil
@@ -118,10 +109,8 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 		if r.Cfg.CDNURLAuthMode == "legacy_hmac" {
 			final = SignURL(cdn.BaseURL, r.Cfg.CDNSignSecret, media.DeliveryObjectPath(cdn, key), r.Cfg.PlayTicketTTL)
 		}
-	} else if hlsObjectKey != "" && r.Cfg.CDNURLAuthMode == "legacy_hmac" &&
-		!strings.HasPrefix(strings.ToLower(hlsObjectKey), "http://") &&
-		!strings.HasPrefix(strings.ToLower(hlsObjectKey), "https://") {
-		final = SignURL(cdn.BaseURL, r.Cfg.CDNSignSecret, media.DeliveryObjectPath(cdn, hlsObjectKey), r.Cfg.PlayTicketTTL)
+	} else if primaryFromObjectKey && r.Cfg.CDNURLAuthMode == "legacy_hmac" {
+		final = SignURL(cdn.BaseURL, r.Cfg.CDNSignSecret, media.DeliveryObjectPath(cdn, objectKey), r.Cfg.PlayTicketTTL)
 	}
 
 	playType := "hls"
@@ -130,13 +119,54 @@ func (r *Resolver) Resolve(videoID uint64, sid, nid int) (*model.PlaybackInfo, e
 	}
 
 	return &model.PlaybackInfo{
-		Type:   playType,
-		URL:    final,
-		Source: source,
-		SID:    outSID,
-		NID:    outNID,
-		Ticket: NewTicket(videoID, r.Cfg.CDNSignSecret, r.Cfg.PlayTicketTTL),
+		Type:        playType,
+		URL:         final,
+		Source:      source,
+		SID:         outSID,
+		NID:         outNID,
+		Ticket:      NewTicket(videoID, r.Cfg.CDNSignSecret, r.Cfg.PlayTicketTTL),
+		FallbackURL: EligibleFallbackURL(primaryFromObjectKey, sourcePlaybackURL, playbackStatus, final),
 	}, nil
+}
+
+// applyEpisodePlaybackMeta merges a selected episode into resolve inputs.
+// - playback_status / sid / nid / object key always come from the episode.
+// - sourcePlaybackURL for fallback is episode-authoritative (may be empty).
+// - primary url keeps a prior video-level URL when the episode playback_url is empty
+//   (preserves pre-Plan-7 source-only behavior).
+func applyEpisodePlaybackMeta(
+	ep *model.Episode,
+	source, sourcePlaybackURL, playbackStatus, url, hlsObjectKey *string,
+	outSID, outNID *int,
+) {
+	*playbackStatus = ep.PlaybackStatus
+	*hlsObjectKey = ep.HLSObjectKey
+	if ep.PlaybackSource != "" {
+		*source = ep.PlaybackSource
+	}
+	*outSID, *outNID = ep.SID, ep.NID
+	epURL := strings.TrimSpace(ep.PlaybackURL)
+	*sourcePlaybackURL = epURL
+	if epURL != "" {
+		*url = epURL
+	}
+}
+
+func (r *Resolver) loadEpisode(videoID uint64, sid, nid int) (*model.Episode, error) {
+	if r.FindEpisode != nil {
+		return r.FindEpisode(videoID, sid, nid)
+	}
+	return r.findEpisode(videoID, sid, nid)
+}
+
+func (r *Resolver) loadDefaultEpisode(videoID uint64) (*model.Episode, error) {
+	if r.DefaultEpisode != nil {
+		return r.DefaultEpisode(videoID)
+	}
+	if r.Store == nil {
+		return nil, nil
+	}
+	return r.Store.GetDefaultEpisode(videoID)
 }
 
 // targetEpisodeUnavailable is true when the specific requested/default episode is
@@ -179,30 +209,45 @@ func (r *Resolver) findEpisode(videoID uint64, sid, nid int) (*model.Episode, er
 	var e model.Episode
 	var active int
 	var hlsKey sql.NullString
+	var status sql.NullString
 	err := r.Store.DB.QueryRow(`
 		SELECT id, video_id, sid, nid, title, playback_source, playback_url,
-		       COALESCE(hls_object_key,''), is_active
+		       COALESCE(hls_object_key,''), COALESCE(playback_status,''), is_active
 		FROM video_episodes
 		WHERE video_id=? AND sid=? AND nid=? AND is_active=1`, videoID, sid, nid).
-		Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &hlsKey, &active)
+		Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &hlsKey, &status, &active)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
-		// Pre-migration DBs without hls_object_key: fall back to legacy columns.
+		// Pre-migration DBs without hls_object_key: still load playback_status when present.
 		err = r.Store.DB.QueryRow(`
-			SELECT id, video_id, sid, nid, title, playback_source, playback_url, is_active
+			SELECT id, video_id, sid, nid, title, playback_source, playback_url,
+			       COALESCE(playback_status,''), is_active
 			FROM video_episodes
 			WHERE video_id=? AND sid=? AND nid=? AND is_active=1`, videoID, sid, nid).
-			Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &active)
+			Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &status, &active)
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		if err != nil {
-			return nil, err
+			err = r.Store.DB.QueryRow(`
+				SELECT id, video_id, sid, nid, title, playback_source, playback_url, is_active
+				FROM video_episodes
+				WHERE video_id=? AND sid=? AND nid=? AND is_active=1`, videoID, sid, nid).
+				Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &active)
+			if err == sql.ErrNoRows {
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			e.PlaybackStatus = status.String
 		}
 	} else {
 		e.HLSObjectKey = hlsKey.String
+		e.PlaybackStatus = status.String
 	}
 	e.IsActive = active == 1
 	return &e, nil

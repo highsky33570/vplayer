@@ -6,6 +6,33 @@ import 'xgplayer/dist/index.min.css';
 import { ApiError, formatViews, getPlayback, getVideo, type Video } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
+import {
+  PLAYBACK_GENERIC_ERROR,
+  PLAYBACK_UNAVAILABLE_MESSAGE,
+  WatchPlaybackSession,
+} from './watchPlaybackLogic';
+
+function attachPlayer(
+  el: HTMLDivElement,
+  url: string,
+  isHls: boolean,
+  onPlaying: () => void,
+  onError: () => void,
+): Player {
+  const player = new Player({
+    el,
+    url,
+    autoplay: true,
+    playsinline: true,
+    fluid: true,
+    lang: 'zh-cn',
+    isLive: false,
+    plugins: isHls ? [HlsPlugin] : [],
+  });
+  player.on('playing', onPlaying);
+  player.on('error', onError);
+  return player;
+}
 
 export function Watch() {
   const { id } = useParams();
@@ -14,6 +41,7 @@ export function Watch() {
   const { user, token, ready, logout } = useAuth();
   const rootRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
+  const sessionRef = useRef(new WatchPlaybackSession());
   const [video, setVideo] = useState<Video | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -30,59 +58,78 @@ export function Watch() {
     if (!videoId || !ready || !user || !token) {
       return;
     }
-    let cancelled = false;
+    const session = new WatchPlaybackSession();
+    sessionRef.current = session;
+
+    const destroyPlayer = () => {
+      playerRef.current?.destroy();
+      playerRef.current = null;
+    };
+
+    const startPlayer = (url: string, type: string) => {
+      if (session.debugState().cancelled || !rootRef.current) return;
+      // Bump generation first so any late events from the previous player are ignored.
+      const gen = session.beginPlayer();
+      destroyPlayer();
+      const isHls = type === 'hls' || url.includes('.m3u8');
+      const player = attachPlayer(
+        rootRef.current,
+        url,
+        isHls,
+        () => {
+          session.handlePlaying(gen);
+        },
+        () => {
+          // Limitation: xgplayer error is not reliably manifest-vs-segment classified.
+          // Only switch before confirmed `playing`, at most once, and only for current gen.
+          const action = session.handleError(gen);
+          if (action.type === 'ignore') return;
+          if (action.type === 'fallback') {
+            startPlayer(action.url, action.url.includes('.m3u8') ? 'hls' : 'url');
+            return;
+          }
+          destroyPlayer();
+          setError(PLAYBACK_GENERIC_ERROR);
+        },
+      );
+      playerRef.current = player;
+    };
 
     (async () => {
       setLoading(true);
       setError('');
       try {
         const meta = await getVideo(videoId);
-        if (cancelled) return;
+        if (session.debugState().cancelled) return;
         setVideo(meta);
         const playback = await getPlayback(videoId, 0, 0, token);
-        if (cancelled || !rootRef.current) return;
+        if (session.debugState().cancelled || !rootRef.current) return;
         if (!playback.url) {
           throw new Error('无可用播放地址');
         }
 
-        playerRef.current?.destroy();
-        playerRef.current = null;
-        const isHls = playback.type === 'hls' || playback.url.includes('.m3u8');
-        const player = new Player({
-          el: rootRef.current,
-          url: playback.url,
-          autoplay: true,
-          playsinline: true,
-          fluid: true,
-          lang: 'zh-cn',
-          isLive: false,
-          plugins: isHls ? [HlsPlugin] : [],
-        });
-        player.on('error', () => {
-          if (!cancelled) setError('播放失败，请稍后重试');
-        });
-        playerRef.current = player;
+        session.beginPlayback(playback.fallback_url);
+        startPlayer(playback.url, playback.type);
       } catch (e) {
-        if (cancelled) return;
+        if (session.debugState().cancelled) return;
         if (e instanceof ApiError && e.status === 401) {
           logout();
           navigate(loginWithNext(`/watch/${videoId}`), { replace: true });
           return;
         }
         if (e instanceof ApiError && e.code === 'playback_unavailable') {
-          setError('This video is currently unavailable for playback.');
+          setError(PLAYBACK_UNAVAILABLE_MESSAGE);
           return;
         }
         setError(e instanceof Error ? e.message : '播放失败');
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!session.debugState().cancelled) setLoading(false);
       }
     })();
 
     return () => {
-      cancelled = true;
-      playerRef.current?.destroy();
-      playerRef.current = null;
+      session.cancel();
+      destroyPlayer();
     };
   }, [videoId, ready, user, token, navigate, logout]);
 

@@ -107,6 +107,8 @@ export type PlaybackInfo = {
   nid: number;
   ticket?: string;
   m3u8_url?: string;
+  /** Optional gated source URL when primary is migrated object-key delivery. */
+  fallback_url?: string;
 };
 
 export type VideoPage = {

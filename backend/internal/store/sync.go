@@ -477,31 +477,48 @@ func (m *MySQL) GetDefaultEpisode(videoID uint64) (*model.Episode, error) {
 	var e model.Episode
 	var active int
 	var hlsKey sql.NullString
+	var status sql.NullString
 	err := m.DB.QueryRow(`
 		SELECT id, video_id, sid, nid, title, playback_source, playback_url,
-		       COALESCE(hls_object_key,''), is_active
+		       COALESCE(hls_object_key,''), COALESCE(playback_status,''), is_active
 		FROM video_episodes
 		WHERE video_id=? AND is_active=1
 		ORDER BY sid ASC, nid ASC LIMIT 1`, videoID).
-		Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &hlsKey, &active)
+		Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &hlsKey, &status, &active)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
+		// Pre-migration DBs without hls_object_key: still load playback_status when present.
 		err = m.DB.QueryRow(`
-			SELECT id, video_id, sid, nid, title, playback_source, playback_url, is_active
+			SELECT id, video_id, sid, nid, title, playback_source, playback_url,
+			       COALESCE(playback_status,''), is_active
 			FROM video_episodes
 			WHERE video_id=? AND is_active=1
 			ORDER BY sid ASC, nid ASC LIMIT 1`, videoID).
-			Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &active)
+			Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &status, &active)
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		if err != nil {
-			return nil, err
+			err = m.DB.QueryRow(`
+				SELECT id, video_id, sid, nid, title, playback_source, playback_url, is_active
+				FROM video_episodes
+				WHERE video_id=? AND is_active=1
+				ORDER BY sid ASC, nid ASC LIMIT 1`, videoID).
+				Scan(&e.ID, &e.VideoID, &e.SID, &e.NID, &e.Title, &e.PlaybackSource, &e.PlaybackURL, &active)
+			if err == sql.ErrNoRows {
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			e.PlaybackStatus = status.String
 		}
 	} else {
 		e.HLSObjectKey = hlsKey.String
+		e.PlaybackStatus = status.String
 	}
 	e.IsActive = active == 1
 	return &e, nil
