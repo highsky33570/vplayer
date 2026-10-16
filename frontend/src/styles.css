@@ -712,17 +712,8 @@ img {
   border-bottom: 1px solid var(--line);
 }
 
-/* Phone renders this as the second subcategory scroller. Hidden on tablet/desktop. */
+/* Phone renders this as the wrapped subcategory block. Hidden on tablet/desktop. */
 .category-subrow {
-  display: none;
-}
-
-/* Arrows sit outside the scrolling rail. display:contents keeps tablet/desktop rail layout. */
-.category-nav-mobile {
-  display: contents;
-}
-
-.category-rail-arrow {
   display: none;
 }
 
@@ -2164,58 +2155,23 @@ html.dark .login-reminder-cta {
     padding: 8px 0 6px;
   }
 
-  .category-nav-mobile {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    width: 100%;
-    min-width: 0;
-    padding: 0 8px;
-  }
-
-  .category-rail-arrow {
-    box-sizing: border-box;
-    flex: 0 0 40px;
-    width: 40px;
-    height: 44px;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--elevated) 88%, transparent);
-    color: var(--text);
-    cursor: pointer;
-  }
-
-  .category-rail-arrow[hidden] {
-    display: none;
-  }
-
-  .category-rail-arrow:focus-visible {
-    outline: 2px solid var(--brand);
-    outline-offset: 2px;
-  }
-
   .category-rail {
-    flex: 1 1 auto;
-    width: auto;
-    min-width: 0;
+    width: 100%;
     margin: 0;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
+    align-content: flex-start;
+    justify-content: flex-start;
     gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 4px 4px 8px;
-    scroll-padding-inline: 4px;
+    overflow: visible;
+    overflow-x: visible;
+    padding: 4px 12px 8px;
     scrollbar-width: none;
-    -ms-overflow-style: none;
   }
 
-  .category-rail::-webkit-scrollbar {
-    display: none;
+  .category-rail-group {
+    flex: 0 0 auto;
+    max-width: 100%;
   }
 
   .category-children {
@@ -2225,10 +2181,17 @@ html.dark .login-reminder-cta {
   .category-btn--main {
     height: 44px;
     min-height: 44px;
-    min-width: 4.5rem;
-    max-width: 8.75rem;
-    padding: 0 13px;
+    min-width: max-content;
+    max-width: none;
+    padding: 0 12px;
     font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .category-btn--main .category-label {
+    overflow: visible;
+    text-overflow: clip;
+    min-width: max-content;
   }
 
   .category-subrow {
@@ -2243,38 +2206,68 @@ html.dark .login-reminder-cta {
     opacity: 1;
   }
 
-  .category-subrow-scroll {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 4px;
+  .category-subrow-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: 8px;
     min-height: 0;
     overflow: hidden;
-    padding: 0 16px;
-    scroll-padding-inline: 16px;
+    padding: 0 12px 8px;
+  }
+
+  .category-subrow-scroll {
+    --subrow-cap: 90px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: flex-start;
+    gap: 6px 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    max-height: var(--subrow-cap);
+    overflow: hidden;
+    padding: 0;
     scrollbar-width: none;
-    -ms-overflow-style: none;
-    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
-    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
   }
 
-  .category-subrow.is-open .category-subrow-scroll {
-    min-height: 44px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 8px;
+  .category-subrow-scroll.is-all {
+    max-height: none;
   }
 
-  .category-subrow-scroll::-webkit-scrollbar {
-    display: none;
+  .category-subrow-more {
+    flex: 0 0 auto;
+    height: 32px;
+    margin: 0;
+    padding: 0 4px 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .category-subrow-more:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
   }
 
   .category-subrow .category-btn--child {
     flex: 0 0 auto;
+    height: 40px;
     min-height: 40px;
-    max-width: 8rem;
-    padding: 0 10px;
+    max-width: none;
+    padding: 0 8px;
     font-size: 13px;
+  }
+
+  .category-subrow .category-btn--child .category-label {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
   }
 
   .page {
@@ -2413,13 +2406,9 @@ html.dark .login-reminder-cta {
     width: calc(100% - 28px);
   }
 
-  .category-subrow-scroll {
-    padding-inline: 14px;
-    scroll-padding-inline: 14px;
-  }
-
-  .category-nav-mobile {
-    padding-inline: 6px;
+  .category-rail,
+  .category-subrow-inner {
+    padding-inline: 10px;
   }
 
   .video-grid {
@@ -2437,13 +2426,20 @@ html.dark .login-reminder-cta {
     width: calc(100% - 24px);
   }
 
-  .category-subrow-scroll {
-    padding-inline: 12px;
-    scroll-padding-inline: 12px;
+  .category-rail {
+    gap: 6px;
+    padding-inline: 8px;
   }
 
-  .category-nav-mobile {
-    padding-inline: 4px;
+  .category-subrow-inner {
+    padding-inline: 8px;
+  }
+
+  .category-btn--main {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 8px;
+    font-size: 13px;
   }
 
   .video-grid {
@@ -2474,6 +2470,7 @@ html.dark .login-reminder-cta {
   .category-children,
   .category-children-inner,
   .category-subrow,
+  .category-subrow-inner,
   .category-subrow-scroll {
     transition: none !important;
   }

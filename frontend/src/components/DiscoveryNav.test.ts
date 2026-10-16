@@ -6,14 +6,13 @@ import { fileURLToPath } from 'node:url';
 import type { Category } from '../api.ts';
 import {
   activeCategoryScrollOptions,
-  CATEGORY_RAIL_SCROLL_FRACTION,
-  categoryRailScrollByOptions,
-  categoryRailScrollEdges,
   childrenOfParent,
   expandedParentSlugForActive,
   resolveNavCategories,
+  subcategoryListOverflows,
   syncExpandedParentSlug,
   toggleMainExpansion,
+  toggleSubcategoryShowAll,
 } from './discoveryNavLogic.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -187,6 +186,7 @@ describe('active category scroll', () => {
   it('DiscoveryNav scrolls only the active main chip with that helper', () => {
     const src = readFileSync(join(here, 'DiscoveryNav.tsx'), 'utf8');
     assert.match(src, /activeCategoryScrollOptions\(reduced\)/);
+    assert.match(src, /max-width: 767px/);
     assert.match(src, /scrollIntoView\(activeCategoryScrollOptions\(reduced\)\)/);
     assert.match(src, /prefers-reduced-motion: reduce/);
     assert.match(src, /\.category-btn--main\.is-active, \.category-btn--main\.is-parent-of-active/);
@@ -207,98 +207,72 @@ describe('mobile and desktop category presentation', () => {
     assert.equal(src.includes('function toggleMainExpansion'), false);
   });
 
-  it('phone rail does not wrap, keeps the wordmark, and uses a 2-column grid', () => {
+  it('wraps phone categories without a horizontal scroller and keeps desktop inline children', () => {
     const css = readFileSync(join(here, '../styles.css'), 'utf8');
+    const src = readFileSync(join(here, 'DiscoveryNav.tsx'), 'utf8');
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
-    assert.match(phone, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
+    const railBlock = phone.match(/\.category-rail\s*\{[^}]*\}/)?.[0] ?? '';
+    const subBlock = phone.match(/\.category-subrow-scroll\s*\{[^}]*\}/)?.[0] ?? '';
+    assert.match(railBlock, /flex-wrap:\s*wrap/);
+    assert.equal(/overflow-x:\s*auto/.test(railBlock), false);
+    assert.match(railBlock, /overflow-x:\s*visible/);
+    assert.match(subBlock, /flex-wrap:\s*wrap/);
+    assert.equal(/overflow-x:\s*auto/.test(subBlock), false);
+    assert.match(subBlock, /max-height:\s*var\(--subrow-cap\)/);
     assert.match(phone, /\.category-children\s*\{[^}]*display:\s*none/);
     assert.match(phone, /\.category-subrow\s*\{[^}]*display:\s*grid/);
     assert.match(phone, /\.category-btn--main\s*\{[^}]*height:\s*44px/);
+    assert.match(phone, /\.category-btn--main\s*\{[^}]*max-width:\s*none/);
     assert.match(phone, /\.brand-text\s*\{[^}]*display:\s*inline/);
     assert.match(phone, /repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
     assert.equal(/\.brand-text\s*\{[^}]*display:\s*none/.test(css), false);
     assert.match(css, /\.category-subrow\s*\{[^}]*display:\s*none/);
+    assert.match(src, /resolveNavCategories\(categories\)/);
+    assert.match(src, /<span className="category-label">首页<\/span>/);
+    assert.match(src, /mains\.map\(\(main\)/);
     const tablet = css.slice(css.indexOf('/* bp:tablet'), css.indexOf('/* bp:phone'));
     assert.match(tablet, /repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
     assert.match(tablet, /--banner-h:\s*76px/);
+    assert.match(tablet, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
+    assert.match(tablet, /\.category-rail\s*\{[^}]*overflow-x:\s*auto/);
     assert.match(phone, /--banner-h:\s*96px/);
+    const desktop = css.slice(0, css.indexOf('/* bp:compact'));
+    assert.match(desktop, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
+    assert.match(desktop, /\.category-children\s*\{[^}]*display:\s*grid/);
+    assert.equal(src.includes('上一组分类'), false);
+    assert.equal(src.includes('下一组分类'), false);
+    assert.equal(src.includes('scrollBy'), false);
+    assert.equal(src.includes('category-rail-arrow'), false);
+    assert.equal(src.includes('canScrollLeft'), false);
+    assert.equal(css.includes('category-rail-arrow'), false);
+    assert.equal(css.includes('category-nav-mobile'), false);
   });
 });
 
-describe('main category rail arrows', () => {
-  it('steps about 70% of the visible rail and honors reduced motion', () => {
-    assert.ok(CATEGORY_RAIL_SCROLL_FRACTION >= 0.6 && CATEGORY_RAIL_SCROLL_FRACTION <= 0.75);
-    const forward = categoryRailScrollByOptions(200, 1, false);
-    const back = categoryRailScrollByOptions(200, -1, true);
-    assert.equal(forward.left, 140);
-    assert.equal(forward.behavior, 'smooth');
-    assert.equal(back.left, -140);
-    assert.equal(back.behavior, 'auto');
-    assert.equal(categoryRailScrollByOptions(200, 1, true).behavior, 'auto');
-    assert.equal(categoryRailScrollByOptions(200, -1, false).behavior, 'smooth');
+describe('phone subcategory show-all', () => {
+  it('toggles between the two-row cap and the full child list', () => {
+    assert.equal(toggleSubcategoryShowAll(false), true);
+    assert.equal(toggleSubcategoryShowAll(true), false);
   });
 
-  it('hides the left control at the start and the right control at the end', () => {
-    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 0, clientWidth: 300, scrollWidth: 900 }), {
-      canScrollLeft: false,
-      canScrollRight: true,
-    });
-    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 2, clientWidth: 300, scrollWidth: 900 }), {
-      canScrollLeft: false,
-      canScrollRight: true,
-    });
-    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 600, clientWidth: 300, scrollWidth: 900 }), {
-      canScrollLeft: true,
-      canScrollRight: false,
-    });
-    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 598, clientWidth: 300, scrollWidth: 900 }), {
-      canScrollLeft: true,
-      canScrollRight: false,
-    });
-    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 0, clientWidth: 400, scrollWidth: 400 }), {
-      canScrollLeft: false,
-      canScrollRight: false,
-    });
+  it('treats a list as overflowing only when it is taller than the visible cap', () => {
+    assert.equal(subcategoryListOverflows(200, 86), true);
+    assert.equal(subcategoryListOverflows(86, 86), false);
+    assert.equal(subcategoryListOverflows(87, 86), false);
+    assert.equal(subcategoryListOverflows(40, 0), false);
   });
 
-  it('wires previous/next controls outside the scrolling rail', () => {
+  it('resets show-all when the parent changes and keeps aria-expanded', () => {
     const src = readFileSync(join(here, 'DiscoveryNav.tsx'), 'utf8');
-    const prev = src.indexOf('aria-label="上一组分类"');
-    const nav = src.indexOf('<nav className="category-rail" aria-label="分类导航">');
-    const next = src.indexOf('aria-label="下一组分类"');
-    assert.ok(prev !== -1 && nav !== -1 && next !== -1);
-    assert.ok(prev < nav && nav < next);
-    assert.match(src, /className="category-nav-mobile"/);
-    assert.match(src, /hidden=\{!railEdges\.canScrollLeft\}/);
-    assert.match(src, /disabled=\{!railEdges\.canScrollLeft\}/);
-    assert.match(src, /hidden=\{!railEdges\.canScrollRight\}/);
-    assert.match(src, /disabled=\{!railEdges\.canScrollRight\}/);
-    assert.match(src, /onClick=\{\(\) => scrollRail\(-1\)\}/);
-    assert.match(src, /onClick=\{\(\) => scrollRail\(1\)\}/);
-    assert.match(src, /railRef\.current/);
-    assert.match(src, /rail\.scrollBy\(categoryRailScrollByOptions\(rail\.clientWidth, direction, reduced\)\)/);
-    assert.match(src, /scrollIntoView\(activeCategoryScrollOptions\(reduced\)\)/);
-    assert.match(src, /addEventListener\('scroll', measure/);
-    assert.match(src, /addEventListener\('resize', measure\)/);
-    assert.match(src, /new ResizeObserver\(measure\)/);
-
-    const css = readFileSync(join(here, '../styles.css'), 'utf8');
-    const beforePhone = css.slice(0, css.indexOf('/* bp:phone'));
-    const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
-    assert.match(beforePhone, /\.category-rail-arrow\s*\{[^}]*display:\s*none/);
-    assert.match(beforePhone, /\.category-nav-mobile\s*\{[^}]*display:\s*contents/);
-    assert.match(phone, /\.category-nav-mobile\s*\{[^}]*display:\s*flex/);
-    assert.match(phone, /\.category-nav-mobile\s*\{[^}]*align-items:\s*center/);
-    assert.match(phone, /\.category-rail-arrow\s*\{[^}]*width:\s*40px/);
-    assert.match(phone, /\.category-rail-arrow\s*\{[^}]*height:\s*44px/);
-    assert.match(phone, /\.category-rail-arrow\[hidden\]\s*\{[^}]*display:\s*none/);
-    const railBlock = phone.match(/\.category-rail\s*\{[^}]*\}/)?.[0] ?? '';
-    assert.match(railBlock, /flex-wrap:\s*nowrap/);
-    assert.equal(railBlock.includes('mask-image'), false);
-    assert.match(phone, /\.banner-actions\s*\{[^}]*display:\s*flex/);
-    assert.match(phone, /\.banner-actions\s*\{[^}]*align-items:\s*center/);
-    assert.match(phone, /\.banner-actions\s*\{[^}]*height:\s*52px/);
-    assert.match(phone, /\.banner-actions \.banner-user,\s*\.banner-actions \.theme-toggle\s*\{[^}]*justify-content:\s*center/);
+    assert.match(src, /showAllParent !== expandedParentSlug/);
+    assert.match(src, /setShowAllChildren\(false\)/);
+    assert.match(src, /toggleSubcategoryShowAll\(current\)/);
+    assert.match(src, /更多 ▾/);
+    assert.match(src, /收起 ▴/);
+    assert.match(src, /aria-expanded=\{showAllChildren\}/);
+    assert.match(src, /aria-expanded=\{kids\.length > 0 \? expanded : undefined\}/);
+    assert.match(src, /category-children\$\{expanded \? ' is-open' : ''\}/);
+    assert.match(src, /subcategoryListOverflows\(row\.scrollHeight, visible\)/);
   });
 });
 
