@@ -39,22 +39,43 @@ unit_is_active() {
   systemctl is-active --quiet "$1"
 }
 
+# Read LastTriggerUSecRealtime as raw uint64 microseconds via busctl (not systemctl's
+# human LastTriggerUSec string, which uses ambiguous TZ abbreviations like "CST").
+timer_last_trigger_realtime_usec() {
+  local unit="$1"
+  local path prop usec
+
+  path="$(busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 \
+    org.freedesktop.systemd1.Manager GetUnit s "${unit}" 2>/dev/null \
+    | sed -n 's/^o "\(.*\)"$/\1/p')"
+  if [[ -z "${path}" ]]; then
+    return 1
+  fi
+
+  prop="$(busctl get-property org.freedesktop.systemd1 "${path}" \
+    org.freedesktop.systemd1.Timer LastTriggerUSecRealtime 2>/dev/null || true)"
+  # Terse busctl form: "t 1729076513123456"
+  usec="$(printf '%s\n' "${prop}" | awk '/^t / { print $2; exit }')"
+  if [[ -z "${usec}" ]]; then
+    return 1
+  fi
+  printf '%s' "${usec}"
+}
+
 timer_last_trigger_age_sec() {
   local unit="$1"
-  local raw
-  raw="$(systemctl show "${unit}" -p LastTriggerUSec --value 2>/dev/null || true)"
-  if [[ -z "${raw}" || "${raw}" == "n/a" || "${raw}" == "0" ]]; then
-    printf '%s' "-1"
-    return 0
-  fi
-  local ts now
-  ts="$(date -d "${raw}" +%s 2>/dev/null || date -j -f '%a %Y-%m-%d %H:%M:%S %Z' "${raw}" +%s 2>/dev/null || echo "")"
-  if [[ -z "${ts}" ]]; then
-    printf '%s' "-1"
+  local usec now age
+
+  usec="$(timer_last_trigger_realtime_usec "${unit}" 2>/dev/null || true)"
+  if [[ -z "${usec}" ]]; then
+    # Missing busctl/property → treat as unknown (WARN via freshness_status), not "never"
+    # unless usec is explicitly 0 from a successful read.
+    printf '%s' "-2"
     return 0
   fi
   now="$(date +%s)"
-  printf '%s' "$((now - ts))"
+  age="$(timer_age_from_realtime_usec "${usec}" "${now}")"
+  printf '%s' "${age}"
 }
 
 check_api() {
@@ -138,13 +159,26 @@ check_systemd_units() {
   done
 }
 
+format_timer_age_detail() {
+  local age="$1"
+  local warn_sec="$2"
+  case "${age}" in
+    -1) printf 'never triggered (warn)' ;;
+    -2) printf 'trigger timestamp unavailable/invalid (warn)' ;;
+    *) printf 'last trigger age=%ss (warn>%ss or never/invalid)' "${age}" "${warn_sec}" ;;
+  esac
+}
+
 check_timer_freshness() {
-  local age st
+  local age st detail
   age="$(timer_last_trigger_age_sec vplayer-syncincremental.timer)"
   st="$(freshness_status "${age}" "${SYNC_WARN_SEC}" "${SYNC_FAIL_SEC}")"
   case "${st}" in
     ok) log_line ok timer.sync "last trigger age=${age}s" ;;
-    warn) log_line warn timer.sync "last trigger age=${age}s (warn>${SYNC_WARN_SEC}s or never)" ;;
+    warn)
+      detail="$(format_timer_age_detail "${age}" "${SYNC_WARN_SEC}")"
+      log_line warn timer.sync "${detail}"
+      ;;
     *) log_line fail timer.sync "last trigger age=${age}s (fail>${SYNC_FAIL_SEC}s)" ;;
   esac
 
@@ -152,7 +186,10 @@ check_timer_freshness() {
   st="$(freshness_status "${age}" "${ENRICH_WARN_SEC}" "${ENRICH_FAIL_SEC}")"
   case "${st}" in
     ok) log_line ok timer.enrich "last trigger age=${age}s" ;;
-    warn) log_line warn timer.enrich "last trigger age=${age}s (warn>${ENRICH_WARN_SEC}s or never)" ;;
+    warn)
+      detail="$(format_timer_age_detail "${age}" "${ENRICH_WARN_SEC}")"
+      log_line warn timer.enrich "${detail}"
+      ;;
     *) log_line fail timer.enrich "last trigger age=${age}s (fail>${ENRICH_FAIL_SEC}s)" ;;
   esac
 
@@ -160,7 +197,10 @@ check_timer_freshness() {
   st="$(freshness_status "${age}" "${MIGRATE_WARN_SEC}" "${MIGRATE_FAIL_SEC}")"
   case "${st}" in
     ok) log_line ok timer.migrate "last trigger age=${age}s" ;;
-    warn) log_line warn timer.migrate "last trigger age=${age}s (warn>${MIGRATE_WARN_SEC}s or never)" ;;
+    warn)
+      detail="$(format_timer_age_detail "${age}" "${MIGRATE_WARN_SEC}")"
+      log_line warn timer.migrate "${detail}"
+      ;;
     *) log_line fail timer.migrate "last trigger age=${age}s (fail>${MIGRATE_FAIL_SEC}s)" ;;
   esac
 }

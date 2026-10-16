@@ -20,18 +20,19 @@ disk_status() {
   fi
 }
 
-# age_sec empty/-1 = never; thresholds in seconds
+# age_sec empty/-1 = never; -2 = invalid/future; thresholds in seconds
 # Returns: ok|warn|fail
 freshness_status() {
   local age_sec="${1:-}"
   local warn_sec="$2"
   local fail_sec="$3"
-  if [[ -z "${age_sec}" || "${age_sec}" == "-1" ]]; then
+  # never triggered, or unusable timestamp (must not look like a positive age)
+  if [[ -z "${age_sec}" || "${age_sec}" == "-1" || "${age_sec}" == "-2" ]]; then
     printf 'warn'
     return 0
   fi
   if ! [[ "${age_sec}" =~ ^[0-9]+$ ]]; then
-    printf 'fail'
+    printf 'warn'
     return 0
   fi
   if (( age_sec > fail_sec )); then
@@ -41,6 +42,36 @@ freshness_status() {
   else
     printf 'ok'
   fi
+}
+
+# Compute timer age from systemd LastTriggerUSecRealtime (microseconds since Unix epoch).
+# now_sec: current CLOCK_REALTIME seconds (e.g. date +%s).
+# Prints:
+#   -1  never triggered / unset (usec empty or 0)
+#   -2  invalid or in the future (fail closed — never a false positive stale age)
+#   >=0 age in whole seconds
+#
+# Does NOT parse human-readable systemd timestamps (avoids ambiguous CST/CDT/etc.).
+timer_age_from_realtime_usec() {
+  local usec="${1:-}"
+  local now_sec="${2:-}"
+
+  if [[ -z "${usec}" || "${usec}" == "0" ]]; then
+    printf '%s' "-1"
+    return 0
+  fi
+  if ! [[ "${usec}" =~ ^[0-9]+$ ]] || ! [[ "${now_sec}" =~ ^[0-9]+$ ]]; then
+    printf '%s' "-2"
+    return 0
+  fi
+
+  # Whole seconds since epoch; usec is timezone-independent.
+  local last_sec=$((usec / 1000000))
+  if (( last_sec > now_sec )); then
+    printf '%s' "-2"
+    return 0
+  fi
+  printf '%s' "$((now_sec - last_sec))"
 }
 
 # Worker timer defaults (~3h / ~6h schedules + slack for RandomizedDelaySec).
