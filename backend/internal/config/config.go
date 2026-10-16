@@ -71,6 +71,15 @@ type Config struct {
 	PlayTicketTTL int
 	HLSKeySecret  string
 
+	// Email verification / SMTP (registration only; login does not require these).
+	SMTPHost        string
+	SMTPPort        int
+	SMTPUsername    string
+	SMTPPassword    string
+	SMTPFromEmail   string
+	SMTPFromName    string
+	EmailCodePepper string
+
 	AdminAPIToken string
 
 	OleHdTvSyncEnabled       bool
@@ -106,28 +115,36 @@ func Load() Config {
 		log.Fatalf("config: %v", err)
 	}
 	return Config{
-		AppEnv:             getenv("APP_ENV", "local"),
-		HTTPAddr:           getenv("HTTP_ADDR", ":8080"),
-		CORSOrigins:        strings.Split(getenv("CORS_ORIGINS", "http://localhost:5173"), ","),
-		MySQLDSN:           getenv("MYSQL_DSN", "vplayer:vplayer@tcp(127.0.0.1:3306)/vplayer?charset=utf8mb4&parseTime=True&loc=Local"),
-		RedisAddr:          getenv("REDIS_ADDR", "127.0.0.1:6379"),
-		RedisPassword:      getenv("REDIS_PASSWORD", ""),
-		RedisDB:            getenvInt("REDIS_DB", 0),
-		R2AccountID:        getenv("R2_ACCOUNT_ID", ""),
-		R2AccessKey:        getenv("R2_ACCESS_KEY_ID", ""),
-		R2SecretKey:        getenv("R2_SECRET_ACCESS_KEY", ""),
-		R2Bucket:           getenv("R2_BUCKET", "dongman"),
-		R2Endpoint:         getenv("R2_ENDPOINT", ""),
-		R2Region:           getenv("R2_REGION", "auto"),
-		R2PublicBase:       strings.TrimRight(getenv("R2_PUBLIC_BASE", ""), "/"),
-		MediaCDNBaseURL:    strings.TrimRight(firstNonEmpty(getenv("MEDIA_CDN_BASE_URL", ""), getenv("CDN_BASE_URL", "http://localhost:8080")), "/"),
-		CDNBaseURL:         strings.TrimRight(getenv("CDN_BASE_URL", "http://localhost:8080"), "/"),
-		MediaCDNPathMode:   pathMode,
-		CDNURLAuthMode:     strings.ToLower(getenv("CDN_URL_AUTH_MODE", "none")),
-		CDNSignSecret:      getenv("CDN_SIGN_SECRET", "dev-cdn-secret"),
-		AuthSecret:         getenv("AUTH_SECRET", "dev-auth-secret"),
-		PlayTicketTTL:      getenvInt("PLAY_TICKET_TTL_SEC", 300),
-		HLSKeySecret:       getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
+		AppEnv:           getenv("APP_ENV", "local"),
+		HTTPAddr:         getenv("HTTP_ADDR", ":8080"),
+		CORSOrigins:      strings.Split(getenv("CORS_ORIGINS", "http://localhost:5173"), ","),
+		MySQLDSN:         getenv("MYSQL_DSN", "vplayer:vplayer@tcp(127.0.0.1:3306)/vplayer?charset=utf8mb4&parseTime=True&loc=Local"),
+		RedisAddr:        getenv("REDIS_ADDR", "127.0.0.1:6379"),
+		RedisPassword:    getenv("REDIS_PASSWORD", ""),
+		RedisDB:          getenvInt("REDIS_DB", 0),
+		R2AccountID:      getenv("R2_ACCOUNT_ID", ""),
+		R2AccessKey:      getenv("R2_ACCESS_KEY_ID", ""),
+		R2SecretKey:      getenv("R2_SECRET_ACCESS_KEY", ""),
+		R2Bucket:         getenv("R2_BUCKET", "dongman"),
+		R2Endpoint:       getenv("R2_ENDPOINT", ""),
+		R2Region:         getenv("R2_REGION", "auto"),
+		R2PublicBase:     strings.TrimRight(getenv("R2_PUBLIC_BASE", ""), "/"),
+		MediaCDNBaseURL:  strings.TrimRight(firstNonEmpty(getenv("MEDIA_CDN_BASE_URL", ""), getenv("CDN_BASE_URL", "http://localhost:8080")), "/"),
+		CDNBaseURL:       strings.TrimRight(getenv("CDN_BASE_URL", "http://localhost:8080"), "/"),
+		MediaCDNPathMode: pathMode,
+		CDNURLAuthMode:   strings.ToLower(getenv("CDN_URL_AUTH_MODE", "none")),
+		CDNSignSecret:    getenv("CDN_SIGN_SECRET", "dev-cdn-secret"),
+		AuthSecret:       getenv("AUTH_SECRET", "dev-auth-secret"),
+		PlayTicketTTL:    getenvInt("PLAY_TICKET_TTL_SEC", 300),
+		HLSKeySecret:     getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
+
+		SMTPHost:        getenv("SMTP_HOST", ""),
+		SMTPPort:        getenvInt("SMTP_PORT", 587),
+		SMTPUsername:    getenv("SMTP_USERNAME", ""),
+		SMTPPassword:    getenv("SMTP_PASSWORD", ""),
+		SMTPFromEmail:   getenv("SMTP_FROM_EMAIL", ""),
+		SMTPFromName:    getenv("SMTP_FROM_NAME", "VPlayer"),
+		EmailCodePepper: getenv("EMAIL_CODE_PEPPER", ""),
 
 		AdminAPIToken: getenv("ADMIN_API_TOKEN", "dev-admin-token"),
 
@@ -183,4 +200,16 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// RegistrationMailConfigured reports whether SMTP + code pepper are set for
+// verified registration. Login/API startup must not depend on this; missing
+// mail config only disables register/start|resend with a controlled error.
+func (c Config) RegistrationMailConfigured() bool {
+	return strings.TrimSpace(c.SMTPHost) != "" &&
+		c.SMTPPort > 0 &&
+		strings.TrimSpace(c.SMTPFromEmail) != "" &&
+		strings.TrimSpace(c.EmailCodePepper) != "" &&
+		strings.TrimSpace(c.SMTPUsername) != "" &&
+		strings.TrimSpace(c.SMTPPassword) != ""
 }

@@ -73,6 +73,12 @@ export type AuthResult = {
   user: AuthUser;
 };
 
+export type RegisterStartResult = {
+  verification_required: boolean;
+  expires_in_sec: number;
+  resend_after_sec: number;
+};
+
 export type Category = {
   id: number;
   name: string;
@@ -267,12 +273,20 @@ export function login(email: string, password: string) {
   return postJSON<AuthResult>('/api/v1/auth/login', { email, password });
 }
 
-export function register(email: string, password: string, nickname?: string) {
-  return postJSON<AuthResult>('/api/v1/auth/register', {
+export function registerStart(email: string, password: string, nickname?: string) {
+  return postJSON<RegisterStartResult>('/api/v1/auth/register/start', {
     email,
     password,
     nickname: nickname ?? '',
   });
+}
+
+export function registerVerify(email: string, code: string) {
+  return postJSON<AuthResult>('/api/v1/auth/register/verify', { email, code });
+}
+
+export function registerResend(email: string) {
+  return postJSON<RegisterStartResult>('/api/v1/auth/register/resend', { email });
 }
 
 export async function fetchMe(token: string): Promise<AuthUser> {

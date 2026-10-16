@@ -7,9 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tycdn/vplayer/internal/auth"
 	"github.com/tycdn/vplayer/internal/model"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func authNormalizeEmail(email string) string {
+	return auth.NormalizeEmail(email)
+}
 
 var (
 	ErrUserExists         = errors.New("email already registered")
@@ -19,12 +24,13 @@ var (
 
 type UserRepo interface {
 	CreateUser(email, password, nickname string) (*model.User, error)
+	CreateUserWithHash(email, passwordHash, nickname string) (*model.User, error)
 	Authenticate(email, password string) (*model.User, error)
 	GetUserByID(id uint64) (*model.User, error)
 }
 
 func (m *MySQL) CreateUser(email, password, nickname string) (*model.User, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
+	email = authNormalizeEmail(email)
 	nickname = strings.TrimSpace(nickname)
 	if email == "" || password == "" {
 		return nil, errors.New("email and password required")
@@ -33,9 +39,19 @@ func (m *MySQL) CreateUser(email, password, nickname string) (*model.User, error
 	if err != nil {
 		return nil, err
 	}
+	return m.CreateUserWithHash(email, string(hash), nickname)
+}
+
+func (m *MySQL) CreateUserWithHash(email, passwordHash, nickname string) (*model.User, error) {
+	email = authNormalizeEmail(email)
+	nickname = strings.TrimSpace(nickname)
+	passwordHash = strings.TrimSpace(passwordHash)
+	if email == "" || passwordHash == "" {
+		return nil, errors.New("email and password hash required")
+	}
 	res, err := m.DB.Exec(
 		`INSERT INTO users (email, password_hash, nickname) VALUES (?, ?, ?)`,
-		email, string(hash), nickname,
+		email, passwordHash, nickname,
 	)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
@@ -54,7 +70,7 @@ func (m *MySQL) CreateUser(email, password, nickname string) (*model.User, error
 }
 
 func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
+	email = authNormalizeEmail(email)
 	var u model.User
 	var hash string
 	var isAdmin int
@@ -113,7 +129,7 @@ func NewMemoryUsers() *MemoryUsers {
 }
 
 func (m *MemoryUsers) CreateUser(email, password, nickname string) (*model.User, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
+	email = authNormalizeEmail(email)
 	nickname = strings.TrimSpace(nickname)
 	if email == "" || password == "" {
 		return nil, errors.New("email and password required")
@@ -122,8 +138,23 @@ func (m *MemoryUsers) CreateUser(email, password, nickname string) (*model.User,
 	if err != nil {
 		return nil, err
 	}
+	return m.CreateUserWithHash(email, string(hash), nickname)
+}
+
+func (m *MemoryUsers) CreateUserWithHash(email, passwordHash, nickname string) (*model.User, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.CreateUserWithHashLocked(email, passwordHash, nickname)
+}
+
+// CreateUserWithHashLocked requires m.mu held.
+func (m *MemoryUsers) CreateUserWithHashLocked(email, passwordHash, nickname string) (*model.User, error) {
+	email = authNormalizeEmail(email)
+	nickname = strings.TrimSpace(nickname)
+	passwordHash = strings.TrimSpace(passwordHash)
+	if email == "" || passwordHash == "" {
+		return nil, errors.New("email and password hash required")
+	}
 	if _, ok := m.byMail[email]; ok {
 		return nil, ErrUserExists
 	}
@@ -136,7 +167,7 @@ func (m *MemoryUsers) CreateUser(email, password, nickname string) (*model.User,
 			IsAdmin:   false,
 			CreatedAt: time.Now(),
 		},
-		hash: string(hash),
+		hash: passwordHash,
 	}
 	m.byID[u.user.ID] = u
 	m.byMail[email] = u
@@ -145,7 +176,7 @@ func (m *MemoryUsers) CreateUser(email, password, nickname string) (*model.User,
 }
 
 func (m *MemoryUsers) Authenticate(email, password string) (*model.User, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
+	email = authNormalizeEmail(email)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	u, ok := m.byMail[email]

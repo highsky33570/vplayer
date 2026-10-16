@@ -7,7 +7,15 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { fetchMe, login as apiLogin, register as apiRegister, type AuthUser } from '../api';
+import {
+  fetchMe,
+  login as apiLogin,
+  registerResend as apiRegisterResend,
+  registerStart as apiRegisterStart,
+  registerVerify as apiRegisterVerify,
+  type AuthUser,
+  type RegisterStartResult,
+} from '../api';
 
 const TOKEN_KEY = 'vplayer_auth_token';
 
@@ -21,7 +29,9 @@ type AuthContextValue = {
   authMode: 'login' | 'register';
   setAuthMode: (mode: 'login' | 'register') => void;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, nickname?: string) => Promise<void>;
+  registerStart: (email: string, password: string, nickname?: string) => Promise<RegisterStartResult>;
+  registerVerify: (email: string, code: string) => Promise<void>;
+  registerResend: (email: string) => Promise<RegisterStartResult>;
   logout: () => void;
 };
 
@@ -78,14 +88,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [persist],
   );
 
-  const register = useCallback(
-    async (email: string, password: string, nickname?: string) => {
-      const result = await apiRegister(email, password, nickname);
+  const registerStart = useCallback(async (email: string, password: string, nickname?: string) => {
+    return apiRegisterStart(email, password, nickname);
+  }, []);
+
+  const registerVerify = useCallback(
+    async (email: string, code: string) => {
+      const result = await apiRegisterVerify(email, code);
       persist(result.token, result.user);
       setLoginOpen(false);
     },
     [persist],
   );
+
+  const registerResend = useCallback(async (email: string) => {
+    return apiRegisterResend(email);
+  }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
@@ -111,10 +129,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authMode,
       setAuthMode,
       login,
-      register,
+      registerStart,
+      registerVerify,
+      registerResend,
       logout,
     }),
-    [user, token, ready, loginOpen, openLogin, closeLogin, authMode, login, register, logout],
+    [
+      user,
+      token,
+      ready,
+      loginOpen,
+      openLogin,
+      closeLogin,
+      authMode,
+      login,
+      registerStart,
+      registerVerify,
+      registerResend,
+      logout,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

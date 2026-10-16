@@ -3,7 +3,6 @@ package httpapi
 import (
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,50 +34,6 @@ func (a *API) authSecret() string {
 	return "dev-auth-secret"
 }
 
-func (a *API) Register(c *gin.Context) {
-	repo := a.users()
-	if repo == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "message": "认证服务暂不可用"})
-		return
-	}
-	var body authBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "请求格式错误"})
-		return
-	}
-	email := strings.TrimSpace(body.Email)
-	pass := body.Password
-	if email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "请输入账号或邮箱"})
-		return
-	}
-	if len(pass) < 6 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "密码至少 6 位"})
-		return
-	}
-	user, err := repo.CreateUser(email, pass, body.Nickname)
-	if errors.Is(err, store.ErrUserExists) {
-		c.JSON(http.StatusConflict, gin.H{"ok": false, "message": "该邮箱已注册"})
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": err.Error()})
-		return
-	}
-	token, err := auth.IssueToken(a.authSecret(), user.ID, user.Email, 30*24*time.Hour)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "签发登录凭证失败"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
-		"data": gin.H{
-			"token": token,
-			"user":  authUserJSON(user),
-		},
-	})
-}
-
 func (a *API) Login(c *gin.Context) {
 	repo := a.users()
 	if repo == nil {
@@ -90,7 +45,7 @@ func (a *API) Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "请求格式错误"})
 		return
 	}
-	email := strings.TrimSpace(body.Email)
+	email := auth.NormalizeEmail(body.Email)
 	if email == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "请输入账号或邮箱"})
 		return

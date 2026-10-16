@@ -1,21 +1,54 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { stateAfterRegisterStart } from '../auth/registerFlow';
 
 type Props = {
   /** Optional: close parent after success (AuthContext already closes modal). */
   onSuccess?: () => void;
 };
 
+type RegisterStep = 'form' | 'verify';
+
+function maskEmail(email: string): string {
+  const e = email.trim();
+  const at = e.indexOf('@');
+  if (at <= 1) return e;
+  const name = e.slice(0, at);
+  const domain = e.slice(at);
+  if (name.length <= 2) return `${name[0]}*${domain}`;
+  return `${name[0]}${'*'.repeat(Math.min(name.length - 2, 4))}${name[name.length - 1]}${domain}`;
+}
+
 export function AuthForm({ onSuccess }: Props) {
-  const { authMode, setAuthMode, login, register } = useAuth();
+  const { authMode, setAuthMode, login, registerStart, registerVerify, registerResend } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [registerStep, setRegisterStep] = useState<RegisterStep>('form');
+  const [expiresInSec, setExpiresInSec] = useState(600);
+  const [resendAfterSec, setResendAfterSec] = useState(60);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
 
   const isRegister = authMode === 'register';
+  const showVerify = isRegister && registerStep === 'verify';
+
+  useEffect(() => {
+    if (cooldownLeft <= 0) return;
+    const t = window.setTimeout(() => setCooldownLeft((v) => Math.max(0, v - 1)), 1000);
+    return () => window.clearTimeout(t);
+  }, [cooldownLeft]);
+
+  useEffect(() => {
+    if (!isRegister) {
+      setRegisterStep('form');
+      setCode('');
+      setError('');
+    }
+  }, [isRegister]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -24,6 +57,26 @@ export function AuthForm({ onSuccess }: Props) {
       setError('请输入账号或邮箱');
       return;
     }
+
+    if (showVerify) {
+      const trimmed = code.trim();
+      if (!/^\d{6}$/.test(trimmed)) {
+        setError('请输入 6 位数字验证码');
+        return;
+      }
+      setSubmitting(true);
+      setError('');
+      try {
+        await registerVerify(account, trimmed);
+        onSuccess?.();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '验证失败，请稍后重试');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (!password) {
       setError('请输入密码');
       return;
@@ -37,11 +90,18 @@ export function AuthForm({ onSuccess }: Props) {
     setError('');
     try {
       if (isRegister) {
-        await register(account, password, nickname.trim() || undefined);
+        const meta = await registerStart(account, password, nickname.trim() || undefined);
+        const next = stateAfterRegisterStart();
+        setPassword(next.password);
+        setCode(next.code);
+        setRegisterStep(next.registerStep);
+        setExpiresInSec(meta.expires_in_sec || 600);
+        setResendAfterSec(meta.resend_after_sec || 60);
+        setCooldownLeft(meta.resend_after_sec || 60);
       } else {
         await login(account, password);
+        onSuccess?.();
       }
-      onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失败，请稍后重试');
     } finally {
@@ -49,80 +109,132 @@ export function AuthForm({ onSuccess }: Props) {
     }
   }
 
+  async function onResend() {
+    if (cooldownLeft > 0 || submitting) return;
+    const account = email.trim();
+    if (!account) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const meta = await registerResend(account);
+      setExpiresInSec(meta.expires_in_sec || 600);
+      setResendAfterSec(meta.resend_after_sec || 60);
+      setCooldownLeft(meta.resend_after_sec || 60);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '发送失败，请稍后重试');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function backToRegisterForm() {
+    setRegisterStep('form');
+    setCode('');
+    setError('');
+    setCooldownLeft(0);
+  }
+
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <div className="auth-tabs" role="tablist" aria-label="登录方式">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={!isRegister}
-          className={!isRegister ? 'is-active' : undefined}
-          onClick={() => {
-            setAuthMode('login');
-            setError('');
-          }}
-        >
-          密码登录
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={isRegister}
-          className={isRegister ? 'is-active' : undefined}
-          onClick={() => {
-            setAuthMode('register');
-            setError('');
-          }}
-        >
-          注册账号
-        </button>
-      </div>
-
-      {isRegister && (
-        <label className="auth-field">
-          <span>昵称</span>
-          <input
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="可选，展示名称"
-            autoComplete="nickname"
-            disabled={submitting}
-          />
-        </label>
-      )}
-
-      <label className="auth-field">
-        <span>账号 / 邮箱</span>
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="请输入账号或邮箱"
-          autoComplete="username"
-          disabled={submitting}
-        />
-      </label>
-
-      <label className="auth-field">
-        <span>密码</span>
-        <div className="auth-password">
-          <input
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={isRegister ? '至少 6 位密码' : '请输入密码'}
-            autoComplete={isRegister ? 'new-password' : 'current-password'}
-            disabled={submitting}
-          />
+      {!showVerify && (
+        <div className="auth-tabs" role="tablist" aria-label="登录方式">
           <button
             type="button"
-            className="auth-eye"
-            aria-label={showPassword ? '隐藏密码' : '显示密码'}
-            onClick={() => setShowPassword((v) => !v)}
+            role="tab"
+            aria-selected={!isRegister}
+            className={!isRegister ? 'is-active' : undefined}
+            onClick={() => {
+              setAuthMode('login');
+              setError('');
+              setRegisterStep('form');
+            }}
           >
-            {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            密码登录
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isRegister}
+            className={isRegister ? 'is-active' : undefined}
+            onClick={() => {
+              setAuthMode('register');
+              setError('');
+            }}
+          >
+            注册账号
           </button>
         </div>
-      </label>
+      )}
+
+      {showVerify ? (
+        <>
+          <p className="auth-verify-hint">
+            验证码已发送至 <strong>{maskEmail(email)}</strong>
+            <br />
+            请在 {Math.max(1, Math.round(expiresInSec / 60))} 分钟内完成验证
+          </p>
+          <label className="auth-field">
+            <span>邮箱验证码</span>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="6 位数字验证码"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              disabled={submitting}
+              autoFocus
+            />
+          </label>
+        </>
+      ) : (
+        <>
+          {isRegister && (
+            <label className="auth-field">
+              <span>昵称</span>
+              <input
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="可选，展示名称"
+                autoComplete="nickname"
+                disabled={submitting}
+              />
+            </label>
+          )}
+
+          <label className="auth-field">
+            <span>账号 / 邮箱</span>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="请输入账号或邮箱"
+              autoComplete="username"
+              disabled={submitting}
+            />
+          </label>
+
+          <label className="auth-field">
+            <span>密码</span>
+            <div className="auth-password">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isRegister ? '至少 6 位密码' : '请输入密码'}
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
+                disabled={submitting}
+              />
+              <button
+                type="button"
+                className="auth-eye"
+                aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                onClick={() => setShowPassword((v) => !v)}
+              >
+                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </label>
+        </>
+      )}
 
       {error && (
         <p className="auth-error" role="alert">
@@ -131,7 +243,16 @@ export function AuthForm({ onSuccess }: Props) {
       )}
 
       <div className="auth-actions">
-        {isRegister ? (
+        {showVerify ? (
+          <>
+            <button type="button" className="auth-btn-secondary" disabled={submitting} onClick={backToRegisterForm}>
+              返回修改
+            </button>
+            <button type="submit" className="auth-btn-primary" disabled={submitting}>
+              {submitting ? '验证中...' : '验证并注册'}
+            </button>
+          </>
+        ) : isRegister ? (
           <>
             <button
               type="button"
@@ -145,7 +266,7 @@ export function AuthForm({ onSuccess }: Props) {
               返回登录
             </button>
             <button type="submit" className="auth-btn-primary" disabled={submitting}>
-              {submitting ? '注册中...' : '注册'}
+              {submitting ? '发送中...' : '注册'}
             </button>
           </>
         ) : (
@@ -167,6 +288,20 @@ export function AuthForm({ onSuccess }: Props) {
           </>
         )}
       </div>
+
+      {showVerify && (
+        <div className="auth-resend-row">
+          <button
+            type="button"
+            className="auth-link-btn auth-resend-btn"
+            disabled={submitting || cooldownLeft > 0}
+            onClick={() => void onResend()}
+          >
+            {cooldownLeft > 0 ? `重新发送（${cooldownLeft}s）` : '重新发送验证码'}
+          </button>
+          {cooldownLeft === 0 && resendAfterSec > 0 ? null : null}
+        </div>
+      )}
     </form>
   );
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/tycdn/vplayer/internal/catalogsync"
 	"github.com/tycdn/vplayer/internal/config"
 	"github.com/tycdn/vplayer/internal/httpapi"
+	"github.com/tycdn/vplayer/internal/mail"
 	"github.com/tycdn/vplayer/internal/media"
 	"github.com/tycdn/vplayer/internal/olehdtv"
 	"github.com/tycdn/vplayer/internal/play"
@@ -82,6 +83,20 @@ func New(cfg config.Config) (*Server, error) {
 		SyncRunner: runner,
 		MediaBase:  cfg.OleHdTvMediaPublicBase,
 	}
+	// Mail is optional at process start so login/admin keep working if SMTP is unset.
+	// register/start and register/resend return a controlled 503 until configured.
+	if cfg.RegistrationMailConfigured() {
+		api.Mailer = &mail.SMTPMailer{Cfg: mail.SMTPConfig{
+			Host:      cfg.SMTPHost,
+			Port:      cfg.SMTPPort,
+			Username:  cfg.SMTPUsername,
+			Password:  cfg.SMTPPassword,
+			FromEmail: cfg.SMTPFromEmail,
+			FromName:  cfg.SMTPFromName,
+		}}
+	} else if cfg.AppEnv != "local" {
+		slog.Warn("registration email verification mailer not configured; register/start will return unavailable until SMTP_* and EMAIL_CODE_PEPPER are set")
+	}
 
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger(), cors(cfg.CORSOrigins))
@@ -99,6 +114,9 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/videos/:id/play", api.RequireUser, api.ResolvePlay)
 		v1.POST("/videos/:id/play", api.RequireUser, api.CreatePlaySession)
 		v1.POST("/auth/register", api.Register)
+		v1.POST("/auth/register/start", api.RegisterStart)
+		v1.POST("/auth/register/verify", api.RegisterVerify)
+		v1.POST("/auth/register/resend", api.RegisterResend)
 		v1.POST("/auth/login", api.Login)
 		v1.GET("/auth/me", api.Me)
 		v1.GET("/admin/me", api.RequireUser, api.RequireAdmin, api.AdminMe)

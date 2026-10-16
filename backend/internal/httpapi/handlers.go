@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tycdn/vplayer/internal/config"
+	"github.com/tycdn/vplayer/internal/mail"
 	"github.com/tycdn/vplayer/internal/media"
 	"github.com/tycdn/vplayer/internal/model"
 	"github.com/tycdn/vplayer/internal/olehdtv/maccms"
@@ -16,12 +17,16 @@ import (
 )
 
 type API struct {
-	Cfg        config.Config
-	Store      *store.MySQL
-	Users      store.UserRepo
-	Resolver   *play.Resolver
-	SyncRunner *scheduler.OleHdTvRunner
-	MediaBase  string
+	Cfg   config.Config
+	Store *store.MySQL
+	Users store.UserRepo
+	// PendingRegs optionally overrides Store for pending registration (tests).
+	PendingRegs store.PendingRegistrationStore
+	Mailer      mail.Mailer
+	registerIP  *registerIPLimiter
+	Resolver    *play.Resolver
+	SyncRunner  *scheduler.OleHdTvRunner
+	MediaBase   string
 	// PublicVideos optionally overrides Store for public video list/count (tests).
 	PublicVideos publicVideoRepo
 	// AdminVideos optionally overrides Store for admin video reads (tests).
