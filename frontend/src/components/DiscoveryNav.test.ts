@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import type { Category } from '../api.ts';
 import {
   activeCategoryScrollOptions,
+  CATEGORY_RAIL_SCROLL_FRACTION,
+  categoryRailScrollByOptions,
+  categoryRailScrollEdges,
   childrenOfParent,
   expandedParentSlugForActive,
   resolveNavCategories,
@@ -219,6 +222,83 @@ describe('mobile and desktop category presentation', () => {
     assert.match(tablet, /repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
     assert.match(tablet, /--banner-h:\s*76px/);
     assert.match(phone, /--banner-h:\s*96px/);
+  });
+});
+
+describe('main category rail arrows', () => {
+  it('steps about 70% of the visible rail and honors reduced motion', () => {
+    assert.ok(CATEGORY_RAIL_SCROLL_FRACTION >= 0.6 && CATEGORY_RAIL_SCROLL_FRACTION <= 0.75);
+    const forward = categoryRailScrollByOptions(200, 1, false);
+    const back = categoryRailScrollByOptions(200, -1, true);
+    assert.equal(forward.left, 140);
+    assert.equal(forward.behavior, 'smooth');
+    assert.equal(back.left, -140);
+    assert.equal(back.behavior, 'auto');
+    assert.equal(categoryRailScrollByOptions(200, 1, true).behavior, 'auto');
+    assert.equal(categoryRailScrollByOptions(200, -1, false).behavior, 'smooth');
+  });
+
+  it('hides the left control at the start and the right control at the end', () => {
+    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 0, clientWidth: 300, scrollWidth: 900 }), {
+      canScrollLeft: false,
+      canScrollRight: true,
+    });
+    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 2, clientWidth: 300, scrollWidth: 900 }), {
+      canScrollLeft: false,
+      canScrollRight: true,
+    });
+    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 600, clientWidth: 300, scrollWidth: 900 }), {
+      canScrollLeft: true,
+      canScrollRight: false,
+    });
+    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 598, clientWidth: 300, scrollWidth: 900 }), {
+      canScrollLeft: true,
+      canScrollRight: false,
+    });
+    assert.deepEqual(categoryRailScrollEdges({ scrollLeft: 0, clientWidth: 400, scrollWidth: 400 }), {
+      canScrollLeft: false,
+      canScrollRight: false,
+    });
+  });
+
+  it('wires previous/next controls outside the scrolling rail', () => {
+    const src = readFileSync(join(here, 'DiscoveryNav.tsx'), 'utf8');
+    const prev = src.indexOf('aria-label="上一组分类"');
+    const nav = src.indexOf('<nav className="category-rail" aria-label="分类导航">');
+    const next = src.indexOf('aria-label="下一组分类"');
+    assert.ok(prev !== -1 && nav !== -1 && next !== -1);
+    assert.ok(prev < nav && nav < next);
+    assert.match(src, /className="category-nav-mobile"/);
+    assert.match(src, /hidden=\{!railEdges\.canScrollLeft\}/);
+    assert.match(src, /disabled=\{!railEdges\.canScrollLeft\}/);
+    assert.match(src, /hidden=\{!railEdges\.canScrollRight\}/);
+    assert.match(src, /disabled=\{!railEdges\.canScrollRight\}/);
+    assert.match(src, /onClick=\{\(\) => scrollRail\(-1\)\}/);
+    assert.match(src, /onClick=\{\(\) => scrollRail\(1\)\}/);
+    assert.match(src, /railRef\.current/);
+    assert.match(src, /rail\.scrollBy\(categoryRailScrollByOptions\(rail\.clientWidth, direction, reduced\)\)/);
+    assert.match(src, /scrollIntoView\(activeCategoryScrollOptions\(reduced\)\)/);
+    assert.match(src, /addEventListener\('scroll', measure/);
+    assert.match(src, /addEventListener\('resize', measure\)/);
+    assert.match(src, /new ResizeObserver\(measure\)/);
+
+    const css = readFileSync(join(here, '../styles.css'), 'utf8');
+    const beforePhone = css.slice(0, css.indexOf('/* bp:phone'));
+    const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
+    assert.match(beforePhone, /\.category-rail-arrow\s*\{[^}]*display:\s*none/);
+    assert.match(beforePhone, /\.category-nav-mobile\s*\{[^}]*display:\s*contents/);
+    assert.match(phone, /\.category-nav-mobile\s*\{[^}]*display:\s*flex/);
+    assert.match(phone, /\.category-nav-mobile\s*\{[^}]*align-items:\s*center/);
+    assert.match(phone, /\.category-rail-arrow\s*\{[^}]*width:\s*40px/);
+    assert.match(phone, /\.category-rail-arrow\s*\{[^}]*height:\s*44px/);
+    assert.match(phone, /\.category-rail-arrow\[hidden\]\s*\{[^}]*display:\s*none/);
+    const railBlock = phone.match(/\.category-rail\s*\{[^}]*\}/)?.[0] ?? '';
+    assert.match(railBlock, /flex-wrap:\s*nowrap/);
+    assert.equal(railBlock.includes('mask-image'), false);
+    assert.match(phone, /\.banner-actions\s*\{[^}]*display:\s*flex/);
+    assert.match(phone, /\.banner-actions\s*\{[^}]*align-items:\s*center/);
+    assert.match(phone, /\.banner-actions\s*\{[^}]*height:\s*52px/);
+    assert.match(phone, /\.banner-actions \.banner-user,\s*\.banner-actions \.theme-toggle\s*\{[^}]*justify-content:\s*center/);
   });
 });
 

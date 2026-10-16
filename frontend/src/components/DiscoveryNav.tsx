@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Category } from '../api';
 import {
   activeCategoryScrollOptions,
+  categoryRailScrollByOptions,
+  categoryRailScrollEdges,
   childrenOfParent,
   expandedParentSlugForActive,
   resolveNavCategories,
@@ -32,6 +34,8 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
   );
 
   const discoveryRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLElement | null>(null);
+  const [railEdges, setRailEdges] = useState({ canScrollLeft: false, canScrollRight: false });
 
   useEffect(() => {
     setExpandedParentSlug((current) =>
@@ -49,6 +53,43 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     activeBtn.scrollIntoView(activeCategoryScrollOptions(reduced));
   }, [active]);
+
+  useLayoutEffect(() => {
+    const rail = discoveryRef.current?.querySelector<HTMLElement>('nav.category-rail') ?? null;
+    railRef.current = rail;
+    if (!rail) return;
+
+    const measure = () => {
+      const next = categoryRailScrollEdges({
+        scrollLeft: rail.scrollLeft,
+        clientWidth: rail.clientWidth,
+        scrollWidth: rail.scrollWidth,
+      });
+      setRailEdges((prev) =>
+        prev.canScrollLeft === next.canScrollLeft && prev.canScrollRight === next.canScrollRight
+          ? prev
+          : next,
+      );
+    };
+
+    measure();
+    rail.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(rail);
+    return () => {
+      rail.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+      observer.disconnect();
+    };
+  }, [active, expandedParentSlug, mains]);
+
+  function scrollRail(direction: -1 | 1) {
+    const rail = railRef.current;
+    if (!rail) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    rail.scrollBy(categoryRailScrollByOptions(rail.clientWidth, direction, reduced));
+  }
 
   function handleHome() {
     setExpandedParentSlug(null);
@@ -70,6 +111,17 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
 
   return (
     <div className="discovery" ref={discoveryRef}>
+      <div className="category-nav-mobile">
+      <button
+        type="button"
+        className="category-rail-arrow category-rail-arrow--prev"
+        aria-label="上一组分类"
+        hidden={!railEdges.canScrollLeft}
+        disabled={!railEdges.canScrollLeft}
+        onClick={() => scrollRail(-1)}
+      >
+        <CategoryChevron direction="prev" />
+      </button>
       <nav className="category-rail" aria-label="分类导航">
         <button
           type="button"
@@ -128,6 +180,17 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
           );
         })}
       </nav>
+      <button
+        type="button"
+        className="category-rail-arrow category-rail-arrow--next"
+        aria-label="下一组分类"
+        hidden={!railEdges.canScrollRight}
+        disabled={!railEdges.canScrollRight}
+        onClick={() => scrollRail(1)}
+      >
+        <CategoryChevron direction="next" />
+      </button>
+      </div>
 
       {/* Phone-only second row. Desktop keeps inline .category-children beside the parent. */}
       <div
@@ -154,5 +217,14 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+function CategoryChevron({ direction }: { direction: 'prev' | 'next' }) {
+  const d = direction === 'prev' ? 'M14.5 6.5 8.5 12l6 5.5' : 'M9.5 6.5 15.5 12l-6 5.5';
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d={d} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

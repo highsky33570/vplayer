@@ -97,3 +97,40 @@ export function activeCategoryScrollOptions(reducedMotion: boolean): ScrollIntoV
     behavior: reducedMotion ? 'auto' : 'smooth',
   };
 }
+
+/** Fraction of the visible rail used for each arrow step (within 60–75%). */
+export const CATEGORY_RAIL_SCROLL_FRACTION = 0.7;
+
+/** Ignore sub-pixel leftovers when deciding the rail is at an edge. */
+export const CATEGORY_RAIL_EDGE_TOLERANCE_PX = 2;
+
+export type CategoryRailMetrics = {
+  scrollLeft: number;
+  clientWidth: number;
+  scrollWidth: number;
+};
+
+/** Whether the main rail can still move left or right. Both are false when every chip fits. */
+export function categoryRailScrollEdges(
+  metrics: CategoryRailMetrics,
+  tolerance = CATEGORY_RAIL_EDGE_TOLERANCE_PX,
+): { canScrollLeft: boolean; canScrollRight: boolean } {
+  const maxScroll = Math.max(0, metrics.scrollWidth - metrics.clientWidth);
+  return {
+    canScrollLeft: metrics.scrollLeft > tolerance,
+    canScrollRight: maxScroll - metrics.scrollLeft > tolerance,
+  };
+}
+
+/** Horizontal `scrollBy` options. Positive direction reveals later categories. */
+export function categoryRailScrollByOptions(
+  clientWidth: number,
+  direction: -1 | 1,
+  reducedMotion: boolean,
+): ScrollToOptions {
+  const amount = Math.round(Math.max(0, clientWidth) * CATEGORY_RAIL_SCROLL_FRACTION);
+  return {
+    left: direction * amount,
+    behavior: reducedMotion ? 'auto' : 'smooth',
+  };
+}
