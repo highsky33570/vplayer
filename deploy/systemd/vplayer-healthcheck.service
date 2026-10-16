@@ -1,0 +1,17 @@
+[Unit]
+Description=VPlayer lightweight local healthcheck (Plan 8)
+Documentation=file:///opt/vplayer-repo/docs/BACKUP_RESTORE.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vplayer
+ExecStart=/opt/vplayer/deploy/ops/vplayer-healthcheck.sh
+TimeoutStartSec=2m
+Nice=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vplayer-healthcheck
+
+[Install]
+WantedBy=multi-user.target

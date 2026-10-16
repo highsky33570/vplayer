@@ -24,7 +24,8 @@ VPlayer/
 ├── frontend/     # User site (React + TS + Vite)
 ├── backend/      # Go API (Gin): catalog, play tickets, users
 ├── admin/        # gin-vue-admin (see admin/README.md)
-├── docs/         # Architecture & requirements
+├── docs/         # Architecture & requirements (incl. BACKUP_RESTORE.md)
+├── deploy/       # Production deploy + systemd + Plan 8 ops scripts
 ├── scripts/      # Dev helpers
 └── docker-compose.yml
 ```

@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily VPlayer MySQL database backup
+# Do NOT Requires= the oneshot (would start backup when enabling the timer).
+
+[Timer]
+# Daily at 03:30 UTC-ish host local; RandomizedDelay avoids stacking with :00/:20/:40 workers.
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=45min
+AccuracySec=1min
+Unit=vplayer-db-backup.service
+
+[Install]
+WantedBy=timers.target

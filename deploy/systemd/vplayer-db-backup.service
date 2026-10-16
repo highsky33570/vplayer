@@ -1,0 +1,22 @@
+[Unit]
+Description=VPlayer MySQL logical database backup (Plan 8)
+Documentation=file:///opt/vplayer-repo/docs/BACKUP_RESTORE.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vplayer
+# Credentials: script uses MySQL container env via docker exec (see docs/BACKUP_RESTORE.md).
+# Do not put secrets in this unit file.
+ExecStart=/opt/vplayer/deploy/ops/vplayer-db-backup.sh
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vplayer-db-backup
+
+[Install]
+WantedBy=multi-user.target

@@ -10,6 +10,10 @@
 | `vplayer-syncincremental.service` + `.timer` | Bounded recent **discovery** (`syncincremental --limit 5 --trigger=timer`) — live host unit is the production pattern |
 | `vplayer-enrichpending.service` + `.timer` | Bounded deferred **play enrichment** (`enrichpending --limit 15 --concurrency 1 --trigger=timer`) |
 | `vplayer-migratemedia.service` + `.timer` | Selective R2 **media migration** (`migratemedia --execute --confirm=MIGRATE --limit 1 --trigger=timer`) |
+| `vplayer-db-backup.service` + `.timer` | Daily MySQL logical backup (Plan 8; timer only from deploy) |
+| `vplayer-healthcheck.service` + `.timer` | Local health monitoring every ~15m (Plan 8) |
+
+See [`docs/BACKUP_RESTORE.md`](../../docs/BACKUP_RESTORE.md) for DB backup location, retention, and restore. Deploy rollback under `/opt/vplayer/releases/backups` is separate.
 
 Production migration worker pattern (match syncincremental):
 - no `User=` / `Group=` (host has no `vplayer` Linux user)
@@ -22,9 +26,12 @@ Production migration worker pattern (match syncincremental):
 - Discovery: every 3 hours at `:00` (e.g. `00/3:00:00`)
 - Enrichment: every 3 hours at `:20` (see `vplayer-enrichpending.timer`)
 - Media migration: every 6 hours at `:40` + ~10min randomized delay; `Persistent=false` (`vplayer-migratemedia.timer`)
+- DB backup: daily `03:30` + up to 45m randomized delay (`vplayer-db-backup.timer`)
+- Healthcheck: every 15 minutes + up to 2m randomized delay (`vplayer-healthcheck.timer`)
 
 Enrichment only fetches already-stored `play_page_url` values (max 15–20 per run).
 Migration processes at most one episode per timer fire (app advisory lock + cooldown).
+Deploy does **not** start `vplayer-db-backup.service` (first dump is timer/manual).
 
 ## Manual checks
 

@@ -26,8 +26,14 @@ readonly MIGRATE_UNIT="vplayer-migratemedia.service"
 readonly SYNC_TIMER="vplayer-syncincremental.timer"
 readonly ENRICH_TIMER="vplayer-enrichpending.timer"
 readonly MIGRATE_TIMER="vplayer-migratemedia.timer"
+readonly DB_BACKUP_UNIT="vplayer-db-backup.service"
+readonly DB_BACKUP_TIMER="vplayer-db-backup.timer"
+readonly HEALTH_UNIT="vplayer-healthcheck.service"
+readonly HEALTH_TIMER="vplayer-healthcheck.timer"
 readonly SYSTEMD_UNIT_SRC="${REPO_DIR}/deploy/systemd"
 readonly SYSTEMD_UNIT_DST="/etc/systemd/system"
+readonly OPS_SRC="${REPO_DIR}/deploy/ops"
+readonly OPS_DST="${PROD_ROOT}/deploy/ops"
 
 # shellcheck source=lib/worker_process_guard.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/worker_process_guard.sh"
@@ -145,6 +151,49 @@ install_migratemedia_units() {
 
   if is_active "${MIGRATE_UNIT}"; then
     die "${MIGRATE_UNIT} became active during timer install; refusing unexpected migration"
+  fi
+}
+
+# Install Plan 8 ops scripts + DB backup / healthcheck timers.
+# Enables and restarts TIMERS only. Never starts a DB dump or restore during deploy.
+install_plan8_ops_units() {
+  local backup_svc="${SYSTEMD_UNIT_SRC}/vplayer-db-backup.service"
+  local backup_timer="${SYSTEMD_UNIT_SRC}/vplayer-db-backup.timer"
+  local health_svc="${SYSTEMD_UNIT_SRC}/vplayer-healthcheck.service"
+  local health_timer="${SYSTEMD_UNIT_SRC}/vplayer-healthcheck.timer"
+
+  [[ -f "${backup_svc}" && -f "${backup_timer}" ]] || die "missing db-backup systemd units"
+  [[ -f "${health_svc}" && -f "${health_timer}" ]] || die "missing healthcheck systemd units"
+  [[ -f "${OPS_SRC}/vplayer-db-backup.sh" ]] || die "missing ${OPS_SRC}/vplayer-db-backup.sh"
+  [[ -f "${OPS_SRC}/vplayer-healthcheck.sh" ]] || die "missing ${OPS_SRC}/vplayer-healthcheck.sh"
+  [[ -d "${OPS_SRC}/lib" ]] || die "missing ${OPS_SRC}/lib"
+
+  [[ -f "${OPS_SRC}/lib/mysql_defaults.sh" ]] || die "missing ${OPS_SRC}/lib/mysql_defaults.sh"
+
+  mkdir -p "${OPS_DST}/lib"
+  install -m 755 "${OPS_SRC}/vplayer-db-backup.sh" "${OPS_DST}/vplayer-db-backup.sh"
+  install -m 755 "${OPS_SRC}/vplayer-healthcheck.sh" "${OPS_DST}/vplayer-healthcheck.sh"
+  install -m 644 "${OPS_SRC}/lib/backup_helpers.sh" "${OPS_DST}/lib/backup_helpers.sh"
+  install -m 644 "${OPS_SRC}/lib/health_helpers.sh" "${OPS_DST}/lib/health_helpers.sh"
+  install -m 644 "${OPS_SRC}/lib/mysql_defaults.sh" "${OPS_DST}/lib/mysql_defaults.sh"
+
+  # Ensure backup root exists with tight perms (do not dump during deploy).
+  mkdir -p "${PROD_ROOT}/backups/mysql"
+  chmod 700 "${PROD_ROOT}/backups" "${PROD_ROOT}/backups/mysql"
+
+  install -m 644 "${backup_svc}" "${SYSTEMD_UNIT_DST}/vplayer-db-backup.service"
+  install -m 644 "${backup_timer}" "${SYSTEMD_UNIT_DST}/vplayer-db-backup.timer"
+  install -m 644 "${health_svc}" "${SYSTEMD_UNIT_DST}/vplayer-healthcheck.service"
+  install -m 644 "${health_timer}" "${SYSTEMD_UNIT_DST}/vplayer-healthcheck.timer"
+  systemctl daemon-reload
+
+  systemctl enable "${DB_BACKUP_TIMER}"
+  systemctl restart "${DB_BACKUP_TIMER}"
+  systemctl enable "${HEALTH_TIMER}"
+  systemctl restart "${HEALTH_TIMER}"
+
+  if is_active "${DB_BACKUP_UNIT}"; then
+    die "${DB_BACKUP_UNIT} became active during timer install; refusing unexpected DB dump"
   fi
 }
 
@@ -497,14 +546,22 @@ main() {
   log "installing ${MIGRATE_UNIT} / ${MIGRATE_TIMER} (enable+restart timer only; never start oneshot)…"
   install_migratemedia_units
 
+  log "installing Plan 8 ops (DB backup + healthcheck timers; no dump during deploy)…"
+  install_plan8_ops_units
+
   # --- Verify ---
   log "verifying units and endpoints…"
   is_active "${API_UNIT}" || die "${API_UNIT} is not active after restart"
   is_active "${SYNC_TIMER}" || die "${SYNC_TIMER} is not active"
   is_active "${ENRICH_TIMER}" || die "${ENRICH_TIMER} is not active"
   is_active "${MIGRATE_TIMER}" || die "${MIGRATE_TIMER} is not active"
+  is_active "${DB_BACKUP_TIMER}" || die "${DB_BACKUP_TIMER} is not active"
+  is_active "${HEALTH_TIMER}" || die "${HEALTH_TIMER} is not active"
   if is_active "${MIGRATE_UNIT}"; then
     die "${MIGRATE_UNIT} is unexpectedly active after deploy (migration must not run from deploy)"
+  fi
+  if is_active "${DB_BACKUP_UNIT}"; then
+    die "${DB_BACKUP_UNIT} is unexpectedly active after deploy (DB dump must not run from deploy)"
   fi
 
   nginx -t || die "nginx -t failed"

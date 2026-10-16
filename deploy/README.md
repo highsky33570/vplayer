@@ -18,8 +18,12 @@ Application secrets live **outside** the Git checkout.
 | Discovery unit + timer | `vplayer-syncincremental.service` / `.timer` |
 | Enrichment unit + timer | `vplayer-enrichpending.service` / `.timer` |
 | Media migration unit + timer | `vplayer-migratemedia.service` / `.timer` (timer enabled by deploy; oneshot not started) |
+| DB backup unit + timer | `vplayer-db-backup.service` / `.timer` (timer enabled by deploy; dump **not** started by deploy) |
+| Healthcheck unit + timer | `vplayer-healthcheck.service` / `.timer` (~every 15m; journald + optional `/var/lib/vplayer/health.status`) |
+| Ops scripts (runtime) | `/opt/vplayer/deploy/ops/` |
+| MySQL DB backups | `/opt/vplayer/backups/mysql/` (mode 700; **not** deploy rollback) |
 | Frontend dist (nginx) | `/opt/vplayer/frontend/dist` |
-| Deploy backups | `/opt/vplayer/releases/backups/<timestamp>-<shortsha>/` |
+| Deploy rollback backups | `/opt/vplayer/releases/backups/<timestamp>-<shortsha>/` |
 
 Deploy script: `deploy/deploy-production.sh` (run from the checkout as root).
 
@@ -56,8 +60,11 @@ What the script does (summary):
 7. Atomically installs binaries (temp file + `mv`), swaps frontend dist via rename, then atomically swaps `/opt/vplayer/backend/migrations` (prepare `.new` fully → rename; dirs `755`, SQL files `644`).
 8. Restarts **only** `vplayer-api.service` **after** migrations are in place so startup can discover/apply new SQL. Does **not** start oneshot workers. Does **not** run a separate migrate CLI. Does **not** run `syncleafmembership` or `syncleafimport`.
 9. Installs/updates `vplayer-migratemedia.service` + `.timer`, `daemon-reload`, `enable` + `restart` on the **timer only** (never starts the migratemedia oneshot; timer must not `Requires=` the oneshot).
-10. Verifies API + sync/enrichment/migration **timers** active, migratemedia **service** not active, `nginx -t`, local `/health`, and local homepage HTTP.
-11. Keeps the newest 5 backup directories under `/opt/vplayer/releases/backups/`.
+10. Installs Plan 8 ops scripts under `/opt/vplayer/deploy/ops/`, ensures `/opt/vplayer/backups/mysql` exists (mode 700), installs `vplayer-db-backup` + `vplayer-healthcheck` units, enables/restarts **those timers only**. Does **not** start a DB dump or restore during deploy.
+11. Verifies API + sync/enrichment/migration/DB-backup/health **timers** active, migratemedia and db-backup **services** not active, `nginx -t`, local `/health`, and local homepage HTTP.
+12. Keeps the newest 5 **deploy rollback** directories under `/opt/vplayer/releases/backups/` (separate from MySQL dumps).
+
+MySQL backup/restore runbook: [`docs/BACKUP_RESTORE.md`](../docs/BACKUP_RESTORE.md).
 
 Success line: `DEPLOYMENT SUCCEEDED`  
 Failure after install began: automatic rollback attempt, then `DEPLOYMENT FAILED / ROLLED BACK`.
@@ -82,3 +89,4 @@ Do not restore or overwrite `/opt/vplayer/.env` from Git.
 - Timers stay enabled; oneshot workers are not interrupted mid-run (deploy aborts if a worker unit is active).
 - `vplayer-api` WorkingDirectory is `/opt/vplayer/backend`, so it discovers SQL under `./migrations` at startup (existing API behavior). The deploy script copies repo migrations there before restart and does not invoke a separate migrate CLI.
 - `deploy/systemd/vplayer-migratemedia.*` are installed by the deploy script (timer enabled; oneshot not started). Enrichment/discovery unit files remain host-managed examples unless already present on the server.
+- Plan 8 DB dumps live under `/opt/vplayer/backups/mysql` and must not be web-served. Deploy rollback under `releases/backups` does **not** include MySQL data. Redis and R2 are not backed up in Plan 8.
