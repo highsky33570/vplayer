@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Category } from '../api';
 import {
+  activeCategoryScrollOptions,
   childrenOfParent,
   expandedParentSlugForActive,
   resolveNavCategories,
@@ -9,6 +10,7 @@ import {
 } from './discoveryNavLogic';
 
 export {
+  activeCategoryScrollOptions,
   childrenOfParent,
   expandedParentSlugForActive,
   findCategoryBySlug,
@@ -29,11 +31,24 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
     expandedParentSlugForActive(categories, resolveNavCategories(categories), active),
   );
 
+  const discoveryRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     setExpandedParentSlug((current) =>
       syncExpandedParentSlug(categories, mains, active, current),
     );
   }, [active, categories, mains]);
+
+  useEffect(() => {
+    const rail = discoveryRef.current?.querySelector<HTMLElement>('nav.category-rail');
+    if (!rail) return;
+    const activeBtn = rail.querySelector<HTMLElement>(
+      '.category-btn--main.is-active, .category-btn--main.is-parent-of-active',
+    );
+    if (!activeBtn) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    activeBtn.scrollIntoView(activeCategoryScrollOptions(reduced));
+  }, [active]);
 
   function handleHome() {
     setExpandedParentSlug(null);
@@ -50,8 +65,11 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
     onSelect(child.slug);
   }
 
+  const expandedMain = mains.find((main) => main.slug === expandedParentSlug) ?? null;
+  const expandedChildren = expandedMain ? childrenOfParent(categories, expandedMain.id) : [];
+
   return (
-    <div className="discovery">
+    <div className="discovery" ref={discoveryRef}>
       <nav className="category-rail" aria-label="分类导航">
         <button
           type="button"
@@ -110,6 +128,31 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
           );
         })}
       </nav>
+
+      {/* Phone-only second row. Desktop keeps inline .category-children beside the parent. */}
+      <div
+        className={`category-subrow${expandedChildren.length > 0 ? ' is-open' : ''}`}
+        aria-hidden={expandedChildren.length === 0}
+      >
+        <div
+          className="category-subrow-scroll"
+          role="group"
+          aria-label={expandedMain ? `${expandedMain.name}子分类` : '子分类'}
+        >
+          {expandedMain &&
+            expandedChildren.map((child) => (
+              <button
+                key={`sub-${child.id}-${child.slug}`}
+                type="button"
+                tabIndex={expandedChildren.length > 0 ? 0 : -1}
+                className={`category-btn category-btn--child${active === child.slug ? ' is-active' : ''}`}
+                onClick={() => handleChild(child, expandedMain)}
+              >
+                <span className="category-label">{child.name}</span>
+              </button>
+            ))}
+        </div>
+      </div>
     </div>
   );
 }

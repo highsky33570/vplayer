@@ -5,6 +5,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { Category } from '../api.ts';
 import {
+  activeCategoryScrollOptions,
   childrenOfParent,
   expandedParentSlugForActive,
   resolveNavCategories,
@@ -165,6 +166,59 @@ describe('DiscoveryNav interaction wiring', () => {
     assert.equal(src.includes('role="tablist"'), false);
     assert.equal(src.includes('role="tab"'), false);
     assert.equal(src.includes('aria-selected'), false);
+  });
+});
+
+describe('active category scroll', () => {
+  it('centers the chip horizontally and does not jump the page', () => {
+    const options = activeCategoryScrollOptions(false);
+    assert.equal(options.inline, 'center');
+    assert.equal(options.block, 'nearest');
+    assert.equal(options.behavior, 'smooth');
+  });
+
+  it('uses auto behavior when reduced motion is requested', () => {
+    assert.equal(activeCategoryScrollOptions(true).behavior, 'auto');
+  });
+
+  it('DiscoveryNav scrolls only the active main chip with that helper', () => {
+    const src = readFileSync(join(here, 'DiscoveryNav.tsx'), 'utf8');
+    assert.match(src, /activeCategoryScrollOptions\(reduced\)/);
+    assert.match(src, /scrollIntoView\(activeCategoryScrollOptions\(reduced\)\)/);
+    assert.match(src, /prefers-reduced-motion: reduce/);
+    assert.match(src, /\.category-btn--main\.is-active, \.category-btn--main\.is-parent-of-active/);
+    assert.equal(src.match(/const \[expandedParentSlug, setExpandedParentSlug\] = useState/g)?.length, 1);
+    assert.equal(src.match(/toggleMainExpansion\(/g)?.length, 1);
+  });
+});
+
+describe('mobile and desktop category presentation', () => {
+  it('keeps one expanded-parent source and a separate phone subcategory row', () => {
+    const src = readFileSync(join(here, 'DiscoveryNav.tsx'), 'utf8');
+    assert.match(src, /const \[expandedParentSlug, setExpandedParentSlug\]/);
+    assert.match(src, /category-subrow/);
+    assert.match(src, /category-children\$\{expanded \? ' is-open' : ''\}/);
+    assert.match(src, /aria-expanded=\{kids\.length > 0 \? expanded : undefined\}/);
+    assert.match(src, /handleChild\(child, expandedMain\)/);
+    assert.match(src, /handleChild\(child, main\)/);
+    assert.equal(src.includes('function toggleMainExpansion'), false);
+  });
+
+  it('phone rail does not wrap, keeps the wordmark, and uses a 2-column grid', () => {
+    const css = readFileSync(join(here, '../styles.css'), 'utf8');
+    const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
+    assert.match(phone, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
+    assert.match(phone, /\.category-children\s*\{[^}]*display:\s*none/);
+    assert.match(phone, /\.category-subrow\s*\{[^}]*display:\s*grid/);
+    assert.match(phone, /\.category-btn--main\s*\{[^}]*height:\s*44px/);
+    assert.match(phone, /\.brand-text\s*\{[^}]*display:\s*inline/);
+    assert.match(phone, /repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    assert.equal(/\.brand-text\s*\{[^}]*display:\s*none/.test(css), false);
+    assert.match(css, /\.category-subrow\s*\{[^}]*display:\s*none/);
+    const tablet = css.slice(css.indexOf('/* bp:tablet'), css.indexOf('/* bp:phone'));
+    assert.match(tablet, /repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(tablet, /--banner-h:\s*76px/);
+    assert.match(phone, /--banner-h:\s*96px/);
   });
 });
 

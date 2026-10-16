@@ -88,3 +88,12 @@ export function expandedParentSlugForActive(
 export function toggleMainExpansion(current: string | null, mainSlug: string): string | null {
   return current === mainSlug ? null : mainSlug;
 }
+
+/** Scroll the active main chip inside the rail without moving the page vertically. */
+export function activeCategoryScrollOptions(reducedMotion: boolean): ScrollIntoViewOptions {
+  return {
+    inline: 'center',
+    block: 'nearest',
+    behavior: reducedMotion ? 'auto' : 'smooth',
+  };
+}
