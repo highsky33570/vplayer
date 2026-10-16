@@ -15,11 +15,14 @@ import (
 
 const (
 	EnrichPendingMinLimit    = 1
-	EnrichPendingMaxLimit    = 20
+	EnrichPendingMaxLimit    = 20 // normal / timer / admin hard max
 	EnrichPendingDefaultLim  = 15
 	EnrichPendingMaxPerVideo = 3
 	EnrichPendingMinDelayMs  = 1000
 	EnrichPendingMaxConc     = 2
+	// EnrichPendingCatchUpMaxLimit is the hard max when --catch-up is set (manual only).
+	// Must match store.PendingEnrichmentMaxFinalLimit.
+	EnrichPendingCatchUpMaxLimit = 90
 )
 
 // EnrichPendingStore is the DB surface for deferred enrichment (mockable).
@@ -50,6 +53,7 @@ type EnrichPendingAction struct {
 // EnrichPendingSummary is the machine-readable worker report.
 type EnrichPendingSummary struct {
 	DryRun          bool                  `json:"dry_run"`
+	CatchUp         bool                  `json:"catch_up"`
 	Limit           int                   `json:"limit"`
 	Selected        int                   `json:"selected"`
 	Attempted       int                   `json:"attempted"`
@@ -66,10 +70,10 @@ type EnrichPendingSummary struct {
 
 // EnrichPendingWorker gradually resolves pending_enrichment play pages.
 type EnrichPendingWorker struct {
-	Store       EnrichPendingStore
-	Fetcher     PageFetcher
-	Log         *slog.Logger
-	LockName    string
+	Store             EnrichPendingStore
+	Fetcher           PageFetcher
+	Log               *slog.Logger
+	LockName          string
 	TriggerType       string // cli|timer|admin; empty defaults to cli
 	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
 }
@@ -84,15 +88,35 @@ func NewEnrichPendingWorker(st EnrichPendingStore, fetcher PageFetcher) *EnrichP
 	}
 }
 
-// ValidateEnrichPendingLimit enforces 1..20.
+// ValidateEnrichPendingLimit enforces normal-mode 1..20 (timer/admin/default CLI).
 func ValidateEnrichPendingLimit(limit int) error {
+	return ValidateEnrichPendingLimitMode(limit, false)
+}
+
+// ValidateEnrichPendingLimitMode enforces 1..20 normally, or 1..90 with catchUp.
+func ValidateEnrichPendingLimitMode(limit int, catchUp bool) error {
 	if limit < EnrichPendingMinLimit {
 		return fmt.Errorf("enrichpending: --limit must be >= %d", EnrichPendingMinLimit)
 	}
-	if limit > EnrichPendingMaxLimit {
-		return fmt.Errorf("enrichpending: --limit %d exceeds hard max %d", limit, EnrichPendingMaxLimit)
+	max := EnrichPendingMaxLimit
+	if catchUp {
+		max = EnrichPendingCatchUpMaxLimit
+	}
+	if limit > max {
+		if catchUp {
+			return fmt.Errorf("enrichpending: --limit %d exceeds catch-up hard max %d", limit, EnrichPendingCatchUpMaxLimit)
+		}
+		return fmt.Errorf("enrichpending: --limit %d exceeds hard max %d (use --catch-up for up to %d)", limit, EnrichPendingMaxLimit, EnrichPendingCatchUpMaxLimit)
 	}
 	return nil
+}
+
+// EffectiveEnrichPendingMaxLimit returns the hard ceiling for the mode.
+func EffectiveEnrichPendingMaxLimit(catchUp bool) int {
+	if catchUp {
+		return EnrichPendingCatchUpMaxLimit
+	}
+	return EnrichPendingMaxLimit
 }
 
 // ClampEnrichPendingHTTPSettings enforces delay>=1000ms and concurrency in 1..2.
@@ -119,16 +143,17 @@ func ClampEnrichPendingHTTPSettings(delayMs, concurrency, retries int) (delayOut
 //  1. videos with zero playable episodes first
 //  2. then any remaining eligible rows (other videos / already-ok videos)
 //  3. never more than EnrichPendingMaxPerVideo from one video
-//  4. never more than EnrichPendingMaxLimit globally
+//  4. never more than EnrichPendingCatchUpMaxLimit globally (absolute ceiling)
 //
 // Candidates should already be diversified by ListPendingEnrichmentEpisodes
 // (≤3 pending rows/video); this pass re-applies the same fairness rules.
+// Callers must validate --limit for normal vs --catch-up before invoking Run.
 func SelectFairPendingBatch(cands []store.PendingEnrichmentEpisode, limit int) []store.PendingEnrichmentEpisode {
 	if limit <= 0 {
 		return nil
 	}
-	if limit > EnrichPendingMaxLimit {
-		limit = EnrichPendingMaxLimit
+	if limit > EnrichPendingCatchUpMaxLimit {
+		limit = EnrichPendingCatchUpMaxLimit
 	}
 	out := make([]store.PendingEnrichmentEpisode, 0, limit)
 	perVideo := map[uint64]int{}
@@ -174,13 +199,15 @@ type enrichPendingResult struct {
 
 // Run executes one bounded enrichment pass.
 // dryRun skips catalog writes and operational_runs (lock still acquired).
-func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, concurrency int) (EnrichPendingSummary, error) {
+// catchUp enables the higher --limit ceiling (manual catch-up only; no auto-loop).
+func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, concurrency int, catchUp bool) (EnrichPendingSummary, error) {
 	sum := EnrichPendingSummary{
 		DryRun:  dryRun,
+		CatchUp: catchUp,
 		Limit:   limit,
 		Actions: make([]EnrichPendingAction, 0, limit),
 	}
-	if err := ValidateEnrichPendingLimit(limit); err != nil {
+	if err := ValidateEnrichPendingLimitMode(limit, catchUp); err != nil {
 		sum.Error = err.Error()
 		return sum, err
 	}

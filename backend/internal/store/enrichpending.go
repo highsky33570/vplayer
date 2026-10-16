@@ -10,44 +10,68 @@ import (
 // PendingEnrichmentLockName is the MySQL advisory lock for enrichpending workers.
 const PendingEnrichmentLockName = "vplayer_olehdtv_pending_enrichment"
 
+// Absolute bounds for ListPendingEnrichmentEpisodes (must match catalogsync catch-up max).
+const (
+	PendingEnrichmentMaxFinalLimit     = 90
+	PendingEnrichmentCandidateFetchCap = 120
+	PendingEnrichmentDefaultFinalLimit = 20
+)
+
 // PendingEnrichmentEpisode is a backlog row eligible for deferred play-page enrichment.
 type PendingEnrichmentEpisode struct {
-	ID             uint64
-	VideoID        uint64
-	SourceSystem   string
-	SourceVideoID  string
-	SID            int
-	NID            int
-	Title          string
-	PlaybackSource string
-	PlaybackURL    string
-	PlayPageURL    string
-	PlaybackStatus string
-	HlsObjectKey   string
+	ID              uint64
+	VideoID         uint64
+	SourceSystem    string
+	SourceVideoID   string
+	SID             int
+	NID             int
+	Title           string
+	PlaybackSource  string
+	PlaybackURL     string
+	PlayPageURL     string
+	PlaybackStatus  string
+	HlsObjectKey    string
 	StorageProvider string
 	MigrationStatus string
-	IsActive       bool
-	CreatedAt      time.Time
+	IsActive        bool
+	CreatedAt       time.Time
 	// OkEpisodeCount is how many episodes on the same video already have status=ok + URL.
 	OkEpisodeCount int
+}
+
+// PendingEnrichmentFetchLimit sizes the SQL candidate window for a worker --limit.
+// Normal limits keep a small cushion (finalLimit+6). Catch-up uses a proportional
+// cushion but never exceeds PendingEnrichmentCandidateFetchCap (120).
+func PendingEnrichmentFetchLimit(finalLimit int) int {
+	if finalLimit <= 0 {
+		finalLimit = PendingEnrichmentDefaultFinalLimit
+	}
+	if finalLimit > PendingEnrichmentMaxFinalLimit {
+		finalLimit = PendingEnrichmentMaxFinalLimit
+	}
+	cushion := 6
+	if d := finalLimit / 5; d > cushion {
+		cushion = d
+	}
+	fetchLimit := finalLimit + cushion
+	if fetchLimit > PendingEnrichmentCandidateFetchCap {
+		fetchLimit = PendingEnrichmentCandidateFetchCap
+	}
+	return fetchLimit
 }
 
 // ListPendingEnrichmentEpisodes returns diversified candidate backlog rows.
 // At most 3 pending episodes per video are returned (pending_rank), then ordered by
 // zero-ok priority so a single huge series cannot fill the entire LIMIT alone.
-// finalLimit is the worker --limit (1–20); we fetch enough multi-video rows to fill it.
+// finalLimit is the worker --limit (1–90 absolute store bound); fetch window is bounded.
 func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]PendingEnrichmentEpisode, error) {
 	if finalLimit <= 0 {
-		finalLimit = 20
+		finalLimit = PendingEnrichmentDefaultFinalLimit
 	}
-	if finalLimit > 20 {
-		finalLimit = 20
+	if finalLimit > PendingEnrichmentMaxFinalLimit {
+		finalLimit = PendingEnrichmentMaxFinalLimit
 	}
-	// Enough for finalLimit with ≤3/video, plus a small cushion for Go-side filtering.
-	fetchLimit := finalLimit + 6
-	if fetchLimit > 60 {
-		fetchLimit = 60
-	}
+	fetchLimit := PendingEnrichmentFetchLimit(finalLimit)
 	const maxPerVideo = 3
 	// ROW_NUMBER caps each video at 3 pending rows before the global LIMIT, so a
 	// single zero-ok series cannot monopolize the candidate window.

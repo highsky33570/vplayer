@@ -146,13 +146,7 @@ func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit
 		diversified = append(diversified, e)
 	}
 	out = diversified
-	fetchLimit := finalLimit + 6
-	if finalLimit <= 0 {
-		fetchLimit = 20
-	}
-	if fetchLimit > 60 {
-		fetchLimit = 60
-	}
+	fetchLimit := store.PendingEnrichmentFetchLimit(finalLimit)
 	if len(out) > fetchLimit {
 		out = out[:fetchLimit]
 	}
@@ -217,6 +211,24 @@ func TestValidateEnrichPendingLimit(t *testing.T) {
 	}
 	if err := ValidateEnrichPendingLimit(15); err != nil {
 		t.Fatal(err)
+	}
+	if err := ValidateEnrichPendingLimit(20); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateEnrichPendingLimitMode(40, false); err == nil {
+		t.Fatal("normal mode must reject 40")
+	}
+	if err := ValidateEnrichPendingLimitMode(21, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateEnrichPendingLimitMode(90, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateEnrichPendingLimitMode(91, true); err == nil {
+		t.Fatal("catch-up must reject 91")
+	}
+	if EnrichPendingCatchUpMaxLimit != store.PendingEnrichmentMaxFinalLimit {
+		t.Fatalf("catch-up max %d != store max %d", EnrichPendingCatchUpMaxLimit, store.PendingEnrichmentMaxFinalLimit)
 	}
 }
 
@@ -370,7 +382,7 @@ func TestEnrichPending_listDiversifiesAndFillsLimit(t *testing.T) {
 		t.Fatalf("list must include multiple videos, got %v", per)
 	}
 
-	sum, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 5, true, 1)
+	sum, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 5, true, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +404,7 @@ func TestEnrichPending_listDiversifiesAndFillsLimit(t *testing.T) {
 
 	add(40, "D", 20)
 	add(50, "E", 20)
-	sum15, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 15, true, 1)
+	sum15, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 15, true, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +428,7 @@ func TestEnrichPending_successActivatesPlayableEpisode(t *testing.T) {
 		IsActive: false,
 	}
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
-	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +452,7 @@ func TestEnrichPending_sourceRestrictedBecomesUnavailable(t *testing.T) {
 		IsActive: false,
 	}
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": restricted}}
-	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +483,7 @@ func TestEnrichPending_sourceRestrictedDryRun(t *testing.T) {
 		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
 	}
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": restricted}}
-	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, true, 1)
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, true, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,7 +510,7 @@ func TestEnrichPending_successAndIdempotent(t *testing.T) {
 		"https://src/p4": playHTML("https://cdn.example/4.m3u8"),
 	}}
 	svc := NewEnrichPendingWorker(st, f)
-	sum, err := svc.Run(context.Background(), 5, false, 1)
+	sum, err := svc.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +522,7 @@ func TestEnrichPending_successAndIdempotent(t *testing.T) {
 		t.Fatalf("%+v", ep)
 	}
 	writes := st.writes
-	sum2, err := svc.Run(context.Background(), 5, false, 1)
+	sum2, err := svc.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,7 +538,7 @@ func TestEnrichPending_fetchFailRemainsPending(t *testing.T) {
 		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
 	}
 	f := &mapFetcher{err: map[string]error{"https://src/p1": errors.New("timeout")}}
-	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
 	if err == nil {
 		t.Fatal("expected failure return when only failures")
 	}
@@ -548,7 +560,7 @@ func TestEnrichPending_parseFailRemainsPending(t *testing.T) {
 		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
 	}
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": `<html>no player</html>`}}
-	sum, _ := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+	sum, _ := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
 	if sum.StillPending != 1 || st.writes != 0 || st.episodes[1].PlaybackStatus != "pending_enrichment" {
 		t.Fatalf("%+v ep=%+v", sum, st.episodes[1])
 	}
@@ -571,7 +583,7 @@ func TestEnrichPending_neverOverwritesGoodOrMigration(t *testing.T) {
 	f := &mapFetcher{pages: map[string]string{
 		"https://src/p2": playHTML("https://cdn.example/2.m3u8"),
 	}}
-	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -596,7 +608,7 @@ func TestEnrichPending_dryRunZeroWrites(t *testing.T) {
 		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
 	}
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
-	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, true, 1)
+	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, true, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -618,7 +630,7 @@ func TestEnrichPending_lockBusyZeroWork(t *testing.T) {
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://x/1.m3u8")}}
 	w := NewEnrichPendingWorker(st, f)
 	w.TriggerType = store.TriggerTimer
-	sum, err := w.Run(context.Background(), 5, false, 1)
+	sum, err := w.Run(context.Background(), 5, false, 1, false)
 	if err == nil || !errors.Is(err, store.ErrOperationLocked) || sum.LockAcquired || sum.Attempted != 0 || f.hits != 0 {
 		t.Fatalf("sum=%+v err=%v hits=%d", sum, err, f.hits)
 	}
@@ -637,7 +649,7 @@ func TestEnrichPending_operationalSuccess(t *testing.T) {
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
 	w := NewEnrichPendingWorker(st, f)
 	w.TriggerType = store.TriggerCLI
-	sum, err := w.Run(context.Background(), 5, false, 1)
+	sum, err := w.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,7 +674,7 @@ func TestEnrichPending_invalidTrigger(t *testing.T) {
 	st := newEnrichMemStore()
 	w := NewEnrichPendingWorker(st, &mapFetcher{})
 	w.TriggerType = "weird"
-	_, err := w.Run(context.Background(), 5, false, 1)
+	_, err := w.Run(context.Background(), 5, false, 1, false)
 	if err == nil {
 		t.Fatal("expected invalid trigger")
 	}
@@ -682,21 +694,21 @@ func TestEnrichPending_adminRequesterRulesAndAudit(t *testing.T) {
 	w0 := NewEnrichPendingWorker(st, f)
 	w0.TriggerType = store.TriggerAdmin
 	w0.RequestedByUserID = 0
-	if _, err := w0.Run(context.Background(), 5, false, 1); err == nil || st.locked || len(st.opRuns) != 0 {
+	if _, err := w0.Run(context.Background(), 5, false, 1, false); err == nil || st.locked || len(st.opRuns) != 0 {
 		t.Fatal("admin without requester must fail early")
 	}
 
 	wCLI := NewEnrichPendingWorker(st, f)
 	wCLI.TriggerType = store.TriggerCLI
 	wCLI.RequestedByUserID = 3
-	if _, err := wCLI.Run(context.Background(), 5, false, 1); err == nil {
+	if _, err := wCLI.Run(context.Background(), 5, false, 1, false); err == nil {
 		t.Fatal("cli with requester must fail")
 	}
 
 	wOK := NewEnrichPendingWorker(st, f)
 	wOK.TriggerType = store.TriggerAdmin
 	wOK.RequestedByUserID = 55
-	sum, err := wOK.Run(context.Background(), 5, false, 1)
+	sum, err := wOK.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -710,7 +722,7 @@ func TestEnrichPending_adminRequesterRulesAndAudit(t *testing.T) {
 	wBusy := NewEnrichPendingWorker(stBusy, f)
 	wBusy.TriggerType = store.TriggerAdmin
 	wBusy.RequestedByUserID = 88
-	_, err = wBusy.Run(context.Background(), 5, false, 1)
+	_, err = wBusy.Run(context.Background(), 5, false, 1, false)
 	if err == nil || !errors.Is(err, store.ErrOperationLocked) {
 		t.Fatalf("expected lock busy: %v", err)
 	}
@@ -743,7 +755,7 @@ func TestEnrichPending_returnSemanticsAndAudit(t *testing.T) {
 			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
 		}
 		f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
-		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
 		if err != nil {
 			t.Fatalf("pre-4A returns nil on success: %v", err)
 		}
@@ -769,7 +781,7 @@ func TestEnrichPending_returnSemanticsAndAudit(t *testing.T) {
 			pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")},
 			err:   map[string]error{"https://src/p2": fmt.Errorf("fetch boom")},
 		}
-		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
 		if err != nil {
 			t.Fatalf("pre-4A returns nil when Enriched>0 even with Failures: %v sum=%+v", err, sum)
 		}
@@ -789,7 +801,7 @@ func TestEnrichPending_returnSemanticsAndAudit(t *testing.T) {
 			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
 		}
 		f := &mapFetcher{pages: map[string]string{"https://src/p1": `<html>no player</html>`}}
-		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1)
+		sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
 		if err == nil {
 			t.Fatalf("pre-4A returns error when Failures>0 Enriched==0 Error==\"\": %+v", sum)
 		}
@@ -813,7 +825,7 @@ func TestEnrichPending_returnSemanticsAndAudit(t *testing.T) {
 			inner:  &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}},
 			cancel: cancel,
 		}
-		sum, err := NewEnrichPendingWorker(st, f).Run(ctx, 5, false, 1)
+		sum, err := NewEnrichPendingWorker(st, f).Run(ctx, 5, false, 1, false)
 		if err != nil {
 			t.Fatalf("must not invent timeout/error after successful enrichment: %v sum=%+v", err, sum)
 		}
@@ -845,7 +857,7 @@ func TestEnrichPending_returnSemanticsAndAudit(t *testing.T) {
 			"https://src/p1": playHTML("https://cdn.example/1.m3u8"),
 			"https://src/p2": playHTML("https://cdn.example/2.m3u8"),
 		}}
-		sum, err := NewEnrichPendingWorker(st, f).Run(ctx, 5, false, 1)
+		sum, err := NewEnrichPendingWorker(st, f).Run(ctx, 5, false, 1, false)
 		// Pre-4A: ctx.Done sets Error+Failures; with Enriched==0 and Error!="", return is nil.
 		if err != nil {
 			t.Fatalf("pre-4A returns nil when Error already set from ctx.Done: %v sum=%+v", err, sum)
@@ -902,8 +914,98 @@ func TestSelectFairPendingBatch_enforcesMaxLimit(t *testing.T) {
 		})
 	}
 	got := SelectFairPendingBatch(cands, 100)
-	if len(got) > EnrichPendingMaxLimit {
-		t.Fatalf("len=%d", len(got))
+	if len(got) > EnrichPendingCatchUpMaxLimit {
+		t.Fatalf("len=%d want <=%d", len(got), EnrichPendingCatchUpMaxLimit)
+	}
+}
+
+func TestSelectFairPendingBatch_catchUpSizedFairness(t *testing.T) {
+	var cands []store.PendingEnrichmentEpisode
+	id := uint64(1)
+	// 40 zero-ok videos × 5 pending each (SQL-like diversification would cap at 3; keep extras to prove Go cap)
+	for v := uint64(1); v <= 40; v++ {
+		for n := 1; n <= 5; n++ {
+			cands = append(cands, store.PendingEnrichmentEpisode{
+				ID: id, VideoID: v, OkEpisodeCount: 0, NID: n, SourceVideoID: "z",
+			})
+			id++
+		}
+	}
+	// Already-playable videos later in candidate list
+	for v := uint64(100); v <= 120; v++ {
+		for n := 1; n <= 3; n++ {
+			cands = append(cands, store.PendingEnrichmentEpisode{
+				ID: id, VideoID: v, OkEpisodeCount: 2, NID: n, SourceVideoID: "ok",
+			})
+			id++
+		}
+	}
+	got := SelectFairPendingBatch(cands, 60)
+	if len(got) != 60 {
+		t.Fatalf("len=%d want 60", len(got))
+	}
+	perVideo := map[uint64]int{}
+	zeroOK := 0
+	for _, g := range got {
+		perVideo[g.VideoID]++
+		if perVideo[g.VideoID] > EnrichPendingMaxPerVideo {
+			t.Fatalf("video %d selected %d > max %d", g.VideoID, perVideo[g.VideoID], EnrichPendingMaxPerVideo)
+		}
+		if g.OkEpisodeCount == 0 {
+			zeroOK++
+		}
+	}
+	if zeroOK != 60 {
+		t.Fatalf("expected all 60 from zero-ok videos first, got zeroOK=%d", zeroOK)
+	}
+}
+
+func TestPendingEnrichmentFetchLimit_catchUpBounded(t *testing.T) {
+	// Normal-equivalent sizing
+	if got := store.PendingEnrichmentFetchLimit(15); got != 21 {
+		t.Fatalf("limit15 fetch=%d want 21", got)
+	}
+	if got := store.PendingEnrichmentFetchLimit(20); got != 26 {
+		t.Fatalf("limit20 fetch=%d want 26", got)
+	}
+	// Catch-up: must exceed old hard cap of 60
+	if got := store.PendingEnrichmentFetchLimit(60); got <= 60 {
+		t.Fatalf("catch-up fetch=%d should exceed old cap 60", got)
+	}
+	if got := store.PendingEnrichmentFetchLimit(90); got != 108 {
+		t.Fatalf("limit90 fetch=%d want 108", got)
+	}
+	if got := store.PendingEnrichmentFetchLimit(90); got > store.PendingEnrichmentCandidateFetchCap {
+		t.Fatalf("fetch=%d exceeds cap %d", got, store.PendingEnrichmentCandidateFetchCap)
+	}
+	// Absolute store clamp
+	if got := store.PendingEnrichmentFetchLimit(1000); got > store.PendingEnrichmentCandidateFetchCap {
+		t.Fatalf("unbounded fetch=%d", got)
+	}
+}
+
+func TestEnrichPending_catchUpRunAcceptsHighLimit(t *testing.T) {
+	st := newEnrichMemStore()
+	pages := map[string]string{}
+	for i := 1; i <= 45; i++ {
+		url := fmt.Sprintf("https://src/p%d", i)
+		st.episodes[uint64(i)] = &store.PendingEnrichmentEpisode{
+			ID: uint64(i), VideoID: uint64(i), SourceSystem: olehdtv.SourceSystem, SourceVideoID: fmt.Sprintf("v%d", i),
+			SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: url,
+		}
+		pages[url] = playHTML(fmt.Sprintf("https://cdn.example/%d.m3u8", i))
+	}
+	sum, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 40, true, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sum.CatchUp || sum.Limit != 40 || sum.Selected != 40 {
+		t.Fatalf("%+v", sum)
+	}
+	// Without catch-up, same limit must fail validation
+	sum2, err2 := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 40, true, 1, false)
+	if err2 == nil || sum2.Error == "" {
+		t.Fatalf("expected normal mode reject: %+v err=%v", sum2, err2)
 	}
 }
 
@@ -916,7 +1018,7 @@ func TestEnrichPending_skipsRaceAlreadyFilled(t *testing.T) {
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
 	// Pretend another writer filled the row before Apply: wrap store
 	wrapped := &raceStore{enrichMemStore: st}
-	sum, err := NewEnrichPendingWorker(wrapped, f).Run(context.Background(), 5, false, 1)
+	sum, err := NewEnrichPendingWorker(wrapped, f).Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -958,7 +1060,7 @@ func TestEnrichPending_prioritizeZeroOkInRun(t *testing.T) {
 	for nid := 1; nid <= 5; nid++ {
 		pages[fmt.Sprintf("https://src/old/%d", nid)] = playHTML(fmt.Sprintf("https://cdn.example/old%d.m3u8", nid))
 	}
-	sum, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 1, false, 1)
+	sum, err := NewEnrichPendingWorker(st, &mapFetcher{pages: pages}).Run(context.Background(), 1, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
