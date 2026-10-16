@@ -1,36 +1,75 @@
-# Enrichpending catch-up (manual)
+# Enrichpending catch-up and drain (manual)
 
-## Normal (unchanged)
-
-Scheduled / steady-state enrichment stays bounded and gentle:
+## Normal scheduled mode (unchanged)
 
 ```bash
 /opt/vplayer/backend/bin/enrichpending --limit 15 --concurrency 1 --trigger=timer
 ```
 
-The systemd timer/service continue to use this form. Admin “Run Enrichment” remains `--limit 15`.
+- Limit hard max **20** (default **15**).
+- systemd timer/service stay on this form — **do not** point them at `--catch-up` or `--drain`.
+- Admin “Run Enrichment” remains `--limit 15`.
 
-## Manual catch-up
+## One-shot catch-up (manual)
 
-For a large `pending_enrichment` backlog (e.g. after leaf import), use an **explicit** catch-up invocation. Do **not** put catch-up on an automatic drain loop or change the 3-hour timer.
-
-Initial recommended batch:
+Single bounded batch with a higher limit (max **90**):
 
 ```bash
 cd /opt/vplayer
 ./backend/bin/enrichpending --catch-up --limit 40 --concurrency 1 --trigger=cli
 ```
 
-Optional dry-run first:
+Dry-run (single batch only):
 
 ```bash
 ./backend/bin/enrichpending --catch-up --limit 40 --concurrency 1 --dry-run
 ```
 
-### Rules
+## Manual drain (explicit backlog clear)
 
-- `--catch-up` is required for `--limit` above 20 (hard max **90**).
-- Each run is a **single bounded batch** (no loop-until-empty).
-- Same advisory lock, fairness (zero-playable first, ≤3 episodes/video), HTTP delay ≥1000ms, concurrency ≤2.
-- Re-run manually only after the previous run finishes; verify `operational_runs` and spot-check `/play` before increasing limit (e.g. 40 → 60).
-- Interrupt/re-run is safe; already-enriched rows are skipped.
+Repeats catch-up batches under **one** advisory lock until the backlog is empty or a safety limit hits.
+
+**Drain is NOT scheduled automatically.** Do not add a drain systemd timer.
+
+Example:
+
+```bash
+cd /opt/vplayer
+./backend/bin/enrichpending --catch-up --drain --limit 90 --concurrency 1 --max-batches 40 --max-runtime 60m --trigger=cli
+```
+
+### Safety limits
+
+| Flag | Default | Hard bounds |
+|------|---------|-------------|
+| `--limit` (per batch) | 15 | 1–90 with `--catch-up` |
+| `--concurrency` | 1 | 1–2 |
+| request delay | from env | ≥ **1000ms** |
+| `--max-batches` | 40 | 1–100 |
+| `--max-runtime` | 60m | &gt;0 and ≤ **3h** |
+
+Rules:
+
+- `--drain` **requires** `--catch-up`.
+- `--drain` **rejects** `--dry-run` (would re-select the same rows).
+- Per-batch limit still capped at **90**; no parallel batches.
+- Same fairness (zero-playable first, ≤3 episodes/video), source-restricted → unavailable, and `operational_runs` **per batch**.
+
+### Stop conditions
+
+Drain stops when any of these occurs:
+
+1. A batch selects **0** rows → success (`stop_reason=empty`)
+2. `--max-batches` reached (`max_batches`)
+3. `--max-runtime` / context deadline (`max_runtime`)
+4. SIGINT / SIGTERM (`interrupted`, non-zero exit)
+5. Any real processing **failures** in a batch (`failures`, non-zero exit)
+6. Selected rows but **zero resolved progress** (`enriched + unavailable + skipped_existing == 0`) → `no_progress`, non-zero exit
+
+Unavailable / source_restricted counts as **progress**, not failure.
+
+`skipped_existing` also counts as progress: it only occurs when `ApplyPlaybackEnrichment` updates 0 rows because the episode is already outside `pending_enrichment` + empty `playback_url`, so the next batch cannot select it again.
+
+### Aggregate output
+
+Stdout JSON includes `drain=true`, batch totals, `stop_reason`, and `elapsed` — not thousands of per-episode actions. Each batch still writes a normal `operational_runs` row (`trigger_type=cli`).

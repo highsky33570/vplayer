@@ -199,7 +199,8 @@ type enrichPendingResult struct {
 
 // Run executes one bounded enrichment pass.
 // dryRun skips catalog writes and operational_runs (lock still acquired).
-// catchUp enables the higher --limit ceiling (manual catch-up only; no auto-loop).
+// catchUp enables the higher --limit ceiling (manual catch-up only).
+// Lock is acquired for this single batch and released before return.
 func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, concurrency int, catchUp bool) (EnrichPendingSummary, error) {
 	sum := EnrichPendingSummary{
 		DryRun:  dryRun,
@@ -259,6 +260,41 @@ func (w *EnrichPendingWorker) Run(ctx context.Context, limit int, dryRun bool, c
 	}
 	sum.LockAcquired = true
 	defer func() { _ = hold.Release() }()
+
+	return w.runBatchLocked(ctx, limit, dryRun, concurrency, catchUp)
+}
+
+// runBatchLocked performs one enrichment batch. Caller must already hold the advisory lock
+// for the desired session lifetime (single Run or multi-batch RunDrain).
+func (w *EnrichPendingWorker) runBatchLocked(ctx context.Context, limit int, dryRun bool, concurrency int, catchUp bool) (EnrichPendingSummary, error) {
+	sum := EnrichPendingSummary{
+		DryRun:       dryRun,
+		CatchUp:      catchUp,
+		Limit:        limit,
+		LockAcquired: true,
+		Actions:      make([]EnrichPendingAction, 0, limit),
+	}
+	if concurrency <= 0 {
+		concurrency = 1
+	}
+	if concurrency > EnrichPendingMaxConc {
+		concurrency = EnrichPendingMaxConc
+	}
+
+	trigger := w.TriggerType
+	if trigger == "" {
+		trigger = store.TriggerCLI
+	}
+	trigger, err := store.ValidateTriggerType(trigger)
+	if err != nil {
+		sum.Error = err.Error()
+		return sum, err
+	}
+	if err := store.ValidateTriggerRequester(trigger, w.RequestedByUserID); err != nil {
+		sum.Error = err.Error()
+		return sum, err
+	}
+	reqBy := store.RequestedByPtr(w.RequestedByUserID)
 
 	var opID uint64
 	if !dryRun {
