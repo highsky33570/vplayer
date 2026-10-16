@@ -157,7 +157,10 @@ describe('DiscoveryNav interaction wiring', () => {
   it('renders a semantic nav rail without WAI-ARIA tab roles', () => {
     const src = readFileSync(join(here, 'DiscoveryNav.tsx'), 'utf8');
     assert.match(src, /<nav className="category-rail" aria-label="分类导航">/);
-    assert.match(src, /\{expanded &&\s*kids\.map/);
+    assert.match(src, /category-children\$\{expanded \? ' is-open' : ''\}/);
+    assert.match(src, /kids\.map/);
+    assert.match(src, /tabIndex=\{expanded \? 0 : -1\}/);
+    assert.match(src, /aria-hidden=\{!expanded\}/);
     assert.equal(src.includes('category-grid'), false);
     assert.equal(src.includes('role="tablist"'), false);
     assert.equal(src.includes('role="tab"'), false);

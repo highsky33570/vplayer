@@ -726,6 +726,38 @@ img {
   flex: 0 0 auto;
 }
 
+/* Inline expand/collapse: animate track width via 0fr → 1fr (keeps one horizontal row). */
+.category-children {
+  display: grid;
+  grid-template-columns: 0fr;
+  min-width: 0;
+  overflow: hidden;
+  transition: grid-template-columns 220ms ease;
+}
+
+.category-children.is-open {
+  grid-template-columns: 1fr;
+}
+
+.category-children-inner {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.category-children.is-open .category-children-inner {
+  opacity: 1;
+  pointer-events: auto;
+  /* Small leading gap after the parent main button when open */
+  padding-left: 2px;
+}
+
 .category-btn {
   box-sizing: border-box;
   flex: 0 0 auto;
@@ -760,31 +792,54 @@ img {
   font-size: 13px;
 }
 
+/* Child categories: text-link look (still <button> for a11y/interaction). */
 .category-btn--child {
-  height: 32px;
-  min-width: 3.25rem;
-  max-width: 6rem;
-  padding: 0 8px;
+  height: auto;
+  min-height: 32px;
+  min-width: 0;
+  max-width: 7rem;
+  padding: 0 5px;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
-  background: var(--soft);
-  border-color: var(--line);
-  opacity: 0.95;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  opacity: 1;
+  text-decoration: none;
+  box-shadow: none;
 }
 
-.category-btn:hover {
+.category-btn--main:hover {
   color: var(--brand);
   border-color: rgba(0, 174, 236, 0.35);
   background: rgba(0, 174, 236, 0.08);
 }
 
-.category-btn.is-active {
+.category-btn--child:hover {
+  color: var(--brand);
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.category-btn--main.is-active {
   color: #fff;
   background: var(--brand);
   border-color: var(--brand);
   font-weight: 600;
   opacity: 1;
+}
+
+.category-btn--child.is-active {
+  color: var(--brand);
+  background: transparent;
+  border: 0;
+  font-weight: 700;
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .category-btn--main.is-parent-of-active {
@@ -999,16 +1054,29 @@ html.dark .video-card:hover .thumb {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-html.dark .category-btn:not(.entry-rec):not(.entry-hot) {
+html.dark .category-btn--main:not(.entry-rec):not(.entry-hot):not(.is-active) {
   background: var(--elevated);
   color: var(--text-2);
   border-color: var(--line);
 }
 
-html.dark .category-btn:not(.entry-rec):not(.entry-hot):hover {
+html.dark .category-btn--main:not(.entry-rec):not(.entry-hot):not(.is-active):hover {
   color: var(--brand);
   border-color: rgba(0, 174, 236, 0.4);
   background: rgba(0, 174, 236, 0.12);
+}
+
+html.dark .category-btn--child {
+  background: transparent;
+  border: 0;
+  color: var(--text-2);
+}
+
+html.dark .category-btn--child:hover,
+html.dark .category-btn--child.is-active {
+  background: transparent;
+  border: 0;
+  color: var(--brand);
 }
 
 .featured-side {
@@ -1847,7 +1915,7 @@ html.dark .login-reminder-cta {
   }
 
   .category-btn--child {
-    height: 34px;
+    min-height: 32px;
     font-size: 12px;
   }
 
@@ -1961,9 +2029,9 @@ html.dark .login-reminder-cta {
   }
 
   .category-btn--child {
-    height: 34px;
+    min-height: 32px;
     font-size: 11px;
-    padding: 0 8px;
+    padding: 0 5px;
   }
 
   .carousel {
@@ -2093,6 +2161,11 @@ html.dark .login-reminder-cta {
   *::before,
   *::after {
     animation: none !important;
+    transition: none !important;
+  }
+
+  .category-children,
+  .category-children-inner {
     transition: none !important;
   }
 

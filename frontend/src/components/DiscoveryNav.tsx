@@ -86,17 +86,26 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
                 <span className="category-label">{main.name}</span>
               </button>
 
-              {expanded &&
-                kids.map((child) => (
-                  <button
-                    key={`${child.id}-${child.slug}`}
-                    type="button"
-                    className={`category-btn category-btn--child${active === child.slug ? ' is-active' : ''}`}
-                    onClick={() => handleChild(child, main)}
-                  >
-                    <span className="category-label">{child.name}</span>
-                  </button>
-                ))}
+              {kids.length > 0 && (
+                <div
+                  className={`category-children${expanded ? ' is-open' : ''}`}
+                  aria-hidden={!expanded}
+                >
+                  <div className="category-children-inner">
+                    {kids.map((child) => (
+                      <button
+                        key={`${child.id}-${child.slug}`}
+                        type="button"
+                        tabIndex={expanded ? 0 : -1}
+                        className={`category-btn category-btn--child${active === child.slug ? ' is-active' : ''}`}
+                        onClick={() => handleChild(child, main)}
+                      >
+                        <span className="category-label">{child.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
