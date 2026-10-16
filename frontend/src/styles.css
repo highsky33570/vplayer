@@ -1937,9 +1937,14 @@ html.dark .login-reminder-cta {
   }
 
   .carousel {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    height: auto;
     min-height: 0;
-    max-height: 300px;
+    max-height: none;
     aspect-ratio: 16 / 9;
+    justify-self: stretch;
   }
 
   .watch {
@@ -2215,8 +2220,12 @@ html.dark .login-reminder-cta {
   }
 
   .carousel {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    height: auto;
     min-height: 0;
-    max-height: 220px;
+    max-height: none;
     aspect-ratio: 16 / 9;
     border-radius: 10px;
   }
