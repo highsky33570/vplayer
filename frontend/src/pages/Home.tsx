@@ -4,12 +4,13 @@ import { listCategories, listVideosPage, type Category, type Video } from '../ap
 import { ContentSection } from '../components/ContentSection';
 import { DiscoveryNav, resolveNavCategories } from '../components/DiscoveryNav';
 import { FeaturedGrid } from '../components/FeaturedGrid';
+import { FEATURED_POOL_LIMIT } from '../components/featuredLayout';
 import { VideoCard } from '../components/VideoCard';
 
 const PAGE_SIZE = 30;
 
-/** Default desktop `.video-grid` is 6 columns → two rows = 12 cards per section. */
-const GRID_COLS_DESKTOP = 6;
+/** Large-desktop `.video-grid` is 5 columns → two rows = 10 cards per section. */
+const GRID_COLS_DESKTOP = 5;
 const HOME_SECTION_ROWS = 2;
 const HOME_SECTION_LIMIT = GRID_COLS_DESKTOP * HOME_SECTION_ROWS;
 
@@ -90,7 +91,7 @@ export function Home() {
 
       Promise.all([
         listVideosPage({
-          limit: HOME_SECTION_LIMIT,
+          limit: FEATURED_POOL_LIMIT,
           offset: 0,
           excludeCategorySlug: 'midnight',
         }),
@@ -179,7 +180,7 @@ export function Home() {
 
   const isSearch = Boolean(searchQ);
   const featured =
-    isHomeLanding && homeSections ? homeSections.latest.slice(0, 5) : [];
+    isHomeLanding && homeSections ? homeSections.latest.slice(0, FEATURED_POOL_LIMIT) : [];
   const emptyCategory = !loading && !isHomeLanding && videos.length === 0;
   const listTitle = isSearch
     ? `搜索：${searchQ}`
@@ -225,7 +226,7 @@ export function Home() {
         {HOME_SECTIONS.map((section) => {
           const items = section.slug
             ? (homeSections?.bySlug[section.slug] ?? [])
-            : latest;
+            : latest.slice(0, HOME_SECTION_LIMIT);
           const moreTo = section.slug ? `/?ch=${section.slug}` : undefined;
 
           return (
@@ -258,7 +259,7 @@ export function Home() {
             <>
               <div className="skel skel-featured" />
               <div className="video-grid">
-                {Array.from({ length: 12 }).map((_, i) => (
+                {Array.from({ length: HOME_SECTION_LIMIT }).map((_, i) => (
                   <div key={i} className="skel-card">
                     <div className="skel skel-thumb" />
                     <div className="skel skel-line" />

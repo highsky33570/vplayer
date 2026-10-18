@@ -47,10 +47,10 @@ describe('homepage midnight exclusion wiring', () => {
     // Exactly one exclude wiring site on the landing latest fetch.
     const excludeHits = home.match(/excludeCategorySlug:\s*['"]midnight['"]/g) ?? [];
     assert.equal(excludeHits.length, 1);
-    assert.match(home, /homeSections\.latest\.slice\(0,\s*5\)/);
+    assert.match(home, /homeSections\.latest\.slice\(0,\s*FEATURED_POOL_LIMIT\)/);
     const latestCall = home.slice(home.indexOf('Promise.all'), home.indexOf('...categoryFetches'));
     assert.match(latestCall, /excludeCategorySlug:\s*['"]midnight['"]/);
-    assert.match(latestCall, /limit:\s*HOME_SECTION_LIMIT/);
+    assert.match(latestCall, /limit:\s*FEATURED_POOL_LIMIT/);
   });
 
   it('does not send exclusion on dedicated midnight category section', () => {

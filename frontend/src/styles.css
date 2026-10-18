@@ -953,19 +953,35 @@ img {
 /* ——— Featured grid ——— */
 .featured-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   gap: 12px;
   margin-bottom: 28px;
+  align-items: stretch;
   animation: riseIn 0.4s ease both;
+}
+
+.featured-grid.is-hero-only {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .carousel {
   position: relative;
   border-radius: 10px;
   overflow: hidden;
-  aspect-ratio: 16 / 10;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
   background: #111;
-  min-height: 240px;
+  align-self: stretch;
+}
+
+.featured-grid.is-hero-only .carousel {
+  aspect-ratio: 16 / 9;
+  height: auto;
 }
 
 .carousel-slide {
@@ -1094,23 +1110,21 @@ html.dark .category-btn--child.is-active {
 
 .featured-side {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 10px;
-  align-content: stretch;
+  align-content: start;
+  min-width: 0;
 }
 
 .featured-side .video-card .thumb {
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
 }
 
-.featured-empty {
-  grid-column: 1 / -1;
-  display: grid;
-  place-items: center;
-  background: var(--soft);
-  border-radius: 10px;
-  color: var(--muted);
+.featured-side .video-title {
+  margin: 6px 0 0;
   font-size: 13px;
+  line-height: 1.35;
+  min-height: calc(1.35em * 2);
 }
 
 .content-section {
@@ -1195,8 +1209,8 @@ html.dark .category-btn--child.is-active {
 
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 16px 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px 12px;
 }
 
 .video-card {
@@ -1806,17 +1820,33 @@ html.dark .login-reminder-cta {
 }
 
 /* ——— Responsive ——— */
-@media (max-width: 1400px) {
-  .video-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 1280px) {
+/* bp:desk-mid — under 1280px: 4 catalog columns, featured side in 2 columns */
+@media (max-width: 1279px) {
   .video-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
+  .featured-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .featured-side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .carousel {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    aspect-ratio: 16 / 10;
+  }
+}
+
+@media (max-width: 1280px) {
   .banner-action.hide-md,
   .banner-actions .banner-action:nth-child(n + 6) {
     display: none;
