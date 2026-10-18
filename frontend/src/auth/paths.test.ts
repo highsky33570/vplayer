@@ -13,11 +13,8 @@ describe('videoEntryHref', () => {
     assert.equal(videoEntryHref(false, true, 12), null);
   });
 
-  it('sends guests to /login?next=/watch/:id', () => {
-    assert.equal(videoEntryHref(true, false, 42), '/login?next=%2Fwatch%2F42');
-  });
-
-  it('sends authenticated users to /watch/:id', () => {
+  it('sends guests and members to the public watch page', () => {
+    assert.equal(videoEntryHref(true, false, 42), '/watch/42');
     assert.equal(videoEntryHref(true, true, 42), '/watch/42');
   });
 });

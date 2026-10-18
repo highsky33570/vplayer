@@ -103,6 +103,8 @@ export type Video = {
   director?: string;
   actors?: string;
   rating?: number;
+  play_sid?: number;
+  play_nid?: number;
 };
 
 export type PlaybackInfo = {
@@ -238,6 +240,99 @@ export async function getPlayback(
     data.type = data.type || 'hls';
   }
   return data;
+}
+
+export type PublicEpisode = {
+  sid: number;
+  nid: number;
+  title: string;
+};
+
+export type RelatedVideo = {
+  id: number;
+  title: string;
+  cover_url: string;
+  view_count: number;
+  year?: string;
+  category_id: number;
+  duration_sec: number;
+};
+
+export type VideoComment = {
+  id: number;
+  video_id: number;
+  body: string;
+  created_at: string;
+  author: { display_name: string };
+  mine?: boolean;
+};
+
+export type CommentPage = {
+  data: VideoComment[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+export function listRelated(id: number) {
+  return getJSON<RelatedVideo[]>(`/api/v1/videos/${id}/related?limit=10`);
+}
+
+export function listEpisodes(id: number) {
+  return getJSON<PublicEpisode[]>(`/api/v1/videos/${id}/episodes`);
+}
+
+export async function listComments(id: number, offset = 0, token?: string | null): Promise<CommentPage> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/videos/${id}/comments?limit=20&offset=${offset}`, { headers });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: VideoComment[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    data: json.data ?? [],
+    total: Number(json.total ?? 0),
+    limit: Number(json.limit ?? 20),
+    offset: Number(json.offset ?? offset),
+    has_more: Boolean(json.has_more),
+  };
+}
+
+export async function postComment(id: number, body: string, token: string): Promise<VideoComment> {
+  const res = await fetch(`${API_BASE}/api/v1/videos/${id}/comments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ body }),
+  });
+  const json = await parseJSONResponse(res);
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data as VideoComment;
+}
+
+export async function deleteComment(id: number, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/comments/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const json = await parseJSONResponse(res);
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
 }
 
 export async function createPlaySession(id: number, token?: string | null) {

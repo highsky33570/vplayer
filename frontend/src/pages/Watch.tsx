@@ -3,9 +3,25 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import Player from 'xgplayer';
 import HlsPlugin from 'xgplayer-hls';
 import 'xgplayer/dist/index.min.css';
-import { ApiError, formatViews, getPlayback, getVideo, type Video } from '../api';
+import {
+  ApiError,
+  formatDuration,
+  formatViews,
+  getPlayback,
+  getVideo,
+  listCategories,
+  listEpisodes,
+  listRelated,
+  type Category,
+  type PublicEpisode,
+  type RelatedVideo,
+  type Video,
+} from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
+import { CommentSection } from '../components/CommentSection';
+import { EpisodeStrip } from '../components/EpisodeStrip';
+import { RecommendationList } from '../components/RecommendationList';
 import {
   PLAYBACK_GENERIC_ERROR,
   PLAYBACK_UNAVAILABLE_MESSAGE,
@@ -43,16 +59,70 @@ export function Watch() {
   const playerRef = useRef<Player | null>(null);
   const sessionRef = useRef(new WatchPlaybackSession());
   const [video, setVideo] = useState<Video | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [related, setRelated] = useState<RelatedVideo[]>([]);
+  const [episodes, setEpisodes] = useState<PublicEpisode[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [metaError, setMetaError] = useState('');
+  const [metaLoading, setMetaLoading] = useState(true);
+  const [playError, setPlayError] = useState('');
+  const [playLoading, setPlayLoading] = useState(false);
+  const [playFor, setPlayFor] = useState(id ?? '');
+  const [sid, setSid] = useState(0);
+  const [nid, setNid] = useState(0);
 
-  // Gate: wait for auth hydration; guests go to login with return path.
+  if ((id ?? '') !== playFor) {
+    setPlayFor(id ?? '');
+    setSid(0);
+    setNid(0);
+  }
+
   useEffect(() => {
-    if (!videoId || !ready) return;
-    if (!user || !token) {
-      navigate(loginWithNext(`/watch/${videoId}`), { replace: true });
-    }
-  }, [ready, user, token, videoId, navigate]);
+    window.scrollTo({ top: 0, left: 0 });
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!Number.isFinite(videoId) || videoId <= 0) return;
+    let cancelled = false;
+    setMetaLoading(true);
+    setMetaError('');
+    setVideo(null);
+    setRelated([]);
+    setEpisodes([]);
+    getVideo(videoId)
+      .then((meta) => {
+        if (!cancelled) setVideo(meta);
+      })
+      .catch((e) => {
+        if (!cancelled) setMetaError(e instanceof Error ? e.message : '加载失败');
+      })
+      .finally(() => {
+        if (!cancelled) setMetaLoading(false);
+      });
+    listRelated(videoId)
+      .then((rows) => {
+        if (!cancelled) setRelated(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setRelated([]);
+      });
+    listEpisodes(videoId)
+      .then((rows) => {
+        if (!cancelled) setEpisodes(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setEpisodes([]);
+      });
+    listCategories()
+      .then((rows) => {
+        if (!cancelled) setCategories(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setCategories([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
 
   useEffect(() => {
     if (!videoId || !ready || !user || !token) {
@@ -68,7 +138,6 @@ export function Watch() {
 
     const startPlayer = (url: string, type: string) => {
       if (session.debugState().cancelled || !rootRef.current) return;
-      // Bump generation first so any late events from the previous player are ignored.
       const gen = session.beginPlayer();
       destroyPlayer();
       const isHls = type === 'hls' || url.includes('.m3u8');
@@ -80,8 +149,6 @@ export function Watch() {
           session.handlePlaying(gen);
         },
         () => {
-          // Limitation: xgplayer error is not reliably manifest-vs-segment classified.
-          // Only switch before confirmed `playing`, at most once, and only for current gen.
           const action = session.handleError(gen);
           if (action.type === 'ignore') return;
           if (action.type === 'fallback') {
@@ -89,25 +156,21 @@ export function Watch() {
             return;
           }
           destroyPlayer();
-          setError(PLAYBACK_GENERIC_ERROR);
+          setPlayError(PLAYBACK_GENERIC_ERROR);
         },
       );
       playerRef.current = player;
     };
 
     (async () => {
-      setLoading(true);
-      setError('');
+      setPlayLoading(true);
+      setPlayError('');
       try {
-        const meta = await getVideo(videoId);
-        if (session.debugState().cancelled) return;
-        setVideo(meta);
-        const playback = await getPlayback(videoId, 0, 0, token);
+        const playback = await getPlayback(videoId, sid, nid, token);
         if (session.debugState().cancelled || !rootRef.current) return;
         if (!playback.url) {
           throw new Error('无可用播放地址');
         }
-
         session.beginPlayback(playback.fallback_url);
         startPlayer(playback.url, playback.type);
       } catch (e) {
@@ -118,12 +181,12 @@ export function Watch() {
           return;
         }
         if (e instanceof ApiError && e.code === 'playback_unavailable') {
-          setError(PLAYBACK_UNAVAILABLE_MESSAGE);
+          setPlayError(PLAYBACK_UNAVAILABLE_MESSAGE);
           return;
         }
-        setError(e instanceof Error ? e.message : '播放失败');
+        setPlayError(e instanceof Error ? e.message : '播放失败');
       } finally {
-        if (!session.debugState().cancelled) setLoading(false);
+        if (!session.debugState().cancelled) setPlayLoading(false);
       }
     })();
 
@@ -131,9 +194,9 @@ export function Watch() {
       session.cancel();
       destroyPlayer();
     };
-  }, [videoId, ready, user, token, navigate, logout]);
+  }, [videoId, sid, nid, ready, user, token, navigate, logout]);
 
-  if (!ready || !user || !token) {
+  if (!ready) {
     return (
       <div className="page watch">
         <p style={{ padding: 24, color: 'var(--muted)' }}>正在验证登录状态…</p>
@@ -141,47 +204,99 @@ export function Watch() {
     );
   }
 
-  if (error) {
+  if (!Number.isFinite(videoId) || videoId <= 0) {
     return (
       <div className="page watch">
-        <aside className="watch-side" style={{ padding: 24 }}>
-          <p style={{ margin: '0 0 8px', fontSize: 13 }}>
-            <Link to="/" style={{ color: 'var(--brand)', fontWeight: 600 }}>
-              ← 返回首页
-            </Link>
-          </p>
-          <h2>{video?.title ?? '视频'}</h2>
-          <p style={{ marginTop: 16, color: 'var(--muted)' }}>{error}</p>
-        </aside>
+        <p>无效的视频</p>
       </div>
     );
   }
 
+  const categoryName = (categoryId: number) => categories.find((category) => category.id === categoryId)?.name ?? '';
+  const activeSid = sid > 0 ? sid : (video?.play_sid ?? 0);
+  const activeNid = nid > 0 ? nid : (video?.play_nid ?? 0);
+  const meta = video
+    ? [video.view_count != null ? `${formatViews(video.view_count)} 播放` : '', video.year, categoryName(video.category_id), video.area]
+        .map((part) => (part ?? '').trim())
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+  const facts = video
+    ? [
+        video.year ? ['年份', video.year] : null,
+        video.area ? ['地区', video.area] : null,
+        categoryName(video.category_id) ? ['分类', categoryName(video.category_id)] : null,
+        video.director ? ['导演', video.director] : null,
+        video.actors ? ['演员', video.actors] : null,
+        video.duration_sec > 0 ? ['时长', formatDuration(video.duration_sec)] : null,
+        video.rating ? ['评分', String(video.rating)] : null,
+      ].filter((row): row is [string, string] => row != null)
+    : [];
+
   return (
     <div className="page watch">
-      <div className="player-panel">
-        <div className="player-wrap" ref={rootRef} />
-        {loading && <p style={{ padding: 12, color: 'var(--muted)' }}>加载中…</p>}
-      </div>
-      <aside className="watch-side">
+      <header className="watch-head">
         <p style={{ margin: '0 0 8px', fontSize: 13 }}>
           <Link to="/" style={{ color: 'var(--brand)', fontWeight: 600 }}>
             ← 返回首页
           </Link>
         </p>
-        <h2>{video?.title ?? '加载中…'}</h2>
-        <p>{video?.description || '精彩内容即将开始'}</p>
-        {video && (
-          <p style={{ marginTop: 10, color: 'var(--muted)', fontSize: 12 }}>
-            {[video.year, video.area, video.director].filter(Boolean).join(' · ')}
-            {video.view_count ? ` · ${formatViews(video.view_count)} 播放` : ''}
-          </p>
-        )}
-        {video?.actors && (
-          <p style={{ marginTop: 8, color: 'var(--muted)', fontSize: 12 }}>演员：{video.actors}</p>
-        )}
-        <span className="watch-chip">HLS · 西瓜播放器</span>
-      </aside>
+        <h1>{video?.title ?? (metaLoading ? '加载中…' : '视频')}</h1>
+        {meta && <p className="watch-meta">{meta}</p>}
+        {metaError && <p className="watch-comments-error">{metaError}</p>}
+      </header>
+      <div className={`watch-main-grid${related.length > 0 ? ' has-recs' : ''}`}>
+        <div className="player-panel">
+          {user && token ? (
+            <>
+              <div className="player-wrap" ref={rootRef} />
+              {playLoading && <p style={{ padding: 12, color: 'var(--muted)' }}>加载中…</p>}
+              {playError && <p style={{ padding: 12, color: 'var(--muted)' }}>{playError}</p>}
+            </>
+          ) : (
+            <div className="player-gate">
+              <p>登录后观看完整视频</p>
+              <button type="button" onClick={() => navigate(loginWithNext(`/watch/${videoId}`))}>
+                立即登录
+              </button>
+            </div>
+          )}
+        </div>
+        <EpisodeStrip
+          episodes={episodes}
+          activeSid={activeSid}
+          activeNid={activeNid}
+          onSelect={(episode) => {
+            if (!user || !token) {
+              navigate(loginWithNext(`/watch/${videoId}`));
+              return;
+            }
+            setSid(episode.sid);
+            setNid(episode.nid);
+          }}
+        />
+        <section className="watch-info" aria-label="视频信息">
+          {video?.description?.trim() && <p className="watch-desc">{video.description}</p>}
+          {facts.length > 0 && (
+            <dl className="watch-facts">
+              {facts.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+        <RecommendationList items={related} categoryName={categoryName} />
+      </div>
+      <CommentSection
+        key={videoId}
+        videoId={videoId}
+        token={token}
+        nickname={user?.nickname ?? ''}
+        onLogin={() => navigate(loginWithNext(`/watch/${videoId}`))}
+      />
     </div>
   );
 }

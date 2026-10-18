@@ -4,17 +4,15 @@ export function loginWithNext(nextPath: string): string {
   return `/login?next=${encodeURIComponent(next)}`;
 }
 
-/** Href for opening a video: login redirect for guests, watch for authenticated. */
+/** Href for opening a video. The watch page is public; playback stays authenticated. */
 export function videoEntryHref(
   ready: boolean,
-  authenticated: boolean,
+  _authenticated: boolean,
   videoId: number,
 ): string | null {
   if (!Number.isFinite(videoId) || videoId <= 0) return null;
   if (!ready) return null;
-  const watch = `/watch/${videoId}`;
-  if (!authenticated) return loginWithNext(watch);
-  return watch;
+  return `/watch/${videoId}`;
 }
 
 /**

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tycdn/vplayer/internal/config"
@@ -45,6 +46,12 @@ type API struct {
 	WorkerLauncher WorkerLauncher
 	// AdminMedia optionally overrides Store for admin media reads (tests).
 	AdminMedia adminMediaRepo
+	// Comments optionally overrides Store for video comments (tests).
+	Comments store.CommentRepo
+	// Watch optionally overrides Store for related videos and public episodes (tests).
+	Watch watchCatalog
+	// Clock optionally overrides time.Now for tests. Values are used in UTC.
+	Clock func() time.Time
 }
 
 // publicVideoRepo is the store surface used by GET /api/v1/videos.

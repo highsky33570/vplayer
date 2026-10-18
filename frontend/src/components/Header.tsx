@@ -76,12 +76,17 @@ export function Header() {
         <div className="banner-actions">
           {user ? (
             <div className="banner-user-menu">
-              <button type="button" className="banner-user is-logged" title={user.email}>
-                <span className="banner-avatar">{(user.nickname || user.email).slice(0, 1).toUpperCase()}</span>
-                <span>{user.nickname || '已登录'}</span>
-              </button>
               <button type="button" className="banner-logout" onClick={logout}>
                 退出
+              </button>
+              <button
+                type="button"
+                className="banner-user is-logged"
+                title={(user.nickname ?? '').trim() ? (user.nickname ?? '').trim() : '已登录'}
+              >
+                <span className="banner-avatar">
+                  {((user.nickname ?? '').trim() || '用').slice(0, 1).toUpperCase()}
+                </span>
               </button>
             </div>
           ) : (
