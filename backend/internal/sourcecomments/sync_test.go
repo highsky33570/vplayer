@@ -113,6 +113,27 @@ func TestSyncFailureLeavesNativeAndCatalogUntouched(t *testing.T) {
 	}
 }
 
+func TestUnexpectedPagerStopsBeforeUpsert(t *testing.T) {
+	repo := store.NewMemorySourceComments()
+	fetcher := &fakePages{pages: map[int]string{
+		1: `<script>$('.mac_total').html('311');</script>`,
+	}}
+	_, err := Sync(context.Background(), repo, fetcher, 7, "olehdtv", "82861", ModeFull, time.Now())
+	if err == nil || !strings.Contains(err.Error(), "unexpected pager") {
+		t.Fatalf("err=%v", err)
+	}
+	if len(repo.Snapshot()) != 0 {
+		t.Fatal("unexpected pager stored comments")
+	}
+	wide := &fakePages{pages: map[int]string{
+		1: `<li class="comm_each"><div class="comm_content">x</div><a class="comment_reply" data-id="1"></a></li><a title="尾页" onclick="MAC.Comment.Show('501')">尾页</a>`,
+	}}
+	_, err = Sync(context.Background(), repo, wide, 7, "olehdtv", "82861", ModeFull, time.Now())
+	if err == nil || !strings.Contains(err.Error(), "unexpected pager") {
+		t.Fatalf("wide err=%v", err)
+	}
+}
+
 func ints(v []int) []string {
 	out := make([]string, len(v))
 	for i, n := range v {

@@ -189,6 +189,23 @@ func (m *MemorySourceComments) ListSourceCommentThreads(videoID uint64, limit, o
 	return threads, parentTotal, rowTotal, nil
 }
 
+// CountSourceCommentRows counts stored parents and replies for one local video.
+func (m *MemorySourceComments) CountSourceCommentRows(videoID uint64, sourceSystem string) (parents, replies int, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, row := range m.rows {
+		if row.VideoID != videoID || row.SourceSystem != sourceSystem {
+			continue
+		}
+		if row.Parent == "" {
+			parents++
+		} else {
+			replies++
+		}
+	}
+	return parents, replies, nil
+}
+
 // CreatedAt returns the insert time for a provider identity. Tests use it to prove reruns do not recreate the row.
 func (m *MemorySourceComments) CreatedAt(sourceSystem, sourceCommentID string) (time.Time, bool) {
 	m.mu.Lock()

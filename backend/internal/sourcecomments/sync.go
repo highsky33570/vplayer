@@ -29,9 +29,15 @@ type PageFetcher interface {
 }
 
 // Result counts one single-video sync. It never includes a catalog status change.
+// PagerTotal is the source page's top-level comment count. Replies are not part of it,
+// so Discovered can be larger than PagerTotal without being an error.
 type Result struct {
 	PagesFetched int
 	Discovered   int
+	Parents      int
+	Replies      int
+	PagerTotal   int
+	PagerLast    int
 	Inserted     int
 	Updated      int
 	Skipped      int
@@ -65,8 +71,23 @@ func Sync(ctx context.Context, repo store.SourceCommentRepo, fetcher PageFetcher
 			result.Errors = append(result.Errors, err.Error())
 			return result, err
 		}
+		if err := unexpectedPager(parsed); err != nil {
+			result.Errors = append(result.Errors, err.Error())
+			return result, err
+		}
 		result.PagesFetched++
 		result.Discovered += len(parsed.Comments)
+		for _, row := range parsed.Comments {
+			if row.ParentSourceCommentID == "" {
+				result.Parents++
+			} else {
+				result.Replies++
+			}
+		}
+		if page == 1 {
+			result.PagerTotal = parsed.Total
+			result.PagerLast = parsed.LastPage
+		}
 		if parsed.LastPage > last {
 			last = parsed.LastPage
 		}
@@ -99,6 +120,19 @@ func Sync(ctx context.Context, repo store.SourceCommentRepo, fetcher PageFetcher
 		}
 	}
 	return result, nil
+}
+
+// unexpectedPager rejects a page that cannot be walked. It does not compare the
+// pager total with stored rows: OLEHDTV counts top-level comments, and replies
+// are additional stored rows.
+func unexpectedPager(page commenthtml.Page) error {
+	if page.LastPage > maxCommentPages {
+		return fmt.Errorf("unexpected pager last page %d", page.LastPage)
+	}
+	if page.Total > 0 && page.LastPage < 1 {
+		return fmt.Errorf("unexpected pager total %d last page %d", page.Total, page.LastPage)
+	}
+	return nil
 }
 
 func parentIDs(rows []commenthtml.SourceComment) []string {
