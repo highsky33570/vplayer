@@ -15,7 +15,7 @@ func readFixture(t *testing.T, name string) string {
 	if !ok {
 		t.Fatal("caller")
 	}
-	p := filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "data", "olehdtv-comment-audit", name)
+	p := filepath.Join(filepath.Dir(file), "testdata", name)
 	b, err := os.ReadFile(p)
 	if err != nil {
 		t.Fatal(err)
