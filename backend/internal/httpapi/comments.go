@@ -42,6 +42,27 @@ type commentJSON struct {
 	CreatedAt string            `json:"created_at"`
 	Author    commentAuthorJSON `json:"author"`
 	Mine      bool              `json:"mine"`
+	Origin    string            `json:"origin"`
+}
+
+type sourceCommentJSON struct {
+	Origin           string              `json:"origin"`
+	Mine             bool                `json:"mine"`
+	Body             string              `json:"body"`
+	SourceCreatedRaw string              `json:"source_created_raw"`
+	DiggUp           int                 `json:"digg_up"`
+	DiggDown         int                 `json:"digg_down"`
+	Author           commentAuthorJSON   `json:"author"`
+	Replies          []sourceCommentJSON `json:"replies,omitempty"`
+}
+
+type sourceCommentPageJSON struct {
+	Data    []sourceCommentJSON `json:"data"`
+	Total   int                 `json:"total"`
+	Limit   int                 `json:"limit"`
+	Offset  int                 `json:"offset"`
+	HasMore bool                `json:"has_more"`
+	Error   string              `json:"error,omitempty"`
 }
 
 func (a *API) comments() store.CommentRepo {
@@ -52,6 +73,25 @@ func (a *API) comments() store.CommentRepo {
 		return a.Store
 	}
 	return nil
+}
+
+func (a *API) sourceComments() store.SourceCommentRepo {
+	if a.SourceComments != nil {
+		return a.SourceComments
+	}
+	if a.Store != nil {
+		return a.Store
+	}
+	return nil
+}
+
+// PublicSourceAuthor is the public name for an imported comment.
+// Empty source names become "游客". Email is never an input.
+func PublicSourceAuthor(name string) string {
+	if n := strings.TrimSpace(name); n != "" {
+		return n
+	}
+	return "游客"
 }
 
 func (a *API) nowUTC() time.Time {
@@ -87,7 +127,48 @@ func (a *API) commentJSON(c store.Comment, viewer uint64) commentJSON {
 		CreatedAt: c.CreatedAt.UTC().Format(time.RFC3339),
 		Author:    commentAuthorJSON{DisplayName: PublicCommentDisplayName(nick)},
 		Mine:      viewer != 0 && viewer == c.UserID,
+		Origin:    "vplayer",
 	}
+}
+
+func sourceThreadJSON(row store.SourceThread) sourceCommentJSON {
+	out := sourceCommentJSON{
+		Origin:           "source",
+		Mine:             false,
+		Body:             row.Body,
+		SourceCreatedRaw: row.SourceCreatedRaw,
+		DiggUp:           row.DiggUp,
+		DiggDown:         row.DiggDown,
+		Author:           commentAuthorJSON{DisplayName: PublicSourceAuthor(row.AuthorName)},
+	}
+	for _, reply := range row.Replies {
+		out.Replies = append(out.Replies, sourceThreadJSON(reply))
+	}
+	return out
+}
+
+func (a *API) sourceCommentPage(videoID uint64, limit, offset int) sourceCommentPageJSON {
+	page := sourceCommentPageJSON{
+		Data:   []sourceCommentJSON{},
+		Limit:  limit,
+		Offset: offset,
+	}
+	repo := a.sourceComments()
+	if repo == nil {
+		return page
+	}
+	threads, parentTotal, rowTotal, err := repo.ListSourceCommentThreads(videoID, limit, offset)
+	if err != nil {
+		page.Error = "原站评论加载失败"
+		return page
+	}
+	page.Total = rowTotal
+	page.Data = make([]sourceCommentJSON, 0, len(threads))
+	for _, thread := range threads {
+		page.Data = append(page.Data, sourceThreadJSON(thread))
+	}
+	page.HasMore = offset+len(threads) < parentTotal
+	return page
 }
 
 func (a *API) ListComments(c *gin.Context) {
@@ -138,6 +219,7 @@ func (a *API) ListComments(c *gin.Context) {
 	for _, row := range rows {
 		data = append(data, a.commentJSON(row, viewer))
 	}
+	sourceLimit, sourceOffset := sourcePageQuery(c)
 	c.JSON(http.StatusOK, gin.H{
 		"ok":       true,
 		"data":     data,
@@ -145,7 +227,30 @@ func (a *API) ListComments(c *gin.Context) {
 		"limit":    limit,
 		"offset":   offset,
 		"has_more": offset+len(data) < total,
+		"source":   a.sourceCommentPage(videoID, sourceLimit, sourceOffset),
 	})
+}
+
+func sourcePageQuery(c *gin.Context) (int, int) {
+	limit := commentListDefault
+	if raw := c.Query("source_limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			limit = commentListDefault
+		} else if n > commentListMax {
+			limit = commentListMax
+		} else {
+			limit = n
+		}
+	}
+	offset := 0
+	if raw := c.Query("source_offset"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err == nil && n > 0 {
+			offset = n
+		}
+	}
+	return limit, offset
 }
 
 func (a *API) CreateComment(c *gin.Context) {

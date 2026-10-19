@@ -48,6 +48,8 @@ type API struct {
 	AdminMedia adminMediaRepo
 	// Comments optionally overrides Store for video comments (tests).
 	Comments store.CommentRepo
+	// SourceComments optionally overrides Store for imported source comments (tests).
+	SourceComments store.SourceCommentRepo
 	// Watch optionally overrides Store for related videos and public episodes (tests).
 	Watch watchCatalog
 	// Clock optionally overrides time.Now for tests. Values are used in UTC.

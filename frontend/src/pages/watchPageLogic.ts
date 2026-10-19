@@ -20,6 +20,33 @@ export function recommendationMeta(parts: Array<string | number | null | undefin
     .join(' · ');
 }
 
+export function sourceCommentTime(raw: string | null | undefined): string {
+  return (raw ?? '').trim();
+}
+
+export function sourceAuthorName(name: string | null | undefined): string {
+  const trimmed = (name ?? '').trim();
+  return trimmed || '游客';
+}
+
+export function sourceLetter(name: string | null | undefined): string {
+  const label = sourceAuthorName(name);
+  return Array.from(label)[0] ?? '游';
+}
+
+export function canDeleteComment(origin: 'vplayer' | 'source', mine: boolean): boolean {
+  return origin === 'vplayer' && mine;
+}
+
+export type SourceSectionState = 'loading' | 'error' | 'empty' | 'ready';
+
+export function sourceSectionState(input: { loading: boolean; error: string; count: number }): SourceSectionState {
+  if (input.loading) return 'loading';
+  if (input.error.trim()) return 'error';
+  if (input.count === 0) return 'empty';
+  return 'ready';
+}
+
 export function formatCommentTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;

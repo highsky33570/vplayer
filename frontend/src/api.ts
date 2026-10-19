@@ -265,6 +265,27 @@ export type VideoComment = {
   created_at: string;
   author: { display_name: string };
   mine?: boolean;
+  origin?: 'vplayer';
+};
+
+export type SourceComment = {
+  origin: 'source';
+  mine: false;
+  body: string;
+  source_created_raw: string;
+  digg_up: number;
+  digg_down: number;
+  author: { display_name: string };
+  replies?: SourceComment[];
+};
+
+export type SourceCommentPage = {
+  data: SourceComment[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+  error: string;
 };
 
 export type CommentPage = {
@@ -273,6 +294,7 @@ export type CommentPage = {
   limit: number;
   offset: number;
   has_more: boolean;
+  source: SourceCommentPage;
 };
 
 export function listRelated(id: number) {
@@ -283,10 +305,18 @@ export function listEpisodes(id: number) {
   return getJSON<PublicEpisode[]>(`/api/v1/videos/${id}/episodes`);
 }
 
-export async function listComments(id: number, offset = 0, token?: string | null): Promise<CommentPage> {
+export async function listComments(
+  id: number,
+  offset = 0,
+  token?: string | null,
+  sourceOffset = 0,
+): Promise<CommentPage> {
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/api/v1/videos/${id}/comments?limit=20&offset=${offset}`, { headers });
+  const res = await fetch(
+    `${API_BASE}/api/v1/videos/${id}/comments?limit=20&offset=${offset}&source_limit=20&source_offset=${sourceOffset}`,
+    { headers },
+  );
   const json = (await res.json().catch(() => ({}))) as {
     ok?: boolean;
     message?: string;
@@ -295,6 +325,7 @@ export async function listComments(id: number, offset = 0, token?: string | null
     limit?: number;
     offset?: number;
     has_more?: boolean;
+    source?: Partial<SourceCommentPage>;
   };
   if (!res.ok || json.ok === false) {
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
@@ -305,6 +336,14 @@ export async function listComments(id: number, offset = 0, token?: string | null
     limit: Number(json.limit ?? 20),
     offset: Number(json.offset ?? offset),
     has_more: Boolean(json.has_more),
+    source: {
+      data: json.source?.data ?? [],
+      total: Number(json.source?.total ?? 0),
+      limit: Number(json.source?.limit ?? 20),
+      offset: Number(json.source?.offset ?? sourceOffset),
+      has_more: Boolean(json.source?.has_more),
+      error: json.source?.error ?? '',
+    },
   };
 }
 

@@ -2,9 +2,11 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,13 +21,18 @@ import (
 const watchTestSecret = "watch-test-secret"
 
 func watchTestRouter(comments *store.MemoryComments, users store.UserRepo, watch watchCatalog, now time.Time) *gin.Engine {
+	return watchTestRouterSource(comments, users, watch, now, nil)
+}
+
+func watchTestRouterSource(comments *store.MemoryComments, users store.UserRepo, watch watchCatalog, now time.Time, source store.SourceCommentRepo) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	api := &API{
-		Cfg:      config.Config{AuthSecret: watchTestSecret},
-		Comments: comments,
-		Users:    users,
-		Watch:    watch,
-		Clock:    func() time.Time { return now },
+		Cfg:            config.Config{AuthSecret: watchTestSecret},
+		Comments:       comments,
+		SourceComments: source,
+		Users:          users,
+		Watch:          watch,
+		Clock:          func() time.Time { return now },
 	}
 	r := gin.New()
 	v1 := r.Group("/api/v1")
@@ -466,5 +473,165 @@ func TestPlayRouteStillRequiresUser(t *testing.T) {
 	res := doJSON(t, r, http.MethodGet, "/api/v1/videos/1/play", "", "")
 	if res.Code != http.StatusUnauthorized {
 		t.Fatalf("play status=%d", res.Code)
+	}
+}
+
+func TestSourceCommentsAPI(t *testing.T) {
+	comments := store.NewMemoryComments()
+	comments.AddVideo(7)
+	users := store.NewMemoryUsers()
+	named, err := users.CreateUserWithHash("named@example.com", "password-hash-should-stay-hidden", "小明")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 19, 2, 0, 0, 0, time.UTC)
+	source := store.NewMemorySourceComments()
+	if _, _, _, err := source.UpsertSourceComments(7, "olehdtv", []store.SourceCommentInput{
+		{SourceCommentID: "413210", SourceVideoID: "82861", AuthorName: "游客", Body: "源站正文", SourceCreatedRaw: "2026-10-19 01:56:45", DiggUp: 63, DiggDown: 1},
+		{SourceCommentID: "412878", SourceVideoID: "83449", AuthorName: "", Body: "父评论", SourceCreatedRaw: "2026-10-16 22:34:16"},
+		{SourceCommentID: "413117", SourceVideoID: "83449", ParentSourceCommentID: "412878", AuthorName: "游客", Body: "回复正文", SourceCreatedRaw: "10:28", DiggUp: 2, DiggDown: 0},
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 21; i++ {
+		if _, _, _, err := source.UpsertSourceComments(8, "olehdtv", []store.SourceCommentInput{{
+			SourceCommentID: strconv.Itoa(1000 + i), SourceVideoID: "37782", AuthorName: "游客", Body: "p", SourceCreatedRaw: "2026-10-01 00:00:00",
+		}}, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	comments.AddVideo(8)
+	r := watchTestRouterSource(comments, users, nil, now, source)
+	token := tokenFor(t, named.ID, named.Email)
+	created := doJSON(t, r, http.MethodPost, "/api/v1/videos/7/comments", `{"body":"native body"}`, token)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create %d %s", created.Code, created.Body.String())
+	}
+	var createdBody struct {
+		Data commentJSON `json:"data"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &createdBody); err != nil {
+		t.Fatal(err)
+	}
+	if createdBody.Data.Origin != "vplayer" || !createdBody.Data.Mine {
+		t.Fatalf("native create %+v", createdBody.Data)
+	}
+
+	listed := doJSON(t, r, http.MethodGet, "/api/v1/videos/7/comments?limit=20&offset=0&source_limit=20&source_offset=0", "", token)
+	if listed.Code != http.StatusOK {
+		t.Fatalf("list %d %s", listed.Code, listed.Body.String())
+	}
+	raw := listed.Body.String()
+	for _, banned := range []string{"named@example.com", "password-hash-should-stay-hidden", "password_hash", "source_comment_id", "source_video_id", "parent_source_comment_id", "413210", "82861"} {
+		if strings.Contains(raw, banned) {
+			t.Fatalf("response exposed %s: %s", banned, raw)
+		}
+	}
+	var page struct {
+		Data    []commentJSON         `json:"data"`
+		Total   int                   `json:"total"`
+		HasMore bool                  `json:"has_more"`
+		Source  sourceCommentPageJSON `json:"source"`
+	}
+	if err := json.Unmarshal(listed.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 1 || len(page.Data) != 1 || page.Data[0].Origin != "vplayer" || page.Data[0].Body != "native body" {
+		t.Fatalf("native page %+v", page)
+	}
+	if page.Source.Error != "" || page.Source.Total != 3 || len(page.Source.Data) != 2 {
+		t.Fatalf("source page %+v", page.Source)
+	}
+	var parent sourceCommentJSON
+	for _, row := range page.Source.Data {
+		if row.Body == "父评论" {
+			parent = row
+		}
+		if row.Origin != "source" || row.Mine {
+			t.Fatalf("source row %+v", row)
+		}
+		if row.Body == "源站正文" && (row.SourceCreatedRaw != "2026-10-19 01:56:45" || row.DiggUp != 63 || row.DiggDown != 1 || row.Author.DisplayName != "游客") {
+			t.Fatalf("raw source %+v", row)
+		}
+	}
+	if parent.Author.DisplayName != "游客" || len(parent.Replies) != 1 {
+		t.Fatalf("parent %+v", parent)
+	}
+	reply := parent.Replies[0]
+	if reply.Origin != "source" || reply.Mine || reply.Body != "回复正文" || reply.SourceCreatedRaw != "10:28" || reply.DiggUp != 2 {
+		t.Fatalf("reply %+v", reply)
+	}
+	var sourceMap map[string]any
+	sourceRaw, _ := json.Marshal(page.Source)
+	if err := json.Unmarshal(sourceRaw, &sourceMap); err != nil {
+		t.Fatal(err)
+	}
+	walkBannedKeys(t, sourceMap)
+
+	more := doJSON(t, r, http.MethodGet, "/api/v1/videos/8/comments?source_limit=20&source_offset=0", "", "")
+	var page2 struct {
+		Source sourceCommentPageJSON `json:"source"`
+	}
+	if err := json.Unmarshal(more.Body.Bytes(), &page2); err != nil {
+		t.Fatal(err)
+	}
+	if page2.Source.Total != 21 || len(page2.Source.Data) != 20 || !page2.Source.HasMore {
+		t.Fatalf("source page1 %+v", page2.Source)
+	}
+	rest := doJSON(t, r, http.MethodGet, "/api/v1/videos/8/comments?source_limit=20&source_offset=20", "", "")
+	if err := json.Unmarshal(rest.Body.Bytes(), &page2); err != nil {
+		t.Fatal(err)
+	}
+	if len(page2.Source.Data) != 1 || page2.Source.HasMore {
+		t.Fatalf("source page2 %+v", page2.Source)
+	}
+
+	missing := doJSON(t, r, http.MethodDelete, "/api/v1/comments/999999", "", token)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("delete missing %d", missing.Code)
+	}
+	if len(source.Snapshot()) != 24 {
+		t.Fatalf("source rows changed: %d", len(source.Snapshot()))
+	}
+	deleted := doJSON(t, r, http.MethodDelete, "/api/v1/comments/"+strconv.FormatUint(createdBody.Data.ID, 10), "", token)
+	if deleted.Code != http.StatusOK {
+		t.Fatalf("delete native %d %s", deleted.Code, deleted.Body.String())
+	}
+	if len(source.Snapshot()) != 24 {
+		t.Fatal("native delete removed source comments")
+	}
+
+	source.SetListErr(errors.New("db down"))
+	failed := doJSON(t, r, http.MethodGet, "/api/v1/videos/7/comments", "", "")
+	if failed.Code != http.StatusOK {
+		t.Fatalf("source failure status %d", failed.Code)
+	}
+	var failedPage struct {
+		Data   []commentJSON         `json:"data"`
+		Source sourceCommentPageJSON `json:"source"`
+	}
+	if err := json.Unmarshal(failed.Body.Bytes(), &failedPage); err != nil {
+		t.Fatal(err)
+	}
+	if failedPage.Source.Error != "原站评论加载失败" {
+		t.Fatalf("source error %+v", failedPage.Source)
+	}
+}
+
+func walkBannedKeys(t *testing.T, v any) {
+	t.Helper()
+	switch node := v.(type) {
+	case map[string]any:
+		for key, child := range node {
+			switch key {
+			case "id", "video_id", "source_comment_id", "source_video_id", "parent_source_comment_id", "user_id", "email", "avatar_path", "avatar_url":
+				t.Fatalf("source payload exposed %s", key)
+			}
+			walkBannedKeys(t, child)
+		}
+	case []any:
+		for _, child := range node {
+			walkBannedKeys(t, child)
+		}
 	}
 }

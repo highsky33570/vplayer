@@ -93,19 +93,38 @@ describe('public watch page', () => {
 
 describe('comment section', () => {
   it('covers guest, composer, errors, load more, and safe text', () => {
-    assert.match(comments, /评论 \{total\}/);
+    assert.match(comments, /<h3>评论<\/h3>/);
+    assert.match(comments, /原站评论 \{sourceTotal\}/);
+    assert.match(comments, /VPlayer 评论 \{total\}/);
     assert.match(comments, /登录后发表评论/);
     assert.match(comments, /暂无评论，来说两句吧/);
+    assert.match(comments, /暂无原站评论/);
+    assert.match(comments, /原站评论加载中…/);
+    assert.match(comments, /原站评论加载失败/);
     assert.match(comments, /评论加载失败/);
     assert.match(comments, /重试/);
+    assert.match(comments, /加载更多原站评论/);
     assert.match(comments, /加载更多/);
     assert.match(comments, /发布中…/);
     assert.match(comments, /disabled=\{posting\}/);
     assert.match(comments, /window\.confirm\('确认删除这条评论？'\)/);
     assert.match(comments, /\{comment\.body\}/);
+    assert.match(comments, /\{reply\.body\}/);
+    assert.match(comments, /watch-comment-reply/);
+    assert.match(comments, /watch-source-badge/);
+    assert.match(comments, /sourceCommentTime\(comment\.source_created_raw\)/);
+    assert.match(comments, /sourceCommentTime\(reply\.source_created_raw\)/);
+    assert.equal(comments.includes('formatCommentTime(comment.source_created_raw)'), false);
     assert.equal(comments.includes('dangerouslySetInnerHTML'), false);
+    assert.equal(comments.includes('<img'), false);
     assert.match(comments, /postComment\(videoId, draft\.trim\(\), token\)/);
     assert.match(comments, /reloadFirstPage/);
     assert.equal(comments.includes('user_id'), false);
+    const sourceStart = comments.indexOf('function SourceThreads');
+    const nativeStart = comments.indexOf('function NativeComments');
+    const sourceFn = comments.slice(sourceStart, nativeStart);
+    assert.equal(sourceFn.includes('删除'), false);
+    assert.match(comments.slice(nativeStart), /删除/);
+    assert.match(sourceFn, /原站/);
   });
 });

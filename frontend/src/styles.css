@@ -1615,6 +1615,37 @@ html.dark .category-btn--child.is-active {
   font-size: 12px;
 }
 
+.watch-source-comments h4,
+.watch-vplayer-comments h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.watch-vplayer-comments {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.watch-comment-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  margin: 0;
+}
+
+.watch-source-badge {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.watch-comment-reply {
+  margin-top: 8px;
+  margin-left: 12px;
+}
+
 .watch-comment-delete {
   margin-left: 8px;
   padding: 2px 8px;

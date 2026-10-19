@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,8 +39,16 @@ func NewHTTPFetcher(timeout time.Duration, delayMs, retries int, ua string) *HTT
 	if ua == "" {
 		ua = "VPlayerCatalogSync/1.0"
 	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = func(req *http.Request) (*url.URL, error) {
+		host := req.URL.Hostname()
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+			return nil, nil
+		}
+		return http.ProxyFromEnvironment(req)
+	}
 	return &HTTPFetcher{
-		Client:    &http.Client{Timeout: timeout},
+		Client:    &http.Client{Timeout: timeout, Transport: transport},
 		UserAgent: ua,
 		Delay:     time.Duration(delayMs) * time.Millisecond,
 		Retries:   retries,
@@ -48,6 +57,11 @@ func NewHTTPFetcher(timeout time.Duration, delayMs, retries int, ua string) *HTT
 }
 
 func (h *HTTPFetcher) Fetch(ctx context.Context, pageURL string) (string, error) {
+	return h.FetchHeaders(ctx, pageURL, nil)
+}
+
+// FetchHeaders is Fetch with extra request headers. A nil map keeps the catalog GET unchanged.
+func (h *HTTPFetcher) FetchHeaders(ctx context.Context, pageURL string, headers map[string]string) (string, error) {
 	var last error
 	for attempt := 0; attempt < h.Retries; attempt++ {
 		h.throttle()
@@ -56,6 +70,9 @@ func (h *HTTPFetcher) Fetch(ctx context.Context, pageURL string) (string, error)
 			return "", err
 		}
 		req.Header.Set("User-Agent", h.UserAgent)
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
 		resp, err := h.Client.Do(req)
 		if err != nil {
 			last = err
@@ -158,22 +175,22 @@ func (f *FileFetcher) mapURL(pageURL string) string {
 
 // Engine walks MacCMS site structure via PageFetcher (file dump or authorized HTTP).
 type Engine struct {
-	Fetcher      PageFetcher
-	BaseURL      string
-	MaxPages     int
-	Concurrency  int
-	Log          *slog.Logger
-	FetchPlay    bool // fetch play pages for player_aaaa when listed
+	Fetcher     PageFetcher
+	BaseURL     string
+	MaxPages    int
+	Concurrency int
+	Log         *slog.Logger
+	FetchPlay   bool // fetch play pages for player_aaaa when listed
 }
 
 type CrawlStats struct {
-	Categories      int
-	CategoryPages   int
-	VideosFound     int
-	EpisodesFound   int
-	PagesFetched    int
-	FetchErrors     int
-	ParseErrors     int
+	Categories    int
+	CategoryPages int
+	VideosFound   int
+	EpisodesFound int
+	PagesFetched  int
+	FetchErrors   int
+	ParseErrors   int
 }
 
 func NewEngine(fetcher PageFetcher, baseURL string) *Engine {
