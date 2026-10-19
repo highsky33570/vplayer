@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/tycdn/vplayer/internal/config"
@@ -23,20 +25,23 @@ import (
 	"github.com/tycdn/vplayer/internal/store"
 )
 
-const usageText = `usage: backfillsourcecomments --source-system olehdtv --mode full --limit N --confirm=BACKFILL [--retry-failed] [--dry-run]
+const usageText = `usage:
+  backfillsourcecomments --source-system olehdtv --mode full --limit N --confirm=BACKFILL [--retry-failed] [--dry-run]
+  backfillsourcecomments --source-system olehdtv --mode full --drain --max-videos N --confirm=BACKFILL-DRAIN [--retry-failed] [--dry-run]
 
-Imports anonymous public comments for up to N existing OLEHDTV videos (maximum 100).
-Makes no source requests unless --confirm=BACKFILL and --mode full are exact.
-Does not migrate the database. Does not start from the API, catalog sync, or a timer.
+Bounded mode imports at most 100 videos. Drain mode repeats batches of 100 until the
+backlog is done, a video fails, the process is interrupted, or --max-videos is reached.
+--confirm=BACKFILL does not authorize --drain. Nothing starts this command automatically.
 
-Later catch-up stays operator-run: syncsourcecomments --mode incremental for new
-top-level comments, and --mode full for replies on older parents.`
+Historical drain is a full import. Later catch-up stays a separate operator command.`
 
 const publicCommentOrigin = "https://www.olehdtv.com"
 
 type options struct {
 	SourceSystem string
 	Limit        int
+	MaxVideos    int
+	Drain        bool
 	RetryFailed  bool
 	DryRun       bool
 }
@@ -58,8 +63,10 @@ func parseArgs(args []string) (options, error) {
 	fs.SetOutput(io.Discard)
 	sourceSystem := fs.String("source-system", "", "source system; only olehdtv")
 	mode := fs.String("mode", "", "must be full")
-	confirm := fs.String("confirm", "", "must be BACKFILL")
-	limit := fs.Int("limit", 0, "videos to import this invocation")
+	confirm := fs.String("confirm", "", "BACKFILL, or BACKFILL-DRAIN with --drain")
+	limit := fs.Int("limit", 0, "videos to import in bounded mode")
+	maxVideos := fs.Int("max-videos", 0, "safety ceiling for --drain")
+	drain := fs.Bool("drain", false, "keep importing until the ceiling, a failure, or interrupt")
 	retryFailed := fs.Bool("retry-failed", false, "retry the failed checkpoint, then continue")
 	dryRun := fs.Bool("dry-run", false, "print the batch without source requests or writes")
 	if err := fs.Parse(args); err != nil {
@@ -68,10 +75,10 @@ func parseArgs(args []string) (options, error) {
 	if fs.NArg() != 0 {
 		return options{}, fmt.Errorf("unexpected arguments")
 	}
-	return validateOptions(*sourceSystem, *mode, *confirm, *limit, *retryFailed, *dryRun)
+	return validateOptions(*sourceSystem, *mode, *confirm, *limit, *maxVideos, *drain, *retryFailed, *dryRun)
 }
 
-func validateOptions(sourceSystem, mode, confirm string, limit int, retryFailed, dryRun bool) (options, error) {
+func validateOptions(sourceSystem, mode, confirm string, limit, maxVideos int, drain, retryFailed, dryRun bool) (options, error) {
 	sourceSystem = strings.TrimSpace(sourceSystem)
 	if sourceSystem == "" {
 		return options{}, fmt.Errorf("missing --source-system")
@@ -85,8 +92,32 @@ func validateOptions(sourceSystem, mode, confirm string, limit int, retryFailed,
 	if mode != "full" {
 		return options{}, fmt.Errorf("historical backfill only accepts --mode full")
 	}
+	if drain {
+		if confirm != "BACKFILL-DRAIN" {
+			return options{}, fmt.Errorf("drain mode requires --confirm=BACKFILL-DRAIN; no source requests were made")
+		}
+		if limit != 0 {
+			return options{}, fmt.Errorf("drain mode does not use --limit")
+		}
+		if maxVideos <= 0 {
+			return options{}, fmt.Errorf("missing --max-videos; no videos were selected")
+		}
+		if maxVideos > sourcecomments.MaxDrainVideos {
+			return options{}, fmt.Errorf("--max-videos %d exceeds %d", maxVideos, sourcecomments.MaxDrainVideos)
+		}
+		return options{
+			SourceSystem: sourceSystem,
+			MaxVideos:    maxVideos,
+			Drain:        true,
+			RetryFailed:  retryFailed,
+			DryRun:       dryRun,
+		}, nil
+	}
 	if confirm != "BACKFILL" {
 		return options{}, fmt.Errorf("missing --confirm=BACKFILL; no source requests were made")
+	}
+	if maxVideos != 0 {
+		return options{}, fmt.Errorf("--max-videos is only valid with --drain")
 	}
 	if limit <= 0 {
 		return options{}, fmt.Errorf("missing --limit; no videos were selected")
@@ -132,6 +163,19 @@ func run(opts options) error {
 		}
 		client := commenthtml.NewClient(publicCommentOrigin, time.Duration(timeout)*time.Second, delay, cfg.OleHdTvMaxRetries)
 		fetcher = readOnlyFetcher{client: client}
+	}
+	if opts.Drain {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		_, err = sourcecomments.RunDrain(ctx, db, db, fetcher, sourcecomments.BackfillOptions{
+			SourceSystem: opts.SourceSystem,
+			MaxVideos:    opts.MaxVideos,
+			RetryFailed:  opts.RetryFailed,
+			DryRun:       opts.DryRun,
+			Now:          time.Now().UTC(),
+			Out:          os.Stdout,
+		})
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
 	defer cancel()

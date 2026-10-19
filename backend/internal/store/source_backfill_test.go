@@ -6,7 +6,8 @@ import (
 )
 
 func TestBackfillSQLDoesNotTouchCatalogOrNativeComments(t *testing.T) {
-	sqlText := listActiveSourceVideosSQL + listBackfillCheckpointsSQL + saveBackfillCheckpointSQL + countSourceCommentRowsSQL
+	sqlText := listActiveSourceVideosSQL + listBackfillCheckpointsSQL + saveBackfillCheckpointSQL + countSourceCommentRowsSQL +
+		listPendingBackfillSQL + listFailedBackfillSQL + firstFailedBackfillSQL + countBackfillStatusSQL + countRemainingBackfillSQL
 	lower := strings.ToLower(sqlText)
 	for _, banned := range []string{"video_comments", "user_id", "email", "password_hash", "delete from", "update videos"} {
 		if strings.Contains(lower, banned) {
@@ -21,5 +22,12 @@ func TestBackfillSQLDoesNotTouchCatalogOrNativeComments(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(saveBackfillCheckpointSQL), "update videos") {
 		t.Fatal("checkpoint write updates videos")
+	}
+	pending := strings.ToLower(listPendingBackfillSQL)
+	if !strings.Contains(pending, "limit ?") || !strings.Contains(pending, "v.id > ?") {
+		t.Fatal("pending drain selection is not a bounded id cursor")
+	}
+	if !strings.Contains(pending, "b.status = 'pending'") {
+		t.Fatal("pending selection must skip completed and failed checkpoints")
 	}
 }

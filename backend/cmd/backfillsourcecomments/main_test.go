@@ -18,6 +18,12 @@ func TestParseArgsRefusesWithoutConfirmationOrLimit(t *testing.T) {
 		{"--source-system", "other", "--mode", "full", "--confirm", "BACKFILL", "--limit", "1"},
 		{"--source-system", "olehdtv", "--mode", "incremental", "--confirm", "BACKFILL", "--limit", "1"},
 		{"--all"},
+		{"--source-system", "olehdtv", "--mode", "full", "--drain", "--confirm", "BACKFILL", "--max-videos", "100"},
+		{"--source-system", "olehdtv", "--mode", "full", "--drain", "--confirm", "BACKFILL-DRAIN"},
+		{"--source-system", "olehdtv", "--mode", "full", "--drain", "--confirm", "BACKFILL-DRAIN", "--max-videos", "0"},
+		{"--source-system", "olehdtv", "--mode", "full", "--drain", "--confirm", "BACKFILL-DRAIN", "--max-videos", "20001"},
+		{"--source-system", "olehdtv", "--mode", "full", "--confirm", "BACKFILL-DRAIN", "--limit", "10"},
+		{"--source-system", "olehdtv", "--mode", "full", "--drain", "--confirm", "BACKFILL-DRAIN", "--max-videos", "100", "--limit", "10"},
 	}
 	for _, args := range cases {
 		if _, err := parseArgs(args); err == nil {
@@ -47,8 +53,19 @@ func TestParseArgsAcceptsBoundedFullBackfill(t *testing.T) {
 		"--confirm", "BACKFILL",
 		"--retry-failed",
 	})
-	if err != nil || !retry.RetryFailed || retry.Limit != 100 {
+	if err != nil || !retry.RetryFailed || retry.Limit != 100 || retry.Drain {
 		t.Fatalf("%+v %v", retry, err)
+	}
+	drain, err := parseArgs([]string{
+		"--source-system", "olehdtv",
+		"--mode", "full",
+		"--drain",
+		"--max-videos", "10000",
+		"--confirm", "BACKFILL-DRAIN",
+		"--dry-run",
+	})
+	if err != nil || !drain.Drain || drain.MaxVideos != 10000 || drain.Limit != 0 || !drain.DryRun {
+		t.Fatalf("%+v %v", drain, err)
 	}
 }
 

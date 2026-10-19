@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -284,11 +285,13 @@ func TestBackfillRequestsStayOnCommentRead(t *testing.T) {
 }
 
 type fakeCatalog struct {
-	comments *store.MemorySourceComments
-	videos   []store.SourceVideoCandidate
-	checks   []store.BackfillCheckpoint
-	statuses map[uint64]string
-	saves    int
+	comments      *store.MemorySourceComments
+	videos        []store.SourceVideoCandidate
+	checks        []store.BackfillCheckpoint
+	statuses      map[uint64]string
+	saves         int
+	pendingLimits []int
+	pendingAfter  []uint64
 }
 
 func (f *fakeCatalog) ListActiveSourceVideos(sourceSystem string) ([]store.SourceVideoCandidate, error) {
@@ -340,6 +343,93 @@ func (f *fakeCatalog) checkpoint(videoID uint64) (store.BackfillCheckpoint, bool
 	return store.BackfillCheckpoint{}, false
 }
 
+func (f *fakeCatalog) ListPendingBackfillVideos(sourceSystem, mode string, afterID uint64, limit int) ([]store.SourceVideoCandidate, error) {
+	f.pendingLimits = append(f.pendingLimits, limit)
+	f.pendingAfter = append(f.pendingAfter, afterID)
+	var out []store.SourceVideoCandidate
+	for _, video := range f.videos {
+		if !drainEligible(video, sourceSystem) || video.ID <= afterID {
+			continue
+		}
+		row, ok := f.checkpoint(video.ID)
+		if ok && row.Mode == mode && row.Status != store.BackfillPending {
+			continue
+		}
+		out = append(out, video)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (f *fakeCatalog) ListFailedBackfillVideos(sourceSystem, mode string) ([]store.SourceVideoCandidate, error) {
+	var out []store.SourceVideoCandidate
+	for _, row := range f.checks {
+		if row.SourceSystem != sourceSystem || row.Mode != mode || row.Status != store.BackfillFailed {
+			continue
+		}
+		for _, video := range f.videos {
+			if video.ID == row.VideoID && drainEligible(video, sourceSystem) {
+				out = append(out, video)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+func (f *fakeCatalog) FirstFailedBackfill(sourceSystem, mode string) (*store.BackfillCheckpoint, error) {
+	var found *store.BackfillCheckpoint
+	for i := range f.checks {
+		row := f.checks[i]
+		if row.SourceSystem != sourceSystem || row.Mode != mode || row.Status != store.BackfillFailed {
+			continue
+		}
+		if found == nil || row.VideoID < found.VideoID {
+			copyRow := row
+			found = &copyRow
+		}
+	}
+	return found, nil
+}
+
+func (f *fakeCatalog) CountBackfillCheckpointStatus(sourceSystem, mode string) (int, int, error) {
+	completed, failed := 0, 0
+	for _, row := range f.checks {
+		if row.SourceSystem != sourceSystem || row.Mode != mode {
+			continue
+		}
+		switch row.Status {
+		case store.BackfillCompleted:
+			completed++
+		case store.BackfillFailed:
+			failed++
+		}
+	}
+	return completed, failed, nil
+}
+
+func (f *fakeCatalog) CountRemainingBackfill(sourceSystem, mode string) (int, error) {
+	n := 0
+	for _, video := range f.videos {
+		if !drainEligible(video, sourceSystem) {
+			continue
+		}
+		row, ok := f.checkpoint(video.ID)
+		if ok && row.Mode == mode && row.Status == store.BackfillCompleted {
+			continue
+		}
+		n++
+	}
+	return n, nil
+}
+
+func drainEligible(video store.SourceVideoCandidate, sourceSystem string) bool {
+	return video.SourceSystem == sourceSystem && video.Active && strings.TrimSpace(video.SourceID) != "" && video.ID != 0
+}
+
 func (f *fakeCatalog) statusOf(videoID uint64) string {
 	row, ok := f.checkpoint(videoID)
 	if !ok {
@@ -349,10 +439,12 @@ func (f *fakeCatalog) statusOf(videoID uint64) string {
 }
 
 type scriptPages struct {
-	body  map[string]map[int]string
-	calls []string
-	errAt string
-	fail  error
+	body     map[string]map[int]string
+	calls    []string
+	errAt    string
+	fail     error
+	cancel   context.CancelFunc
+	cancelOn string
 }
 
 func (s *scriptPages) FetchCommentPage(_ context.Context, sourceVideoID string, page int) (string, error) {
@@ -361,6 +453,11 @@ func (s *scriptPages) FetchCommentPage(_ context.Context, sourceVideoID string, 
 	}
 	key := fmt.Sprintf("%s:%d", sourceVideoID, page)
 	s.calls = append(s.calls, key)
+	if s.cancelOn == key && s.cancel != nil {
+		s.cancel()
+		s.cancelOn = ""
+		return "", context.Canceled
+	}
 	if s.errAt == key {
 		return "", errors.New("source unavailable")
 	}

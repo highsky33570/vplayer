@@ -83,6 +83,56 @@ const saveBackfillCheckpointSQL = `
 		completed_at=VALUES(completed_at),
 		updated_at=VALUES(updated_at)`
 
+const listPendingBackfillSQL = `
+	SELECT v.id, v.source_system, v.source_id, COALESCE(v.title,'')
+	FROM videos v
+	LEFT JOIN source_comment_backfill b
+	  ON b.source_system = v.source_system AND b.video_id = v.id AND b.mode = ?
+	WHERE v.source_system = ?
+	  AND v.source_id IS NOT NULL AND v.source_id <> ''
+	  AND COALESCE(v.is_active,1) = 1
+	  AND v.id > ?
+	  AND (b.video_id IS NULL OR b.status = 'pending')
+	ORDER BY v.id ASC
+	LIMIT ?`
+
+const listFailedBackfillSQL = `
+	SELECT v.id, v.source_system, v.source_id, COALESCE(v.title,'')
+	FROM videos v
+	INNER JOIN source_comment_backfill b
+	  ON b.source_system = v.source_system AND b.video_id = v.id AND b.mode = ? AND b.status = 'failed'
+	WHERE v.source_system = ?
+	  AND v.source_id IS NOT NULL AND v.source_id <> ''
+	  AND COALESCE(v.is_active,1) = 1
+	ORDER BY v.id ASC`
+
+const firstFailedBackfillSQL = `
+	SELECT video_id, source_video_id, COALESCE(error_message,'')
+	FROM source_comment_backfill
+	WHERE source_system=? AND mode=? AND status='failed'
+	ORDER BY video_id ASC
+	LIMIT 1`
+
+const countBackfillStatusSQL = `
+	SELECT CAST(COALESCE(SUM(status='completed'),0) AS SIGNED),
+	       CAST(COALESCE(SUM(status='failed'),0) AS SIGNED)
+	FROM source_comment_backfill
+	WHERE source_system=? AND mode=?`
+
+const countRemainingBackfillSQL = `
+	SELECT COUNT(*)
+	FROM videos v
+	WHERE v.source_system = ?
+	  AND v.source_id IS NOT NULL AND v.source_id <> ''
+	  AND COALESCE(v.is_active,1) = 1
+	  AND NOT EXISTS (
+	    SELECT 1 FROM source_comment_backfill b
+	    WHERE b.source_system = v.source_system
+	      AND b.video_id = v.id
+	      AND b.mode = ?
+	      AND b.status = 'completed'
+	  )`
+
 const countSourceCommentRowsSQL = `
 	SELECT CAST(COALESCE(SUM(parent_source_comment_id IS NULL OR parent_source_comment_id=''),0) AS SIGNED),
 	       CAST(COALESCE(SUM(parent_source_comment_id IS NOT NULL AND parent_source_comment_id<>''),0) AS SIGNED)
@@ -172,6 +222,74 @@ func (m *MySQL) SaveBackfillCheckpoint(row BackfillCheckpoint, now time.Time) er
 		started, completed, stamp, stamp,
 	)
 	return err
+}
+
+// ListPendingBackfillVideos returns the next active videos that are not completed
+// or failed, in id order, after afterID. The LIMIT keeps a drain from loading the catalog.
+func (m *MySQL) ListPendingBackfillVideos(sourceSystem, mode string, afterID uint64, limit int) ([]SourceVideoCandidate, error) {
+	if limit < 1 {
+		return nil, fmt.Errorf("invalid backfill page size")
+	}
+	rows, err := m.DB.Query(listPendingBackfillSQL, strings.TrimSpace(mode), strings.TrimSpace(sourceSystem), afterID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSourceVideoCandidates(rows)
+}
+
+// ListFailedBackfillVideos returns active videos whose checkpoint is failed, in id order.
+func (m *MySQL) ListFailedBackfillVideos(sourceSystem, mode string) ([]SourceVideoCandidate, error) {
+	rows, err := m.DB.Query(listFailedBackfillSQL, strings.TrimSpace(mode), strings.TrimSpace(sourceSystem))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanSourceVideoCandidates(rows)
+}
+
+// FirstFailedBackfill returns the lowest-id failed checkpoint, including an inactive video.
+func (m *MySQL) FirstFailedBackfill(sourceSystem, mode string) (*BackfillCheckpoint, error) {
+	var row BackfillCheckpoint
+	err := m.DB.QueryRow(firstFailedBackfillSQL, strings.TrimSpace(sourceSystem), strings.TrimSpace(mode)).Scan(
+		&row.VideoID, &row.SourceVideoID, &row.ErrorMessage,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	row.SourceSystem = sourceSystem
+	row.Mode = mode
+	row.Status = BackfillFailed
+	return &row, nil
+}
+
+// CountBackfillCheckpointStatus counts completed and failed checkpoint rows.
+func (m *MySQL) CountBackfillCheckpointStatus(sourceSystem, mode string) (completed, failed int, err error) {
+	err = m.DB.QueryRow(countBackfillStatusSQL, strings.TrimSpace(sourceSystem), strings.TrimSpace(mode)).Scan(&completed, &failed)
+	return completed, failed, err
+}
+
+// CountRemainingBackfill counts active videos that do not yet have a completed checkpoint.
+func (m *MySQL) CountRemainingBackfill(sourceSystem, mode string) (int, error) {
+	var n int
+	err := m.DB.QueryRow(countRemainingBackfillSQL, strings.TrimSpace(sourceSystem), strings.TrimSpace(mode)).Scan(&n)
+	return n, err
+}
+
+func scanSourceVideoCandidates(rows *sql.Rows) ([]SourceVideoCandidate, error) {
+	var out []SourceVideoCandidate
+	for rows.Next() {
+		var row SourceVideoCandidate
+		if err := rows.Scan(&row.ID, &row.SourceSystem, &row.SourceID, &row.Title); err != nil {
+			return nil, err
+		}
+		row.Active = true
+		out = append(out, row)
+	}
+	return out, rows.Err()
 }
 
 // CountSourceCommentRows counts stored parents and replies for one local video.

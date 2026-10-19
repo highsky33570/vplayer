@@ -25,6 +25,8 @@ var ErrFailedCheckpoint = errors.New("failed checkpoint requires --retry-failed"
 type BackfillOptions struct {
 	SourceSystem string
 	Limit        int
+	MaxVideos    int
+	BatchSize    int
 	RetryFailed  bool
 	DryRun       bool
 	Now          time.Time
