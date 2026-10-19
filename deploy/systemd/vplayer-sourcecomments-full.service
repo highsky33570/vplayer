@@ -1,0 +1,24 @@
+[Unit]
+Description=VPlayer OLEHDTV source-comment full repair
+Documentation=file:///opt/vplayer/deploy/systemd/README.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vplayer
+# Shares MySQL advisory lock vplayer_source_comment_sync with incremental maintenance and backfillsourcecomments.
+# Full repair walks every public comment page. It can take many hours and stays resumable.
+ExecStart=/opt/vplayer/backend/bin/maintainsourcecomments --source-system olehdtv --mode full --confirm=MAINTENANCE
+TimeoutStartSec=36h
+Nice=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vplayer-sourcecomments-full
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

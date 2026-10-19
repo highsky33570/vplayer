@@ -1,0 +1,14 @@
+[Unit]
+Description=Run VPlayer source-comment incremental maintenance every 3 hours
+# Do NOT Requires= the oneshot. Enabling or restarting this timer must not start maintenance.
+
+[Timer]
+# Offset from discovery :00, enrichment :20, and media migration :40.
+OnCalendar=*-*-* 00/3:50:00
+Persistent=true
+RandomizedDelaySec=20min
+AccuracySec=1min
+Unit=vplayer-sourcecomments-incremental.service
+
+[Install]
+WantedBy=timers.target

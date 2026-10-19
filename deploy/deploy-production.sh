@@ -13,6 +13,7 @@ readonly ENRICH_BIN="${WORKER_BIN_DIR}/enrichpending"
 readonly MIGRATE_BIN="${WORKER_BIN_DIR}/migratemedia"
 readonly LEAF_BIN="${WORKER_BIN_DIR}/syncleafmembership"
 readonly LEAF_IMPORT_BIN="${WORKER_BIN_DIR}/syncleafimport"
+readonly MAINTAIN_BIN="${WORKER_BIN_DIR}/maintainsourcecomments"
 readonly FRONTEND_DIST="${PROD_ROOT}/frontend/dist"
 readonly MIGRATIONS_SRC="${REPO_DIR}/backend/migrations"
 readonly MIGRATIONS_RUNTIME="${PROD_ROOT}/backend/migrations"
@@ -30,6 +31,10 @@ readonly DB_BACKUP_UNIT="vplayer-db-backup.service"
 readonly DB_BACKUP_TIMER="vplayer-db-backup.timer"
 readonly HEALTH_UNIT="vplayer-healthcheck.service"
 readonly HEALTH_TIMER="vplayer-healthcheck.timer"
+readonly MAINTAIN_INCREMENTAL_UNIT="vplayer-sourcecomments-incremental.service"
+readonly MAINTAIN_INCREMENTAL_TIMER="vplayer-sourcecomments-incremental.timer"
+readonly MAINTAIN_FULL_UNIT="vplayer-sourcecomments-full.service"
+readonly MAINTAIN_FULL_TIMER="vplayer-sourcecomments-full.timer"
 readonly SYSTEMD_UNIT_SRC="${REPO_DIR}/deploy/systemd"
 readonly SYSTEMD_UNIT_DST="/etc/systemd/system"
 readonly OPS_SRC="${REPO_DIR}/deploy/ops"
@@ -154,6 +159,27 @@ install_migratemedia_units() {
   fi
 }
 
+# Install source-comment maintenance unit files and reload systemd.
+# Timers stay disabled. This function must never enable, start, or restart them.
+install_source_comment_maintenance_units() {
+  local inc_svc="${SYSTEMD_UNIT_SRC}/vplayer-sourcecomments-incremental.service"
+  local inc_timer="${SYSTEMD_UNIT_SRC}/vplayer-sourcecomments-incremental.timer"
+  local full_svc="${SYSTEMD_UNIT_SRC}/vplayer-sourcecomments-full.service"
+  local full_timer="${SYSTEMD_UNIT_SRC}/vplayer-sourcecomments-full.timer"
+  [[ -f "${inc_svc}" && -f "${inc_timer}" ]] || die "missing incremental maintenance units"
+  [[ -f "${full_svc}" && -f "${full_timer}" ]] || die "missing full maintenance units"
+
+  install -m 644 "${inc_svc}" "${SYSTEMD_UNIT_DST}/vplayer-sourcecomments-incremental.service"
+  install -m 644 "${inc_timer}" "${SYSTEMD_UNIT_DST}/vplayer-sourcecomments-incremental.timer"
+  install -m 644 "${full_svc}" "${SYSTEMD_UNIT_DST}/vplayer-sourcecomments-full.service"
+  install -m 644 "${full_timer}" "${SYSTEMD_UNIT_DST}/vplayer-sourcecomments-full.timer"
+  systemctl daemon-reload
+
+  if is_active "${MAINTAIN_INCREMENTAL_UNIT}" || is_active "${MAINTAIN_FULL_UNIT}"; then
+    die "source-comment maintenance became active during unit install"
+  fi
+}
+
 # Install Plan 8 ops scripts + DB backup / healthcheck timers.
 # Enables and restarts TIMERS only. Never starts a DB dump or restore during deploy.
 install_plan8_ops_units() {
@@ -258,6 +284,9 @@ rollback_from_backup() {
   fi
   if [[ -f "${BACKUP_DIR}/syncleafimport" ]]; then
     atomic_install_bin "${BACKUP_DIR}/syncleafimport" "${LEAF_IMPORT_BIN}" || ok=0
+  fi
+  if [[ -f "${BACKUP_DIR}/maintainsourcecomments" ]]; then
+    atomic_install_bin "${BACKUP_DIR}/maintainsourcecomments" "${MAINTAIN_BIN}" || ok=0
   fi
   if [[ -d "${BACKUP_DIR}/frontend-dist" ]]; then
     local new_dist="${FRONTEND_DIST}.rollback-new"
@@ -436,7 +465,13 @@ main() {
     die "${MIGRATE_UNIT} is active; aborting to avoid interrupting a running worker"
   fi
   # Admin-launched / timer oneshots may not appear as active units in every edge case.
-  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}" "${LEAF_IMPORT_BIN}"; then
+  if is_active "${MAINTAIN_INCREMENTAL_UNIT}"; then
+    die "${MAINTAIN_INCREMENTAL_UNIT} is active; aborting to avoid interrupting maintenance"
+  fi
+  if is_active "${MAINTAIN_FULL_UNIT}"; then
+    die "${MAINTAIN_FULL_UNIT} is active; aborting to avoid interrupting maintenance"
+  fi
+  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}" "${LEAF_IMPORT_BIN}" "${MAINTAIN_BIN}"; then
     die "deployment refused: VPlayer worker process is active"
   fi
 
@@ -455,7 +490,7 @@ main() {
     go test ./...
   )
 
-  log "backend: build cmd/api, syncincremental, enrichpending, migratemedia, syncleafmembership, syncleafimport"
+  log "backend: build cmd/api, syncincremental, enrichpending, migratemedia, syncleafmembership, syncleafimport, maintainsourcecomments"
   (
     cd "${REPO_DIR}/backend"
     go build -o "${STAGING}/bin/vplayer-api" ./cmd/api
@@ -464,6 +499,7 @@ main() {
     go build -o "${STAGING}/bin/migratemedia" ./cmd/migratemedia
     go build -o "${STAGING}/bin/syncleafmembership" ./cmd/syncleafmembership
     go build -o "${STAGING}/bin/syncleafimport" ./cmd/syncleafimport
+    go build -o "${STAGING}/bin/maintainsourcecomments" ./cmd/maintainsourcecomments
   )
 
   log "staging backend SQL migrations…"
@@ -489,6 +525,7 @@ main() {
   backup_path_if_exists "${MIGRATE_BIN}" "migratemedia"
   backup_path_if_exists "${LEAF_BIN}" "syncleafmembership"
   backup_path_if_exists "${LEAF_IMPORT_BIN}" "syncleafimport"
+  backup_path_if_exists "${MAINTAIN_BIN}" "maintainsourcecomments"
   if [[ -d "${FRONTEND_DIST}" ]]; then
     cp -a "${FRONTEND_DIST}" "${BACKUP_DIR}/frontend-dist"
   fi
@@ -506,7 +543,13 @@ main() {
   if is_active "${MIGRATE_UNIT}"; then
     die "${MIGRATE_UNIT} is active; aborting to avoid interrupting a running worker"
   fi
-  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}" "${LEAF_IMPORT_BIN}"; then
+  if is_active "${MAINTAIN_INCREMENTAL_UNIT}"; then
+    die "${MAINTAIN_INCREMENTAL_UNIT} is active; aborting to avoid interrupting maintenance"
+  fi
+  if is_active "${MAINTAIN_FULL_UNIT}"; then
+    die "${MAINTAIN_FULL_UNIT} is active; aborting to avoid interrupting maintenance"
+  fi
+  if worker_bins_running "${SYNC_BIN}" "${ENRICH_BIN}" "${MIGRATE_BIN}" "${LEAF_BIN}" "${LEAF_IMPORT_BIN}" "${MAINTAIN_BIN}"; then
     die "deployment refused: VPlayer worker process is active"
   fi
 
@@ -521,6 +564,7 @@ main() {
   atomic_install_bin "${STAGING}/bin/migratemedia" "${MIGRATE_BIN}"
   atomic_install_bin "${STAGING}/bin/syncleafmembership" "${LEAF_BIN}"
   atomic_install_bin "${STAGING}/bin/syncleafimport" "${LEAF_IMPORT_BIN}"
+  atomic_install_bin "${STAGING}/bin/maintainsourcecomments" "${MAINTAIN_BIN}"
 
   log "replacing frontend dist…"
   local dist_new="${FRONTEND_DIST}.new"
@@ -546,6 +590,9 @@ main() {
   log "installing ${MIGRATE_UNIT} / ${MIGRATE_TIMER} (enable+restart timer only; never start oneshot)…"
   install_migratemedia_units
 
+  log "installing source-comment maintenance units (files and daemon-reload only; timers stay disabled)…"
+  install_source_comment_maintenance_units
+
   log "installing Plan 8 ops (DB backup + healthcheck timers; no dump during deploy)…"
   install_plan8_ops_units
 
@@ -562,6 +609,9 @@ main() {
   fi
   if is_active "${DB_BACKUP_UNIT}"; then
     die "${DB_BACKUP_UNIT} is unexpectedly active after deploy (DB dump must not run from deploy)"
+  fi
+  if is_active "${MAINTAIN_INCREMENTAL_UNIT}" || is_active "${MAINTAIN_FULL_UNIT}"; then
+    die "source-comment maintenance is unexpectedly active after deploy"
   fi
 
   nginx -t || die "nginx -t failed"

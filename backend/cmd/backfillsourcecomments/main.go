@@ -2,10 +2,7 @@
 // batch of existing local videos. Nothing starts it: not the API, not catalog
 // sync, and not a timer. It does not apply migrations.
 //
-// After the historical full pass, later operator runs of syncsourcecomments can
-// catch up without a scheduler:
-//   - frequent --mode incremental for new top-level comments
-//   - slower --mode full to repair replies added on older parents
+// Historical backfill is not scheduled. Ongoing maintenance is maintainsourcecomments.
 package main
 
 import (
@@ -174,6 +171,7 @@ func run(opts options) error {
 			DryRun:       opts.DryRun,
 			Now:          time.Now().UTC(),
 			Out:          os.Stdout,
+			Locker:       sourcecomments.MySQLCommentLocker(db),
 		})
 		return err
 	}
@@ -186,6 +184,7 @@ func run(opts options) error {
 		DryRun:       opts.DryRun,
 		Now:          time.Now().UTC(),
 		Out:          os.Stdout,
+		Locker:       sourcecomments.MySQLCommentLocker(db),
 	})
 	return err
 }

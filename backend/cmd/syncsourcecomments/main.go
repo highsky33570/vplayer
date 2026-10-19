@@ -130,6 +130,11 @@ func run(opts options) error {
 	if tableCount != 1 {
 		return fmt.Errorf("video_source_comments is missing; start the API so migration 012 can apply")
 	}
+	hold, err := db.AcquireAdvisoryLock(context.Background(), store.SourceCommentLockName)
+	if err != nil {
+		return err
+	}
+	defer hold.Release()
 
 	delay := cfg.OleHdTvRequestDelayMs
 	if delay < 1000 {

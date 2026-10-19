@@ -12,6 +12,8 @@
 | `vplayer-migratemedia.service` + `.timer` | Selective R2 **media migration** (`migratemedia --execute --confirm=MIGRATE --limit 1 --trigger=timer`) |
 | `vplayer-db-backup.service` + `.timer` | Daily MySQL logical backup (Plan 8; timer only from deploy) |
 | `vplayer-healthcheck.service` + `.timer` | Local health monitoring every ~15m (Plan 8) |
+| `vplayer-sourcecomments-incremental.service` + `.timer` | Incremental source-comment maintenance. Deploy installs the files and does **not** enable the timer |
+| `vplayer-sourcecomments-full.service` + `.timer` | Weekly full source-comment repair. Deploy installs the files and does **not** enable the timer |
 
 See [`docs/BACKUP_RESTORE.md`](../../docs/BACKUP_RESTORE.md) for DB backup location, retention, and restore. Deploy rollback under `/opt/vplayer/releases/backups` is separate.
 
@@ -28,6 +30,10 @@ Production migration worker pattern (match syncincremental):
 - Media migration: every 6 hours at `:40` + ~10min randomized delay; `Persistent=false` (`vplayer-migratemedia.timer`)
 - DB backup: daily `03:30` + up to 45m randomized delay (`vplayer-db-backup.timer`)
 - Healthcheck: every 15 minutes + up to 2m randomized delay (`vplayer-healthcheck.timer`)
+- Source-comment incremental maintenance: every 3 hours at `:50` + up to 20m randomized delay (`vplayer-sourcecomments-incremental.timer`)
+- Source-comment full repair: Sundays at `05:15` + up to 3h randomized delay (`vplayer-sourcecomments-full.timer`)
+
+Source-comment timers are installed by deploy and left **disabled**. Deploy does not enable or start them. Both modes and historical backfill share MySQL advisory lock `vplayer_source_comment_sync`.
 
 Enrichment only fetches already-stored `play_page_url` values (max 15–20 per run).
 Migration processes at most one episode per timer fire (app advisory lock + cooldown).

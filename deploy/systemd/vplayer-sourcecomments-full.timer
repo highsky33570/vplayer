@@ -1,0 +1,14 @@
+[Unit]
+Description=Run VPlayer source-comment full repair once a week
+# Do NOT Requires= the oneshot. Enabling or restarting this timer must not start maintenance.
+
+[Timer]
+# Sunday 05:15, away from the 3-hour incremental slot. RandomizedDelay spreads the start.
+OnCalendar=Sun *-*-* 05:15:00
+Persistent=true
+RandomizedDelaySec=3h
+AccuracySec=1min
+Unit=vplayer-sourcecomments-full.service
+
+[Install]
+WantedBy=timers.target

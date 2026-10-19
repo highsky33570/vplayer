@@ -31,6 +31,7 @@ type BackfillOptions struct {
 	DryRun       bool
 	Now          time.Time
 	Out          io.Writer
+	Locker       Locker
 }
 
 // BackfillSummary is the counters printed at the end of one invocation.
@@ -59,12 +60,8 @@ type BackfillCatalog interface {
 // It processes one video at a time and stops the invocation on the first failure.
 // Completed videos stay checkpointed and are not read again.
 //
-// Historical backfill uses ModeFull. After it finishes, later operator runs of the
-// single-video command can do two slower jobs, neither of which is scheduled here:
-//   - frequent ModeIncremental, which stops once a page of known parents is reached
-//     and therefore catches new top-level comments
-//   - a slower ModeFull repair, which walks every page and therefore catches replies
-//     added under older parents
+// Historical backfill uses ModeFull. Completion of those checkpoints does not skip
+// later maintenance. Ongoing incremental and full repair live in maintainsourcecomments.
 func RunBackfill(ctx context.Context, comments store.SourceCommentRepo, catalog BackfillCatalog, fetcher PageFetcher, opts BackfillOptions) (BackfillSummary, error) {
 	started := time.Now()
 	if opts.Now.IsZero() {
@@ -84,6 +81,11 @@ func RunBackfill(ctx context.Context, comments store.SourceCommentRepo, catalog 
 	if !opts.DryRun && fetcher == nil {
 		return summary, fmt.Errorf("comment backfill is not configured")
 	}
+	release, err := acquireCommentLock(ctx, opts.Locker)
+	if err != nil {
+		return summary, err
+	}
+	defer release()
 
 	videos, err := catalog.ListActiveSourceVideos(opts.SourceSystem)
 	if err != nil {

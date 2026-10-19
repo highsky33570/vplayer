@@ -1,0 +1,24 @@
+[Unit]
+Description=VPlayer OLEHDTV source-comment incremental maintenance
+Documentation=file:///opt/vplayer/deploy/systemd/README.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vplayer
+# Shares MySQL advisory lock vplayer_source_comment_sync with full repair and backfillsourcecomments.
+# One video and one comment page at a time. Delay floor is enforced by the command.
+ExecStart=/opt/vplayer/backend/bin/maintainsourcecomments --source-system olehdtv --mode incremental --confirm=MAINTENANCE
+TimeoutStartSec=12h
+Nice=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vplayer-sourcecomments-incremental
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

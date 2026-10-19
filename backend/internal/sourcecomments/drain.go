@@ -55,6 +55,11 @@ func RunDrain(ctx context.Context, comments store.SourceCommentRepo, catalog Dra
 	if !opts.DryRun && fetcher == nil {
 		return summary, fmt.Errorf("comment backfill is not configured")
 	}
+	release, err := acquireCommentLock(ctx, opts.Locker)
+	if err != nil {
+		return summary, err
+	}
+	defer release()
 	batch := opts.BatchSize
 	if batch <= 0 {
 		batch = DrainBatchSize
