@@ -46,6 +46,28 @@ export function childrenOfParent(api: Category[], parentId: number): Category[] 
     .sort((a, b) => a.sort - b.sort || a.id - b.id);
 }
 
+export type DesktopSubcategory = Category & { parentName: string };
+
+/**
+ * Child categories under the canonical mains, in parent display order.
+ * Top-level channels, blank names, and duplicate slugs are omitted.
+ */
+export function desktopSubcategories(api: Category[]): DesktopSubcategory[] {
+  const seen = new Set<string>();
+  const out: DesktopSubcategory[] = [];
+  for (const main of resolveNavCategories(api)) {
+    for (const child of childrenOfParent(api, main.id)) {
+      const name = child.name.trim();
+      const slug = child.slug.trim();
+      if (!name || !slug || name === '推荐' || slug === 'home') continue;
+      if (seen.has(slug)) continue;
+      seen.add(slug);
+      out.push({ ...child, name, slug, parentName: main.name });
+    }
+  }
+  return out;
+}
+
 /**
  * Synchronize expanded parent with the active channel.
  * Preserves manual collapse when active is that same canonical main.

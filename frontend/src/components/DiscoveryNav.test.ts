@@ -7,6 +7,7 @@ import type { Category } from '../api.ts';
 import {
   activeCategoryScrollOptions,
   childrenOfParent,
+  desktopSubcategories,
   expandedParentSlugForActive,
   resolveNavCategories,
   subcategoryListOverflows,
@@ -78,6 +79,37 @@ describe('childrenOfParent', () => {
 
   it('returns empty when parent has no children', () => {
     assert.deepEqual(childrenOfParent(API, 16), []);
+  });
+});
+
+describe('desktopSubcategories', () => {
+  it('lists children of canonical mains in parent order and skips unrelated top-levels', () => {
+    const subs = desktopSubcategories(API);
+    assert.deepEqual(
+      subs.map((c) => c.slug),
+      ['type-102', 'type-103', 'type-101', 'type-201'],
+    );
+    assert.deepEqual(
+      subs.map((c) => c.parentName),
+      ['电影', '电影', '电影', '连续剧'],
+    );
+    assert.equal(
+      subs.some((c) => c.slug === 'movie' || c.slug === 'type-8' || c.slug === 'type-14'),
+      false,
+    );
+  });
+
+  it('drops blank names and duplicate slugs', () => {
+    const api = [
+      ...API,
+      cat({ id: 104, name: '  ', slug: 'type-blank', parent_id: 2 }),
+      cat({ id: 105, name: '推荐', slug: 'home', parent_id: 2, sort: 0 }),
+      cat({ id: 106, name: '喜剧片', slug: 'type-102', parent_id: 2, sort: 1 }),
+    ];
+    const slugs = desktopSubcategories(api).map((c) => c.slug);
+    assert.equal(slugs.filter((slug) => slug === 'type-102').length, 1);
+    assert.equal(slugs.includes('type-blank'), false);
+    assert.equal(slugs.includes('home'), false);
   });
 });
 

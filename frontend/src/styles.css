@@ -578,6 +578,10 @@ img {
   display: none;
 }
 
+.desktop-rail {
+  display: none;
+}
+
 .category-rail {
   width: min(2200px, calc(100% - 32px));
   margin: 0 auto;
@@ -2047,6 +2051,195 @@ html.dark .login-reminder-cta {
 
   .category-rail {
     gap: 8px;
+  }
+}
+
+/* Desktop subcategory rail. The main-channel rail stays in the DOM for tablet/phone. */
+@media (min-width: 1024px) {
+  .category-rail,
+  .desktop-rail,
+  .page:not(.watch):not(.auth-page) {
+    width: min(2200px, calc(100% - 64px));
+  }
+
+  .category-rail {
+    display: none;
+  }
+
+  .desktop-rail {
+    margin: 0 auto;
+    padding: 10px 0 12px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 18px;
+  }
+
+  .desktop-rail-primary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .desktop-primary {
+    width: 64px;
+    height: 58px;
+    margin: 0;
+    padding: 6px 4px 5px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 0;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .desktop-primary--feed {
+    background: linear-gradient(135deg, var(--brand), #3ecfff);
+  }
+
+  .desktop-primary--hot {
+    background: linear-gradient(135deg, #ff6b8a, var(--accent));
+  }
+
+  .desktop-primary:hover {
+    filter: brightness(1.04);
+  }
+
+  .desktop-primary.is-active {
+    box-shadow: 0 0 0 2px rgba(0, 174, 236, 0.28);
+  }
+
+  .desktop-primary:focus-visible,
+  .desktop-sub-btn:focus-visible,
+  .desktop-sub-more:focus-visible,
+  .desktop-text-link:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+
+  .desktop-rail-subs {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: 8px;
+  }
+
+  .desktop-sub-grid {
+    --desktop-sub-cap: 70px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    grid-auto-rows: 32px;
+    gap: 6px 8px;
+    max-height: var(--desktop-sub-cap);
+    overflow: hidden;
+  }
+
+  .desktop-sub-grid.is-all {
+    max-height: none;
+  }
+
+  .desktop-sub-btn {
+    min-width: 0;
+    height: 32px;
+    margin: 0;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--soft-2);
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-sub-btn:hover {
+    color: var(--brand);
+    border-color: rgba(0, 174, 236, 0.35);
+    background: rgba(0, 174, 236, 0.08);
+  }
+
+  .desktop-sub-btn.is-active {
+    color: #fff;
+    background: var(--brand);
+    border-color: var(--brand);
+    font-weight: 600;
+  }
+
+  .desktop-sub-more {
+    height: 32px;
+    margin: 0;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .desktop-rail-links {
+    display: grid;
+    grid-template-columns: repeat(3, max-content);
+    grid-template-rows: repeat(2, 26px);
+    column-gap: 16px;
+    row-gap: 2px;
+    align-items: center;
+    padding-left: 16px;
+    border-left: 1px solid var(--line);
+  }
+
+  .desktop-text-link {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .desktop-text-link:hover {
+    color: var(--brand);
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .desktop-primary {
+    width: 56px;
+    height: 54px;
+  }
+
+  .desktop-rail {
+    column-gap: 12px;
+  }
+
+  .desktop-rail-links {
+    column-gap: 12px;
+  }
+
+  .desktop-text-link {
+    font-size: 12px;
+  }
+
+  .desktop-sub-grid {
+    grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
   }
 }
 

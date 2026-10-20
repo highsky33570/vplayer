@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Category } from '../api';
+import { useAuth } from '../auth/AuthContext';
 import {
   activeCategoryScrollOptions,
   childrenOfParent,
+  desktopSubcategories,
   expandedParentSlugForActive,
   resolveNavCategories,
   subcategoryListOverflows,
@@ -27,14 +29,20 @@ type Props = {
   onSelect: (slug: string) => void;
 };
 
+const DESKTOP_TEXT_LINKS = ['历史', '收藏', '消息', 'VIP', '创作中心', '投稿'] as const;
+
 export function DiscoveryNav({ categories, active, onSelect }: Props) {
+  const { user, openLogin } = useAuth();
   const mains = useMemo(() => resolveNavCategories(categories), [categories]);
+  const subs = useMemo(() => desktopSubcategories(categories), [categories]);
   const [expandedParentSlug, setExpandedParentSlug] = useState<string | null>(() =>
     expandedParentSlugForActive(categories, resolveNavCategories(categories), active),
   );
   const [showAllChildren, setShowAllChildren] = useState(false);
   const [showAllParent, setShowAllParent] = useState(expandedParentSlug);
   const [childrenOverflow, setChildrenOverflow] = useState(false);
+  const [desktopShowAll, setDesktopShowAll] = useState(false);
+  const [desktopOverflow, setDesktopOverflow] = useState(false);
   if (showAllParent !== expandedParentSlug) {
     setShowAllParent(expandedParentSlug);
     setShowAllChildren(false);
@@ -42,6 +50,11 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
 
   const discoveryRef = useRef<HTMLDivElement>(null);
   const subrowRef = useRef<HTMLDivElement>(null);
+  const desktopSubsRef = useRef<HTMLDivElement>(null);
+
+  function requireAuth() {
+    if (!user) openLogin('login');
+  }
 
   useEffect(() => {
     setExpandedParentSlug((current) =>
@@ -52,7 +65,7 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
   useEffect(() => {
     if (window.matchMedia('(max-width: 767px)').matches) return;
     const rail = discoveryRef.current?.querySelector<HTMLElement>('nav.category-rail');
-    if (!rail) return;
+    if (!rail || rail.getClientRects().length === 0) return;
     const activeBtn = rail.querySelector<HTMLElement>(
       '.category-btn--main.is-active, .category-btn--main.is-parent-of-active',
     );
@@ -81,6 +94,28 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
       observer.disconnect();
     };
   }, [expandedParentSlug, expandedChildrenKey(categories, expandedParentSlug), showAllChildren]);
+
+  useLayoutEffect(() => {
+    const grid = desktopSubsRef.current;
+    if (!grid) return;
+
+    const measure = () => {
+      const cap = Number.parseFloat(getComputedStyle(grid).getPropertyValue('--desktop-sub-cap'));
+      const visible =
+        grid.classList.contains('is-all') && Number.isFinite(cap) ? cap : grid.clientHeight;
+      const next = subcategoryListOverflows(grid.scrollHeight, visible);
+      setDesktopOverflow((prev) => (prev === next ? prev : next));
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer.disconnect();
+    };
+  }, [subs, desktopShowAll]);
 
   function handleHome() {
     setExpandedParentSlug(null);
@@ -161,6 +196,63 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
         })}
       </nav>
 
+      <nav className="desktop-rail" aria-label="子分类">
+        <div className="desktop-rail-primary">
+          <button type="button" className="desktop-primary desktop-primary--feed" onClick={requireAuth}>
+            <FeedMark />
+            <span>动态</span>
+          </button>
+          <button
+            type="button"
+            className={`desktop-primary desktop-primary--hot${active === 'home' ? ' is-active' : ''}`}
+            onClick={handleHome}
+          >
+            <HotMark />
+            <span>热门</span>
+          </button>
+        </div>
+
+        <div className="desktop-rail-subs">
+          <div
+            ref={desktopSubsRef}
+            className={`desktop-sub-grid${desktopShowAll ? ' is-all' : ''}`}
+          >
+            {subs.map((child) => (
+              <button
+                key={`${child.id}-${child.slug}`}
+                type="button"
+                title={`${child.parentName} · ${child.name}`}
+                className={`desktop-sub-btn${active === child.slug ? ' is-active' : ''}`}
+                onClick={() => {
+                  const parent = mains.find((main) => main.id === child.parent_id);
+                  if (parent) handleChild(child, parent);
+                }}
+              >
+                {child.name}
+              </button>
+            ))}
+          </div>
+          {desktopOverflow && (
+            <button
+              type="button"
+              className="desktop-sub-more"
+              aria-expanded={desktopShowAll}
+              onClick={() => setDesktopShowAll((current) => toggleSubcategoryShowAll(current))}
+            >
+              {desktopShowAll ? '收起 ▴' : '更多 ▾'}
+            </button>
+          )}
+        </div>
+
+        <div className="desktop-rail-links">
+          {DESKTOP_TEXT_LINKS.map((label) => (
+            <button key={label} type="button" className="desktop-text-link" onClick={requireAuth}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
       {/* Phone-only wrapped children. Desktop keeps inline .category-children beside the parent. */}
       <div
         className={`category-subrow${expandedChildren.length > 0 ? ' is-open' : ''}`}
@@ -199,6 +291,27 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+function FeedMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HotMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3s1 3 1 5a3 3 0 0 1-3 3c0 4 2 6 4 7 4 0 7-3.5 7-8 0-5-5-8-9-7z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
