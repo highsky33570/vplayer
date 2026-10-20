@@ -132,7 +132,8 @@ describe('wired flyouts', () => {
       assert.match(header, new RegExp(`id="${id}"`));
       assert.equal(flyoutPanelClass(id), `header-flyout header-flyout--${id}`);
     }
-    assert.match(header, /navigate\('\/account'\)/);
+    assert.match(header, /HeaderAccountAvatar/);
+    assert.match(readFileSync(join(here, 'HeaderAccountAvatar.tsx'), 'utf8'), /to="\/account"/);
     assert.match(header, /goOrLogin\(VIP_PANEL\.href, undefined, \{ public: true \}\)/);
     assert.match(header, /goOrLogin\('\/messages'\)/);
     assert.match(header, /goOrLogin\('\/favorites'\)/);

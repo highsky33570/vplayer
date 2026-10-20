@@ -6,6 +6,7 @@ import { subscribeUnreadCount } from '../account/unreadEvents';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { BannerCarousel } from './BannerCarousel';
+import { HeaderAccountAvatar } from './HeaderAccountAvatar';
 import { HeaderFlyout } from './HeaderFlyout';
 import {
   AccountPanel,
@@ -224,19 +225,12 @@ export function Header() {
                 onOpen={showFlyout}
                 onClose={hideFlyout}
                 trigger={
-                  <button
-                    type="button"
-                    className={`banner-user is-logged${destActive === 'account' ? ' is-route-active' : ''}`}
-                    title={(user.nickname ?? '').trim() || '已登录'}
-                    aria-haspopup="dialog"
-                    aria-expanded={openFlyout === 'account'}
-                    onClick={() => {
-                      hideFlyout('account');
-                      navigate('/account');
-                    }}
-                  >
-                    <UserAvatar user={user} />
-                  </button>
+                  <HeaderAccountAvatar
+                    user={user}
+                    active={destActive === 'account'}
+                    flyoutOpen={openFlyout === 'account'}
+                    onNavigate={() => hideFlyout('account')}
+                  />
                 }
               >
                 <AccountPanel

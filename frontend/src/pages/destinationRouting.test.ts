@@ -69,8 +69,11 @@ describe('router registers real destination routes', () => {
 });
 
 describe('header click navigates to destination pathnames', () => {
-  it('wires avatar and right-header actions to navigate(pathname)', () => {
-    assert.match(header, /navigate\('\/account'\)/);
+  it('wires avatar Link and right-header actions to destination pathnames', () => {
+    assert.match(header, /HeaderAccountAvatar/);
+    const avatar = readFileSync(join(root, 'components/HeaderAccountAvatar.tsx'), 'utf8');
+    assert.match(avatar, /to="\/account"/);
+    assert.match(avatar, /data-testid="header-account-avatar"/);
     assert.match(header, /goOrLogin\(VIP_PANEL\.href/);
     assert.match(header, /goOrLogin\('\/messages'\)/);
     assert.match(header, /goOrLogin\('\/favorites'\)/);
@@ -89,10 +92,13 @@ describe('header click navigates to destination pathnames', () => {
     }
   });
 
-  it('closes the open flyout before navigating so click is not swallowed', () => {
+  it('closes the open flyout on avatar click while Link owns navigation', () => {
+    const css = readFileSync(join(root, 'styles.css'), 'utf8');
+    const avatar = readFileSync(join(root, 'components/HeaderAccountAvatar.tsx'), 'utf8');
     assert.match(header, /setOpenFlyout\(null\)/);
     assert.match(header, /hideFlyout\('account'\)/);
-    assert.match(header, /onClick=\{\(\) => \{\s*hideFlyout\('account'\);\s*navigate\('\/account'\);/);
+    assert.match(avatar, /to="\/account"/);
+    assert.match(css, /\.header-flyout--account[\s\S]*pointer-events:\s*none/);
   });
 });
 

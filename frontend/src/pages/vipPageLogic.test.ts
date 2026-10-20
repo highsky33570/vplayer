@@ -65,7 +65,7 @@ describe('vip page logic', () => {
     assert.match(app, /path="\/vip"/);
     assert.match(app, /VipPage/);
     assert.match(logic, /href:\s*'\/vip'/);
-    assert.match(header, /navigate\('\/account'\)/);
+    assert.match(header, /HeaderAccountAvatar/);
     assert.match(header, /public:\s*true/);
     assert.equal(header.includes('动态'), false);
     assert.equal(header.includes('动态即将推出'), false);

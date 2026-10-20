@@ -215,3 +215,46 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+
+/** Deterministic auth wrapper for router/header integration tests (no network). */
+export function AuthTestProvider({
+  user,
+  token = 'test-token',
+  children,
+}: {
+  user: AuthUser;
+  token?: string;
+  children: ReactNode;
+}) {
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      token,
+      ready: true,
+      loginOpen: false,
+      openLogin: () => undefined,
+      closeLogin: () => undefined,
+      authMode: 'login',
+      setAuthMode: () => undefined,
+      login: async () => undefined,
+      registrationConfig: 'disabled',
+      retryRegistrationConfig: () => undefined,
+      register: async () => undefined,
+      registerStart: async () => ({
+        verification_required: false,
+        expires_in_sec: 0,
+        resend_after_sec: 0,
+      }),
+      registerVerify: async () => undefined,
+      registerResend: async () => ({
+        verification_required: false,
+        expires_in_sec: 0,
+        resend_after_sec: 0,
+      }),
+      logout: () => undefined,
+      updateProfile: async () => user,
+    }),
+    [token, user],
+  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
