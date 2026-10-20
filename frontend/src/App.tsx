@@ -17,8 +17,12 @@ import { AuthProvider } from './auth/AuthContext';
 import { Header } from './components/Header';
 import { LoginModal } from './components/LoginModal';
 import { LoginReminder } from './components/LoginReminder';
+import { AccountPage } from './pages/AccountPage';
+import { FavoritesPage } from './pages/FavoritesPage';
+import { HistoryPage } from './pages/HistoryPage';
 import { Home } from './pages/Home';
 import { LoginPage } from './pages/Login';
+import { MessagesPage } from './pages/MessagesPage';
 import { Watch } from './pages/Watch';
 import { ThemeProvider } from './theme/ThemeContext';
 
@@ -58,6 +62,10 @@ export default function App() {
             <Route element={<ConsumerShell />}>
               <Route path="/" element={<Home />} />
               <Route path="/watch/:id" element={<Watch />} />
+              <Route path="/account" element={<AccountPage />} />
+              <Route path="/favorites" element={<FavoritesPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/messages" element={<MessagesPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

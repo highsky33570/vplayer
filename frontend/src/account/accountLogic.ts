@@ -1,0 +1,47 @@
+/** Pure helpers for the account, favorites, history and messages pages. */
+
+export const NICKNAME_MAX_RUNES = 64;
+
+/** Returns an error message, or null when the nickname can be saved. */
+export function nicknameValidationMessage(raw: string): string | null {
+  const name = raw.trim();
+  if (!name) return '昵称不能为空';
+  if (Array.from(name).length > NICKNAME_MAX_RUNES) return `昵称不能超过 ${NICKNAME_MAX_RUNES} 个字`;
+  return null;
+}
+
+export function roleLabel(isAdmin: boolean | undefined): string {
+  return isAdmin ? '管理员' : '普通用户';
+}
+
+/** Append a page of rows, skipping ids that are already present. */
+export function appendUnique<T extends { id: number }>(existing: T[], next: T[]): T[] {
+  const seen = new Set(existing.map((row) => row.id));
+  const out = existing.slice();
+  for (const row of next) {
+    if (!seen.has(row.id)) {
+      seen.add(row.id);
+      out.push(row);
+    }
+  }
+  return out;
+}
+
+export function removeById<T extends { id: number }>(rows: T[], id: number): T[] {
+  return rows.filter((row) => row.id !== id);
+}
+
+/** Page loader offset: how many rows are already loaded. */
+export function nextOffset(loaded: number): number {
+  return Math.max(0, loaded);
+}
+
+/** Mark the given notification ids read; returns a new array. */
+export function markRead<T extends { id: number; is_read: boolean }>(rows: T[], ids: number[] | 'all'): T[] {
+  const set = ids === 'all' ? null : new Set(ids);
+  return rows.map((row) => (set === null || set.has(row.id) ? { ...row, is_read: true } : row));
+}
+
+export function countUnread(rows: { is_read: boolean }[]): number {
+  return rows.reduce((n, row) => n + (row.is_read ? 0 : 1), 0);
+}

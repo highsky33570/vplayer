@@ -5,7 +5,11 @@ import HlsPlugin from 'xgplayer-hls';
 import 'xgplayer/dist/index.min.css';
 import {
   ApiError,
+  addFavorite,
   formatDuration,
+  getFavoriteStatus,
+  removeFavorite,
+  upsertHistory,
   formatViews,
   getPlayback,
   getVideo,
@@ -54,7 +58,10 @@ export function Watch() {
   const { id } = useParams();
   const videoId = Number(id);
   const navigate = useNavigate();
-  const { user, token, ready, logout } = useAuth();
+  const { user, token, ready, logout, openLogin } = useAuth();
+  const userId = user?.id ?? 0;
+  const [favorited, setFavorited] = useState(false);
+  const [favBusy, setFavBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
   const sessionRef = useRef(new WatchPlaybackSession());
@@ -196,6 +203,50 @@ export function Watch() {
     };
   }, [videoId, sid, nid, ready, user, token, navigate, logout]);
 
+  // Favorite status for the signed-in user.
+  useEffect(() => {
+    setFavorited(false);
+    if (!ready || !userId || !token || !Number.isFinite(videoId) || videoId <= 0) return;
+    let cancelled = false;
+    getFavoriteStatus(token, videoId)
+      .then((value) => {
+        if (!cancelled) setFavorited(value);
+      })
+      .catch(() => {
+        if (!cancelled) setFavorited(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, userId, token, videoId]);
+
+  // Record watch history once per visit (fire-and-forget; independent from playback).
+  useEffect(() => {
+    if (!ready || !userId || !token || !Number.isFinite(videoId) || videoId <= 0) return;
+    void upsertHistory(token, videoId).catch(() => {
+      /* history is best-effort */
+    });
+  }, [ready, userId, token, videoId]);
+
+  async function toggleFavorite() {
+    if (!user || !token) {
+      openLogin('login');
+      return;
+    }
+    if (favBusy) return;
+    const next = !favorited;
+    setFavBusy(true);
+    setFavorited(next);
+    try {
+      const result = next ? await addFavorite(token, videoId) : await removeFavorite(token, videoId);
+      setFavorited(result);
+    } catch {
+      setFavorited(!next);
+    } finally {
+      setFavBusy(false);
+    }
+  }
+
   if (!ready) {
     return (
       <div className="page watch">
@@ -241,7 +292,19 @@ export function Watch() {
             ← 返回首页
           </Link>
         </p>
-        <h1>{video?.title ?? (metaLoading ? '加载中…' : '视频')}</h1>
+        <div className="watch-title-row">
+          <h1>{video?.title ?? (metaLoading ? '加载中…' : '视频')}</h1>
+          <button
+            type="button"
+            className={`watch-fav${favorited ? ' is-active' : ''}`}
+            aria-pressed={favorited}
+            disabled={favBusy}
+            onClick={() => void toggleFavorite()}
+          >
+            <span aria-hidden>{favorited ? '★' : '☆'}</span>
+            <span>{favorited ? '已收藏' : '收藏'}</span>
+          </button>
+        </div>
         {meta && <p className="watch-meta">{meta}</p>}
         {metaError && <p className="watch-comments-error">{metaError}</p>}
       </header>

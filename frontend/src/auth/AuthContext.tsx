@@ -16,6 +16,7 @@ import {
   registerResend as apiRegisterResend,
   registerStart as apiRegisterStart,
   registerVerify as apiRegisterVerify,
+  updateMe,
   type AuthUser,
   type RegisterStartResult,
 } from '../api';
@@ -40,6 +41,7 @@ type AuthContextValue = {
   registerVerify: (email: string, code: string) => Promise<void>;
   registerResend: (email: string) => Promise<RegisterStartResult>;
   logout: () => void;
+  updateProfile: (patch: { nickname?: string; avatar_hue?: number }) => Promise<AuthUser>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -149,6 +151,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateProfile = useCallback(
+    async (patch: { nickname?: string; avatar_hue?: number }) => {
+      const next = await updateMe(token, patch);
+      setUser(next);
+      return next;
+    },
+    [token],
+  );
+
   const openLogin = useCallback((mode: 'login' | 'register' = 'login') => {
     setAuthMode(mode);
     setLoginOpen(true);
@@ -174,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       registerVerify,
       registerResend,
       logout,
+      updateProfile,
     }),
     [
       user,
@@ -191,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       registerVerify,
       registerResend,
       logout,
+      updateProfile,
     ],
   );
 

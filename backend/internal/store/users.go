@@ -27,6 +27,7 @@ type UserRepo interface {
 	CreateUserWithHash(email, passwordHash, nickname string) (*model.User, error)
 	Authenticate(email, password string) (*model.User, error)
 	GetUserByID(id uint64) (*model.User, error)
+	UpdateProfile(id uint64, nickname string, avatarHue int) (*model.User, error)
 }
 
 func (m *MySQL) CreateUser(email, password, nickname string) (*model.User, error) {
@@ -64,9 +65,18 @@ func (m *MySQL) CreateUserWithHash(email, passwordHash, nickname string) (*model
 		ID:        uint64(id),
 		Email:     email,
 		Nickname:  nickname,
+		AvatarHue: -1,
 		IsAdmin:   false,
 		CreatedAt: time.Now(),
 	}, nil
+}
+
+// UpdateProfile sets nickname and avatar hue. Callers validate ranges.
+func (m *MySQL) UpdateProfile(id uint64, nickname string, avatarHue int) (*model.User, error) {
+	if _, err := m.DB.Exec(`UPDATE users SET nickname=?, avatar_hue=? WHERE id=?`, nickname, avatarHue, id); err != nil {
+		return nil, err
+	}
+	return m.GetUserByID(id)
 }
 
 func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
@@ -75,9 +85,9 @@ func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
 	var hash string
 	var isAdmin int
 	err := m.DB.QueryRow(
-		`SELECT id, email, password_hash, COALESCE(nickname,''), COALESCE(is_admin,0), created_at FROM users WHERE email=? LIMIT 1`,
+		`SELECT id, email, password_hash, COALESCE(nickname,''), COALESCE(avatar_hue,-1), COALESCE(is_admin,0), created_at FROM users WHERE email=? LIMIT 1`,
 		email,
-	).Scan(&u.ID, &u.Email, &hash, &u.Nickname, &isAdmin, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &hash, &u.Nickname, &u.AvatarHue, &isAdmin, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrInvalidCredentials
 	}
@@ -95,9 +105,9 @@ func (m *MySQL) GetUserByID(id uint64) (*model.User, error) {
 	var u model.User
 	var isAdmin int
 	err := m.DB.QueryRow(
-		`SELECT id, email, COALESCE(nickname,''), COALESCE(is_admin,0), created_at FROM users WHERE id=? LIMIT 1`,
+		`SELECT id, email, COALESCE(nickname,''), COALESCE(avatar_hue,-1), COALESCE(is_admin,0), created_at FROM users WHERE id=? LIMIT 1`,
 		id,
-	).Scan(&u.ID, &u.Email, &u.Nickname, &isAdmin, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &u.Nickname, &u.AvatarHue, &isAdmin, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
@@ -164,6 +174,7 @@ func (m *MemoryUsers) CreateUserWithHashLocked(email, passwordHash, nickname str
 			ID:        m.seq,
 			Email:     email,
 			Nickname:  nickname,
+			AvatarHue: -1,
 			IsAdmin:   false,
 			CreatedAt: time.Now(),
 		},
@@ -194,6 +205,19 @@ func (m *MemoryUsers) GetUserByID(id uint64) (*model.User, error) {
 	if !ok {
 		return nil, ErrUserNotFound
 	}
+	cp := u.user
+	return &cp, nil
+}
+
+func (m *MemoryUsers) UpdateProfile(id uint64, nickname string, avatarHue int) (*model.User, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	u, ok := m.byID[id]
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+	u.user.Nickname = nickname
+	u.user.AvatarHue = avatarHue
 	cp := u.user
 	return &cp, nil
 }

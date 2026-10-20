@@ -15,13 +15,26 @@ import {
   canUseFlyout,
   closeHeaderFlyoutIfCurrent,
   flyoutAfterPointer,
+  flyoutPanelClass,
   openHeaderFlyout,
   shouldEnlargeAvatar,
 } from './headerFlyoutLogic.ts';
+import {
+  accountStats,
+  favoritePreviewItems,
+  formatHistoryTime,
+  formatProgress,
+  historyPreviewItems,
+  normalizeFolders,
+  parseMessageFilter,
+  previewState,
+  unreadBadgeLabel,
+} from './headerFlyoutData.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const header = readFileSync(join(here, 'Header.tsx'), 'utf8');
 const flyout = readFileSync(join(here, 'HeaderFlyout.tsx'), 'utf8');
+const panels = readFileSync(join(here, 'HeaderFlyoutPanels.tsx'), 'utf8');
 const css = readFileSync(join(here, '../styles.css'), 'utf8');
 
 describe('header flyout state', () => {
@@ -41,13 +54,14 @@ describe('header flyout state', () => {
 
   it('lets only one flyout stay open when moving between header actions', () => {
     assert.equal(openHeaderFlyout('account', 'vip'), 'vip');
-    assert.equal(closeHeaderFlyoutIfCurrent('vip', 'account'), 'vip');
-    assert.equal(closeHeaderFlyoutIfCurrent('vip', 'vip'), null);
+    assert.equal(openHeaderFlyout('vip', 'favorites'), 'favorites');
+    assert.equal(closeHeaderFlyoutIfCurrent('favorites', 'history'), 'favorites');
+    assert.equal(closeHeaderFlyoutIfCurrent('favorites', 'favorites'), null);
   });
 
   it('closes on Escape and outside pointer by clearing the current id', () => {
     assert.equal(closeHeaderFlyoutIfCurrent('account', 'account'), null);
-    assert.equal(closeHeaderFlyoutIfCurrent('vip', 'vip'), null);
+    assert.equal(closeHeaderFlyoutIfCurrent('messages', 'messages'), null);
   });
 
   it('uses a short open delay and a longer close delay', () => {
@@ -57,49 +71,55 @@ describe('header flyout state', () => {
 });
 
 describe('who can open a flyout', () => {
-  it('requires a logged-in desktop user', () => {
-    assert.equal(canUseFlyout(true, true, 'account'), true);
-    assert.equal(canUseFlyout(true, true, 'vip'), true);
-    assert.equal(canUseFlyout(false, true, 'account'), false);
-    assert.equal(canUseFlyout(true, false, 'vip'), false);
-    assert.equal(canUseFlyout(true, true, 'messages'), false);
-    assert.equal(canUseFlyout(true, true, 'favorites'), false);
-    assert.equal(canUseFlyout(true, true, 'history'), false);
+  it('requires a logged-in desktop user for all five flyouts', () => {
+    for (const id of HEADER_FLYOUTS) {
+      assert.equal(canUseFlyout(true, true, id), true);
+      assert.equal(canUseFlyout(false, true, id), false);
+      assert.equal(canUseFlyout(true, false, id), false);
+    }
+    assert.equal(canUseFlyout(true, true, 'feed'), false);
   });
 
-  it('builds a truthful account card without invented stats', () => {
+  it('builds a truthful account card with real destinations and no invented stats', () => {
     assert.equal(accountDisplayName('  Ada  '), 'Ada');
     assert.equal(accountDisplayName(' '), '已登录');
     assert.equal(accountStatusLabel(true), '管理员');
     assert.equal(accountStatusLabel(false), '普通用户');
     assert.deepEqual(
       accountActions(true, 'dark').map((action) => action.id),
-      ['admin', 'theme', 'logout'],
+      ['profile', 'favorites', 'history', 'messages', 'admin', 'theme', 'logout'],
     );
     assert.equal(accountActions(false, 'light').some((action) => action.id === 'admin'), false);
     assert.equal(accountActions(false, 'light').find((action) => action.id === 'theme')?.label, '切换到深色');
   });
 });
 
-describe('omitted previews', () => {
-  it('does not invent messages, favorites, history, or creator panels', () => {
+describe('wired flyouts', () => {
+  it('exposes five real flyouts and omits feed/creator/upload previews', () => {
+    assert.deepEqual(HEADER_FLYOUTS, ['account', 'vip', 'messages', 'favorites', 'history']);
     const omitted = new Set(OMITTED_HEADER_PREVIEWS.map((item) => item.id));
-    assert.equal(omitted.has('messages'), true);
-    assert.equal(omitted.has('favorites'), true);
-    assert.equal(omitted.has('history'), true);
-    assert.deepEqual(HEADER_FLYOUTS, ['account', 'vip']);
-    assert.match(VIP_PANEL.body, /没有会员等级/);
+    assert.equal(omitted.has('feed'), true);
+    assert.equal(omitted.has('creator'), true);
+    assert.equal(omitted.has('upload'), true);
+    assert.equal(omitted.has('messages'), false);
+    assert.equal(omitted.has('favorites'), false);
+    assert.equal(omitted.has('history'), false);
+    assert.match(VIP_PANEL.body, /没有付费会员/);
     assert.equal(VIP_PANEL.href, '/?ch=vip-bluray');
-    for (const phrase of ['粉丝', '关注', '硬币', '经验', '免广告', '4K', '专属装扮']) {
+    for (const phrase of ['粉丝', '关注', '硬币', '经验', '免广告', '4K', '专属装扮', 'B币']) {
       assert.equal(header.includes(phrase), false);
       assert.equal(VIP_PANEL.body.includes(phrase), false);
+      assert.equal(panels.includes(phrase), false);
     }
   });
 
-  it('wires account and VIP flyouts and leaves the other header actions direct', () => {
-    assert.match(header, /id="account"/);
-    assert.match(header, /id="vip"/);
+  it('wires all five flyouts with Escape, outside click, and desktop-only CSS', () => {
+    for (const id of HEADER_FLYOUTS) {
+      assert.match(header, new RegExp(`id="${id}"`));
+      assert.equal(flyoutPanelClass(id), `header-flyout header-flyout--${id}`);
+    }
     assert.match(header, /HeaderFlyout/);
+    assert.match(header, /AccountPanel|FavoritesPanel|HistoryPanel|MessagesMenu|VipPanel/);
     assert.match(flyout, /Escape/);
     assert.match(flyout, /pointerdown/);
     assert.match(flyout, /onMouseEnter/);
@@ -108,18 +128,70 @@ describe('omitted previews', () => {
     assert.match(header, /aria-expanded=/);
     assert.match(header, /onClick=\{logout\}/);
     assert.match(header, /toggleTheme/);
-    assert.equal(header.includes('header-flyout--messages'), false);
-    assert.equal(header.includes('header-flyout--favorites'), false);
-    assert.equal(header.includes('header-flyout--history'), false);
+    assert.match(header, /label="大会员"/);
     assert.match(header, /label="消息"/);
     assert.match(header, /label="收藏"/);
     assert.match(header, /label="历史"/);
+    assert.match(header, /to="\/account"/);
+    assert.match(header, /to="\/favorites"/);
+    assert.match(header, /to="\/history"/);
+    assert.match(header, /to="\/messages"/);
     assert.match(css, /prefers-reduced-motion: reduce/);
     assert.match(css, /\.is-enlarged \.banner-avatar/);
     assert.match(css, /transform-origin:\s*center bottom/);
+    assert.match(css, /\.header-flyout--favorites/);
+    assert.match(css, /\.header-flyout--history/);
+    assert.match(css, /\.header-flyout--messages/);
     assert.match(css, /@media \(min-width: 1024px\)/);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.equal(/header-flyout-anchor/.test(phone), false);
+  });
+});
+
+describe('preview and badge helpers', () => {
+  it('formats unread badges, history times, and empty/populated previews', () => {
+    assert.equal(unreadBadgeLabel(0), '');
+    assert.equal(unreadBadgeLabel(3), '3');
+    assert.equal(unreadBadgeLabel(100), '99+');
+
+    const now = new Date('2026-10-20T12:00:00Z');
+    assert.equal(formatHistoryTime('2026-10-20T11:59:30Z', now), '刚刚');
+    assert.equal(formatHistoryTime('2026-10-20T11:30:00Z', now), '30 分钟前');
+    assert.equal(formatProgress(0), '');
+    assert.equal(formatProgress(90), '看到 01:30');
+
+    assert.deepEqual(normalizeFolders([]), [{ id: 0, name: '默认收藏', count: 0, isDefault: true }]);
+    assert.deepEqual(accountStats({ favorites: 2, history: 5, unread_notifications: 1 }), [
+      { label: '收藏', value: '2' },
+      { label: '历史', value: '5' },
+    ]);
+    assert.equal(previewState(true, false, 0), 'loading');
+    assert.equal(previewState(false, false, 0), 'empty');
+    assert.equal(previewState(false, false, 3), 'ready');
+    assert.equal(parseMessageFilter('comment_reply'), 'comment_reply');
+    assert.equal(parseMessageFilter('nope'), 'all');
+
+    const fav = favoritePreviewItems([
+      {
+        id: 9,
+        title: 'Film',
+        cover_url: '/c.jpg',
+        favorited_at: '2026-10-20T11:00:00Z',
+      } as never,
+    ], now);
+    assert.equal(fav[0]?.href, '/watch/9');
+    assert.equal(fav.length, 1);
+
+    const hist = historyPreviewItems([
+      {
+        id: 3,
+        title: 'Show',
+        cover_url: '/h.jpg',
+        last_watched_at: '2026-10-20T11:00:00Z',
+        progress_sec: 65,
+      } as never,
+    ], now);
+    assert.match(hist[0]?.sub ?? '', /看到/);
   });
 });
 

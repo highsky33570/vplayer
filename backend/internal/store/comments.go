@@ -15,6 +15,7 @@ type Comment struct {
 	ID        uint64
 	VideoID   uint64
 	UserID    uint64
+	ParentID  *uint64
 	Body      string
 	Status    string
 	CreatedAt time.Time
@@ -27,7 +28,10 @@ type CommentRepo interface {
 	VideoExists(id uint64) (bool, error)
 	ListVisibleComments(videoID uint64, limit, offset int) ([]Comment, int, error)
 	CountUserCommentsSince(userID uint64, since time.Time) (int, error)
-	CreateComment(videoID, userID uint64, body string, now time.Time) (Comment, error)
+	// CreateComment inserts a visible comment. parentID is nil for a top-level comment.
+	CreateComment(videoID, userID uint64, body string, now time.Time, parentID *uint64) (Comment, error)
+	// GetVisibleComment returns ErrCommentNotFound when the comment is missing or not visible.
+	GetVisibleComment(id uint64) (Comment, error)
 	SoftDeleteComment(commentID, userID uint64, now time.Time) error
 }
 
@@ -36,7 +40,7 @@ const (
 	// DATE_FORMAT keeps the UTC wall clock. parseTime=true would otherwise turn DATETIME
 	// into a local time.Time, and scanning that into a string is not the UTC layout we store.
 	listVisibleCommentsSQL = `
-		SELECT c.id, c.video_id, c.user_id, c.body, c.status,
+		SELECT c.id, c.video_id, c.user_id, c.parent_id, c.body, c.status,
 		       DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s'),
 		       DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s'),
 		       COALESCE(u.nickname,'')
@@ -45,14 +49,23 @@ const (
 		WHERE c.video_id=? AND c.status='visible'
 		ORDER BY c.created_at DESC, c.id DESC
 		LIMIT ? OFFSET ?`
+	getVisibleCommentSQL = `
+		SELECT c.id, c.video_id, c.user_id, c.parent_id, c.body, c.status,
+		       DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s'),
+		       DATE_FORMAT(c.updated_at, '%Y-%m-%d %H:%i:%s'),
+		       COALESCE(u.nickname,'')
+		FROM video_comments c
+		LEFT JOIN users u ON u.id = c.user_id
+		WHERE c.id=? AND c.status='visible'
+		LIMIT 1`
 	countVisibleCommentsSQL = `
 		SELECT COUNT(*) FROM video_comments WHERE video_id=? AND status='visible'`
 	// countUserCommentsSinceSQL counts every status so a soft delete does not refill the quota.
 	countUserCommentsSinceSQL = `
 		SELECT COUNT(*) FROM video_comments WHERE user_id=? AND created_at>=?`
 	insertCommentSQL = `
-		INSERT INTO video_comments (video_id, user_id, body, status, created_at, updated_at)
-		VALUES (?, ?, ?, 'visible', ?, ?)`
+		INSERT INTO video_comments (video_id, user_id, parent_id, body, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'visible', ?, ?)`
 	softDeleteCommentSQL = `
 		UPDATE video_comments SET status='deleted', updated_at=?
 		WHERE id=? AND user_id=? AND status='visible'`
@@ -106,10 +119,22 @@ func (m *MySQL) CountUserCommentsSince(userID uint64, since time.Time) (int, err
 	return n, err
 }
 
-func (m *MySQL) CreateComment(videoID, userID uint64, body string, now time.Time) (Comment, error) {
+func (m *MySQL) GetVisibleComment(id uint64) (Comment, error) {
+	c, err := scanComment(m.DB.QueryRow(getVisibleCommentSQL, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Comment{}, ErrCommentNotFound
+	}
+	return c, err
+}
+
+func (m *MySQL) CreateComment(videoID, userID uint64, body string, now time.Time, parentID *uint64) (Comment, error) {
 	now = now.UTC()
 	stamp := formatUTCDateTime(now)
-	res, err := m.DB.Exec(insertCommentSQL, videoID, userID, body, stamp, stamp)
+	var parent any
+	if parentID != nil {
+		parent = *parentID
+	}
+	res, err := m.DB.Exec(insertCommentSQL, videoID, userID, parent, body, stamp, stamp)
 	if err != nil {
 		return Comment{}, err
 	}
@@ -125,6 +150,10 @@ func (m *MySQL) CreateComment(videoID, userID uint64, body string, now time.Time
 		Status:    "visible",
 		CreatedAt: now,
 		UpdatedAt: now,
+	}
+	if parentID != nil {
+		p := *parentID
+		c.ParentID = &p
 	}
 	if u, err := m.GetUserByID(userID); err == nil && u != nil {
 		c.Nickname = u.Nickname
@@ -150,10 +179,12 @@ func (m *MySQL) SoftDeleteComment(commentID, userID uint64, now time.Time) error
 func scanComment(row scannable) (Comment, error) {
 	var c Comment
 	var createdRaw, updatedRaw string
-	err := row.Scan(&c.ID, &c.VideoID, &c.UserID, &c.Body, &c.Status, &createdRaw, &updatedRaw, &c.Nickname)
+	var parent sql.NullInt64
+	err := row.Scan(&c.ID, &c.VideoID, &c.UserID, &parent, &c.Body, &c.Status, &createdRaw, &updatedRaw, &c.Nickname)
 	if err != nil {
 		return Comment{}, err
 	}
+	c.ParentID = nullUint64Ptr(parent)
 	created, err := parseUTCDateTime(createdRaw)
 	if err != nil {
 		return Comment{}, err

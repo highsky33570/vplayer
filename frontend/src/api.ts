@@ -5,6 +5,8 @@ export type AuthUser = {
   email: string;
   nickname: string;
   is_admin?: boolean;
+  /** 0..359 custom hue; -1 (or missing) means derive from user id. */
+  avatar_hue?: number;
 };
 
 export type AdminSyncRunSummary = {
@@ -347,14 +349,19 @@ export async function listComments(
   };
 }
 
-export async function postComment(id: number, body: string, token: string): Promise<VideoComment> {
+export async function postComment(
+  id: number,
+  body: string,
+  token: string,
+  parentId?: number,
+): Promise<VideoComment> {
   const res = await fetch(`${API_BASE}/api/v1/videos/${id}/comments`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify(parentId != null && parentId > 0 ? { body, parent_id: parentId } : { body }),
   });
   const json = await parseJSONResponse(res);
   if (!res.ok || json.ok === false) {
@@ -448,6 +455,203 @@ export async function fetchMe(token: string): Promise<AuthUser> {
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return json.data as AuthUser;
+}
+
+/** PATCH /api/v1/auth/me — update nickname and/or avatar hue. */
+export async function updateMe(
+  token: string | null | undefined,
+  patch: { nickname?: string; avatar_hue?: number },
+): Promise<AuthUser> {
+  return sendJSON<AuthUser>('/api/v1/auth/me', 'PATCH', token, patch);
+}
+
+// ——— Personal library: favorites, history, notifications ———
+
+export type MeSummary = {
+  favorites: number;
+  history: number;
+  unread_notifications: number;
+};
+
+export type FavoriteFolder = {
+  id: number;
+  name: string;
+  is_default: boolean;
+  count: number;
+  created_at: string;
+};
+
+export type FavoriteVideo = Video & {
+  favorited_at: string;
+  folder_id?: number;
+};
+
+export type HistoryVideo = Video & {
+  last_watched_at: string;
+  progress_sec: number;
+};
+
+export type NotificationKind = 'comment_reply' | 'system';
+
+export type UserNotification = {
+  id: number;
+  kind: NotificationKind | string;
+  title: string;
+  body: string;
+  video_id?: number;
+  comment_id?: number;
+  actor_name?: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+export type Page<T> = {
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+/** JSON request with optional bearer token; returns the `data` field. */
+async function sendJSON<T>(
+  path: string,
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  token: string | null | undefined,
+  body?: unknown,
+): Promise<T> {
+  const headers: Record<string, string> = { ...bearerAuthHeader(token) };
+  const init: RequestInit = { method, headers };
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${API_BASE}${path}`, init);
+  const json = await parseJSONResponse(res);
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status, json.error);
+  }
+  return json.data as T;
+}
+
+/** Authenticated paginated GET: parses the full envelope like listVideosPage. */
+async function getPage<T>(
+  path: string,
+  token: string | null | undefined,
+  params: URLSearchParams,
+  limit: number,
+  offset: number,
+): Promise<Page<T>> {
+  const res = await fetch(`${API_BASE}${path}?${params}`, { headers: bearerAuthHeader(token) });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    error?: string;
+    data?: T[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status, json.error);
+  }
+  return {
+    data: json.data ?? [],
+    total: Number(json.total ?? 0),
+    limit: Number(json.limit ?? limit),
+    offset: Number(json.offset ?? offset),
+    has_more: Boolean(json.has_more),
+  };
+}
+
+export function fetchMeSummary(token: string | null | undefined) {
+  return sendJSON<MeSummary>('/api/v1/me/summary', 'GET', token);
+}
+
+export function listFavoriteFolders(token: string | null | undefined) {
+  return sendJSON<FavoriteFolder[]>('/api/v1/me/favorite-folders', 'GET', token);
+}
+
+export function listFavoritesPage(
+  token: string | null | undefined,
+  opts?: { folderId?: number; limit?: number; offset?: number },
+): Promise<Page<FavoriteVideo>> {
+  const limit = opts?.limit ?? 24;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (opts?.folderId && opts.folderId > 0) params.set('folder_id', String(opts.folderId));
+  return getPage<FavoriteVideo>('/api/v1/me/favorites', token, params, limit, offset);
+}
+
+export async function getFavoriteStatus(
+  token: string | null | undefined,
+  videoId: number,
+): Promise<boolean> {
+  const data = await sendJSON<{ favorited: boolean }>(`/api/v1/me/favorites/${videoId}`, 'GET', token);
+  return Boolean(data?.favorited);
+}
+
+export async function addFavorite(token: string | null | undefined, videoId: number): Promise<boolean> {
+  const data = await sendJSON<{ favorited: boolean }>(`/api/v1/me/favorites/${videoId}`, 'POST', token);
+  return Boolean(data?.favorited);
+}
+
+export async function removeFavorite(token: string | null | undefined, videoId: number): Promise<boolean> {
+  const data = await sendJSON<{ favorited: boolean }>(`/api/v1/me/favorites/${videoId}`, 'DELETE', token);
+  return Boolean(data?.favorited);
+}
+
+export function listHistoryPage(
+  token: string | null | undefined,
+  opts?: { limit?: number; offset?: number },
+): Promise<Page<HistoryVideo>> {
+  const limit = opts?.limit ?? 24;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return getPage<HistoryVideo>('/api/v1/me/history', token, params, limit, offset);
+}
+
+export async function upsertHistory(
+  token: string | null | undefined,
+  videoId: number,
+  progressSec?: number,
+): Promise<void> {
+  const body = progressSec != null && progressSec > 0 ? { progress_sec: Math.floor(progressSec) } : undefined;
+  await sendJSON<unknown>(`/api/v1/me/history/${videoId}`, 'POST', token, body);
+}
+
+export async function deleteHistoryItem(token: string | null | undefined, videoId: number): Promise<void> {
+  await sendJSON<unknown>(`/api/v1/me/history/${videoId}`, 'DELETE', token);
+}
+
+export async function clearHistory(token: string | null | undefined): Promise<void> {
+  await sendJSON<unknown>('/api/v1/me/history', 'DELETE', token);
+}
+
+export function listNotificationsPage(
+  token: string | null | undefined,
+  opts?: { kind?: NotificationKind; limit?: number; offset?: number },
+): Promise<Page<UserNotification>> {
+  const limit = opts?.limit ?? 20;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (opts?.kind) params.set('kind', opts.kind);
+  return getPage<UserNotification>('/api/v1/me/notifications', token, params, limit, offset);
+}
+
+export async function fetchUnreadCount(token: string | null | undefined): Promise<number> {
+  const data = await sendJSON<{ unread_count: number }>('/api/v1/me/notifications/unread-count', 'GET', token);
+  return Number(data?.unread_count ?? 0);
+}
+
+export async function markNotificationsRead(
+  token: string | null | undefined,
+  req: { ids?: number[]; all?: boolean },
+): Promise<number> {
+  const body = req.all ? { all: true } : { ids: req.ids ?? [] };
+  const data = await sendJSON<{ unread_count: number }>('/api/v1/me/notifications/read', 'POST', token, body);
+  return Number(data?.unread_count ?? 0);
 }
 
 export function fetchAdminDashboard(token: string | null | undefined) {

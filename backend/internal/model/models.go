@@ -103,6 +103,8 @@ type User struct {
 	ID        uint64    `json:"id"`
 	Email     string    `json:"email"`
 	Nickname  string    `json:"nickname"`
+	// AvatarHue is 0..359 for a chosen avatar color, or -1 for the automatic default.
+	AvatarHue int       `json:"avatar_hue"`
 	IsAdmin   bool      `json:"is_admin"`
 	CreatedAt time.Time `json:"created_at"`
 }

@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Category } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import {
+  DESKTOP_TEXT_LINKS,
   activeCategoryScrollOptions,
   childrenOfParent,
   desktopSubcategories,
@@ -29,10 +31,9 @@ type Props = {
   onSelect: (slug: string) => void;
 };
 
-const DESKTOP_TEXT_LINKS = ['历史', '收藏', '消息', 'VIP', '创作中心', '投稿'] as const;
-
 export function DiscoveryNav({ categories, active, onSelect }: Props) {
   const { user, openLogin } = useAuth();
+  const navigate = useNavigate();
   const mains = useMemo(() => resolveNavCategories(categories), [categories]);
   const subs = useMemo(() => desktopSubcategories(categories), [categories]);
   const [expandedParentSlug, setExpandedParentSlug] = useState<string | null>(() =>
@@ -53,6 +54,7 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
   const desktopSubsRef = useRef<HTMLDivElement>(null);
 
   function requireAuth() {
+    // 动态 has no feed page yet; guests are asked to log in.
     if (!user) openLogin('login');
   }
 
@@ -245,9 +247,22 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
         </div>
 
         <div className="desktop-rail-links">
-          {DESKTOP_TEXT_LINKS.map((label) => (
-            <button key={label} type="button" className="desktop-text-link" onClick={requireAuth}>
-              {label}
+          {DESKTOP_TEXT_LINKS.map((link) => (
+            <button
+              key={link.label}
+              type="button"
+              className="desktop-text-link"
+              title={link.soon ? '即将推出' : undefined}
+              aria-disabled={link.soon && user ? true : undefined}
+              onClick={() => {
+                if (!user) {
+                  openLogin('login');
+                  return;
+                }
+                if (link.href) navigate(link.href);
+              }}
+            >
+              {link.label}
             </button>
           ))}
         </div>

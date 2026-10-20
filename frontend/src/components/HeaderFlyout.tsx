@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import {
   FLYOUT_CLOSE_DELAY_MS,
   FLYOUT_OPEN_DELAY_MS,
+  flyoutPanelClass,
   type HeaderFlyoutId,
 } from './headerFlyoutLogic';
 
@@ -85,7 +86,7 @@ export function HeaderFlyout({
     >
       {trigger}
       {open ? (
-        <div className={`header-flyout header-flyout--${id}`} role="dialog" aria-label={label}>
+        <div className={flyoutPanelClass(id)} role="dialog" aria-label={label}>
           {children}
         </div>
       ) : null}

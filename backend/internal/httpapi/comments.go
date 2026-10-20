@@ -38,6 +38,7 @@ type commentAuthorJSON struct {
 type commentJSON struct {
 	ID        uint64            `json:"id"`
 	VideoID   uint64            `json:"video_id"`
+	ParentID  *uint64           `json:"parent_id,omitempty"`
 	Body      string            `json:"body"`
 	CreatedAt string            `json:"created_at"`
 	Author    commentAuthorJSON `json:"author"`
@@ -123,6 +124,7 @@ func (a *API) commentJSON(c store.Comment, viewer uint64) commentJSON {
 	return commentJSON{
 		ID:        c.ID,
 		VideoID:   c.VideoID,
+		ParentID:  c.ParentID,
 		Body:      c.Body,
 		CreatedAt: c.CreatedAt.UTC().Format(time.RFC3339),
 		Author:    commentAuthorJSON{DisplayName: PublicCommentDisplayName(nick)},
@@ -266,7 +268,8 @@ func (a *API) CreateComment(c *gin.Context) {
 		return
 	}
 	var body struct {
-		Body string `json:"body"`
+		Body     string  `json:"body"`
+		ParentID *uint64 `json:"parent_id"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "评论内容无效"})
@@ -295,6 +298,27 @@ func (a *API) CreateComment(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "视频不存在"})
 		return
 	}
+	var parent *store.Comment
+	if body.ParentID != nil {
+		if *body.ParentID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "回复的评论无效"})
+			return
+		}
+		p, err := repo.GetVisibleComment(*body.ParentID)
+		if errors.Is(err, store.ErrCommentNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "评论不存在"})
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
+			return
+		}
+		if p.VideoID != videoID {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "不能回复其他视频的评论"})
+			return
+		}
+		parent = &p
+	}
 	now := a.nowUTC()
 	minuteCount, err := repo.CountUserCommentsSince(uid, now.Add(-time.Minute))
 	if err != nil {
@@ -314,10 +338,18 @@ func (a *API) CreateComment(c *gin.Context) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"ok": false, "message": commentRateLimitText})
 		return
 	}
-	created, err := repo.CreateComment(videoID, uid, text, now)
+	var parentID *uint64
+	if parent != nil {
+		id := parent.ID
+		parentID = &id
+	}
+	created, err := repo.CreateComment(videoID, uid, text, now, parentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
+	}
+	if parent != nil {
+		a.notifyCommentReply(*parent, created, uid, now)
 	}
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "data": a.commentJSON(created, uid)})
 }

@@ -1,34 +1,50 @@
-/** Desktop header flyouts that VPlayer can support with existing data. */
-export const HEADER_FLYOUTS = ['account', 'vip'] as const;
+/** Desktop header flyouts backed by real VPlayer data or pages. */
+export const HEADER_FLYOUTS = ['account', 'vip', 'messages', 'favorites', 'history'] as const;
 
 export type HeaderFlyoutId = (typeof HEADER_FLYOUTS)[number];
 
 export const FLYOUT_OPEN_DELAY_MS = 80;
 export const FLYOUT_CLOSE_DELAY_MS = 180;
 
+/** CSS modifier class for a flyout panel size variant. */
+export function flyoutPanelClass(id: HeaderFlyoutId): string {
+  return `header-flyout header-flyout--${id}`;
+}
+
 /**
- * Screenshot previews with no VPlayer page, API, or stored data.
- * These header buttons stay direct actions and do not grow a flyout.
+ * Header previews with no VPlayer page, API, or stored data.
+ * These stay simple direct actions and do not grow a flyout.
  */
 export const OMITTED_HEADER_PREVIEWS = [
-  { id: 'messages', reason: 'no message API, destinations, or unread count' },
-  { id: 'favorites', reason: 'no favorites API, folders, or saved videos' },
-  { id: 'history', reason: 'no watch-history API, progress, or history page' },
   { id: 'feed', reason: 'no feed page or preview items' },
   { id: 'creator', reason: 'no creator dashboard' },
   { id: 'upload', reason: 'no member upload manager' },
 ] as const;
 
+/** 大会员 / VIP蓝光影院: truthful copy, no invented paid benefits. */
 export const VIP_PANEL = {
-  title: 'VIP蓝光影院',
-  body: 'VPlayer 没有会员等级或付费权益。此入口只打开现有的 VIP 蓝光分类。',
+  title: '大会员',
+  subtitle: 'VIP蓝光影院',
+  body: 'VPlayer 没有付费会员或会员等级。VIP蓝光影院是站内的高质量片库频道，登录后即可浏览观看。',
+  bullets: [
+    '站内精选的 VIP蓝光 片库频道',
+    '按分类集中浏览，随时进入观看',
+    '无需开通或付费，登录即可使用',
+  ],
   href: '/?ch=vip-bluray',
+  cta: '进入 VIP蓝光影院',
 } as const;
 
+export const ACCOUNT_UPLOAD_NOTE = '投稿管理 · 即将推出';
+
 export type AccountAction =
-  | { id: 'admin'; label: '管理后台'; href: '/admin' }
-  | { id: 'theme'; label: string }
-  | { id: 'logout'; label: '退出登录' };
+  | { id: 'profile'; kind: 'link'; label: '个人中心'; href: '/account' }
+  | { id: 'favorites'; kind: 'link'; label: '我的收藏'; href: '/favorites' }
+  | { id: 'history'; kind: 'link'; label: '观看历史'; href: '/history' }
+  | { id: 'messages'; kind: 'link'; label: '我的消息'; href: '/messages' }
+  | { id: 'admin'; kind: 'link'; label: '管理后台'; href: '/admin' }
+  | { id: 'theme'; kind: 'theme'; label: string }
+  | { id: 'logout'; kind: 'logout'; label: '退出登录' };
 
 export function accountDisplayName(nickname: string | null | undefined): string {
   const name = (nickname ?? '').trim();
@@ -40,10 +56,15 @@ export function accountStatusLabel(isAdmin: boolean | undefined): string {
 }
 
 export function accountActions(isAdmin: boolean | undefined, theme: 'light' | 'dark'): AccountAction[] {
-  const actions: AccountAction[] = [];
-  if (isAdmin) actions.push({ id: 'admin', label: '管理后台', href: '/admin' });
-  actions.push({ id: 'theme', label: theme === 'dark' ? '切换到浅色' : '切换到深色' });
-  actions.push({ id: 'logout', label: '退出登录' });
+  const actions: AccountAction[] = [
+    { id: 'profile', kind: 'link', label: '个人中心', href: '/account' },
+    { id: 'favorites', kind: 'link', label: '我的收藏', href: '/favorites' },
+    { id: 'history', kind: 'link', label: '观看历史', href: '/history' },
+    { id: 'messages', kind: 'link', label: '我的消息', href: '/messages' },
+  ];
+  if (isAdmin) actions.push({ id: 'admin', kind: 'link', label: '管理后台', href: '/admin' });
+  actions.push({ id: 'theme', kind: 'theme', label: theme === 'dark' ? '切换到浅色' : '切换到深色' });
+  actions.push({ id: 'logout', kind: 'logout', label: '退出登录' });
   return actions;
 }
 
@@ -79,4 +100,9 @@ export function flyoutAfterPointer(
 
 export function shouldEnlargeAvatar(open: HeaderFlyoutId | null, reducedMotion: boolean): boolean {
   return open === 'account' && !reducedMotion;
+}
+
+/** Flyouts that need data fetched when they open. */
+export function flyoutNeedsData(id: HeaderFlyoutId): boolean {
+  return id === 'account' || id === 'messages' || id === 'favorites' || id === 'history';
 }

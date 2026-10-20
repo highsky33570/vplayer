@@ -1,20 +1,32 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { fetchUnreadCount } from '../api';
+import { UserAvatar } from '../account/UserAvatar';
+import { subscribeUnreadCount } from '../account/unreadEvents';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { BannerCarousel } from './BannerCarousel';
 import { HeaderFlyout } from './HeaderFlyout';
 import {
+  AccountPanel,
+  FavoritesPanel,
+  HistoryPanel,
+  MessagesMenu,
+  VipPanel,
+} from './HeaderFlyoutPanels';
+import { unreadBadgeLabel } from './headerFlyoutData';
+import {
   VIP_PANEL,
-  accountActions,
   accountDisplayName,
-  accountStatusLabel,
   canUseFlyout,
   closeHeaderFlyoutIfCurrent,
   openHeaderFlyout,
   shouldEnlargeAvatar,
   type HeaderFlyoutId,
 } from './headerFlyoutLogic';
+
+const UNREAD_POLL_MS = 60_000;
+const NOTICE_MS = 2400;
 
 const BANNER_LINKS = [
   { slug: 'home', label: '首页', to: '/' },
@@ -34,15 +46,62 @@ export function Header() {
   const urlQ = params.get('q') ?? '';
   const [q, setQ] = useState(urlQ);
   const [qSource, setQSource] = useState(urlQ);
-  const { user, openLogin, logout } = useAuth();
+  const { user, token, openLogin, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const desktopHover = useDesktopHover();
   const reducedMotion = usePrefersReducedMotion();
   const [openFlyout, setOpenFlyout] = useState<HeaderFlyoutId | null>(null);
+  const [unread, setUnread] = useState(0);
+  const [notice, setNotice] = useState('');
+  const noticeTimer = useRef<number | null>(null);
+  const unreadBadge = user ? unreadBadgeLabel(unread) : '';
 
   useEffect(() => {
     if (!desktopHover || !user) setOpenFlyout(null);
   }, [desktopHover, user]);
+
+  const refreshUnread = useCallback(() => {
+    if (!token) return;
+    fetchUnreadCount(token)
+      .then(setUnread)
+      .catch(() => {
+        /* keep the last known count */
+      });
+  }, [token]);
+
+  // Unread badge: fetch on login, poll while visible, refresh when the Messages page changes it.
+  useEffect(() => {
+    if (!user || !token) {
+      setUnread(0);
+      return;
+    }
+    refreshUnread();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshUnread();
+    }, UNREAD_POLL_MS);
+    const unsubscribe = subscribeUnreadCount(setUnread);
+    return () => {
+      window.clearInterval(timer);
+      unsubscribe();
+    };
+  }, [user, token, refreshUnread]);
+
+  useEffect(() => {
+    if (openFlyout === 'messages') refreshUnread();
+  }, [openFlyout, refreshUnread]);
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current != null) window.clearTimeout(noticeTimer.current);
+    },
+    [],
+  );
+
+  function showNotice(text: string) {
+    setNotice(text);
+    if (noticeTimer.current != null) window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(''), NOTICE_MS);
+  }
 
   function showFlyout(id: HeaderFlyoutId) {
     if (!canUseFlyout(desktopHover, Boolean(user), id)) return;
@@ -59,10 +118,20 @@ export function Header() {
     setQ(urlQ);
   }
 
-  const requireAuth = () => {
+  /** Guest: login. Signed-in: go to the page (or show a coming-soon notice when href is omitted). */
+  const goOrLogin = (href?: string, soon?: string) => {
     setMenuOpen(false);
-    if (!user) openLogin('login');
+    setOpenFlyout(null);
+    if (!user) {
+      openLogin('login');
+      return;
+    }
+    if (href) navigate(href);
+    else if (soon) showNotice(soon);
   };
+
+  /** 动态 has no feed page yet: login for guests, otherwise a notice. */
+  const requireAuth = () => goOrLogin(undefined, '动态即将推出');
 
   /** Submit-only search: never runs from typing / onChange. */
   function runSearch() {
@@ -158,17 +227,15 @@ export function Header() {
                       openFlyout === 'account' ? hideFlyout('account') : showFlyout('account')
                     }
                   >
-                    <span className="banner-avatar">
-                      {((user.nickname ?? '').trim() || '用').slice(0, 1).toUpperCase()}
-                    </span>
+                    <UserAvatar user={user} />
                   </button>
                 }
               >
-                <AccountCard
-                  name={accountDisplayName(user.nickname)}
-                  status={accountStatusLabel(user.is_admin)}
+                <AccountPanel
+                  nickname={accountDisplayName(user.nickname)}
+                  isAdmin={user.is_admin}
                   email={user.email}
-                  actions={accountActions(user.is_admin, theme)}
+                  theme={theme}
                   onTheme={toggleTheme}
                   onLogout={logout}
                   onNavigate={() => hideFlyout('account')}
@@ -202,45 +269,103 @@ export function Header() {
             id="vip"
             open={openFlyout === 'vip'}
             enabled={canUseFlyout(desktopHover, Boolean(user), 'vip')}
-            label={VIP_PANEL.title}
+            label={`${VIP_PANEL.title} · ${VIP_PANEL.subtitle}`}
             onOpen={showFlyout}
             onClose={hideFlyout}
             trigger={
               <ActionBtn
-                label="VIP"
+                label="大会员"
                 icon={<VipIcon />}
+                className="hide-sm"
                 popup={canUseFlyout(desktopHover, Boolean(user), 'vip')}
                 expanded={openFlyout === 'vip'}
-                onClick={() => {
-                  setMenuOpen(false);
-                  if (!user) {
-                    openLogin('login');
-                    return;
-                  }
-                  navigate(VIP_PANEL.href);
-                }}
+                onClick={() => goOrLogin(VIP_PANEL.href)}
               />
             }
           >
-            <div className="header-flyout-copy">
-              <strong>{VIP_PANEL.title}</strong>
-              <p>{VIP_PANEL.body}</p>
-              <Link to={VIP_PANEL.href} onClick={() => hideFlyout('vip')}>
-                进入{VIP_PANEL.title}
-              </Link>
-            </div>
+            <VipPanel onNavigate={() => hideFlyout('vip')} />
           </HeaderFlyout>
-          <ActionBtn label="消息" icon={<MsgIcon />} onClick={requireAuth} />
-          <ActionBtn label="动态" icon={<FeedIcon />} onClick={requireAuth} />
-          <ActionBtn label="收藏" icon={<StarIcon />} onClick={requireAuth} />
-          <ActionBtn label="历史" icon={<HistoryIcon />} onClick={requireAuth} />
-          <ActionBtn label="创作中心" icon={<CreateIcon />} className="hide-md" onClick={requireAuth} />
-          <button type="button" className="btn-upload" onClick={requireAuth}>
+          <HeaderFlyout
+            id="messages"
+            open={openFlyout === 'messages'}
+            enabled={canUseFlyout(desktopHover, Boolean(user), 'messages')}
+            label="消息"
+            onOpen={showFlyout}
+            onClose={hideFlyout}
+            trigger={
+              <ActionBtn
+                label="消息"
+                icon={<MsgIcon />}
+                badge={unreadBadge}
+                popup={canUseFlyout(desktopHover, Boolean(user), 'messages')}
+                expanded={openFlyout === 'messages'}
+                onClick={() => goOrLogin('/messages')}
+              />
+            }
+          >
+            <MessagesMenu unread={unread} onNavigate={() => hideFlyout('messages')} />
+          </HeaderFlyout>
+          <ActionBtn label="动态" icon={<FeedIcon />} className="hide-md" onClick={requireAuth} />
+          <HeaderFlyout
+            id="favorites"
+            open={openFlyout === 'favorites'}
+            enabled={canUseFlyout(desktopHover, Boolean(user), 'favorites')}
+            label="收藏"
+            onOpen={showFlyout}
+            onClose={hideFlyout}
+            trigger={
+              <ActionBtn
+                label="收藏"
+                icon={<StarIcon />}
+                popup={canUseFlyout(desktopHover, Boolean(user), 'favorites')}
+                expanded={openFlyout === 'favorites'}
+                onClick={() => goOrLogin('/favorites')}
+              />
+            }
+          >
+            <FavoritesPanel onNavigate={() => hideFlyout('favorites')} />
+          </HeaderFlyout>
+          <HeaderFlyout
+            id="history"
+            open={openFlyout === 'history'}
+            enabled={canUseFlyout(desktopHover, Boolean(user), 'history')}
+            label="历史"
+            onOpen={showFlyout}
+            onClose={hideFlyout}
+            trigger={
+              <ActionBtn
+                label="历史"
+                icon={<HistoryIcon />}
+                popup={canUseFlyout(desktopHover, Boolean(user), 'history')}
+                expanded={openFlyout === 'history'}
+                onClick={() => goOrLogin('/history')}
+              />
+            }
+          >
+            <HistoryPanel onNavigate={() => hideFlyout('history')} />
+          </HeaderFlyout>
+          <ActionBtn
+            label="创作中心"
+            icon={<CreateIcon />}
+            className="hide-md"
+            onClick={() => goOrLogin(undefined, '创作中心即将推出')}
+          />
+          <button
+            type="button"
+            className="btn-upload"
+            onClick={() => goOrLogin(undefined, '投稿即将推出')}
+          >
             <UploadIcon />
             <span>投稿</span>
           </button>
         </div>
       </header>
+
+      {notice ? (
+        <div className="header-notice" role="status">
+          {notice}
+        </div>
+      ) : null}
 
       {menuOpen && (
         <button
@@ -255,9 +380,19 @@ export function Header() {
         <div className="mobile-drawer-actions is-visible">
           {user ? (
             <>
-              <button type="button" onClick={() => setMenuOpen(false)}>
-                {user.nickname || user.email}
-              </button>
+              <Link to="/account" className="mobile-drawer-user" onClick={() => setMenuOpen(false)}>
+                <UserAvatar user={user} />
+                <span>{user.nickname || user.email}</span>
+              </Link>
+              <Link to="/favorites" onClick={() => setMenuOpen(false)}>
+                我的收藏
+              </Link>
+              <Link to="/history" onClick={() => setMenuOpen(false)}>
+                观看历史
+              </Link>
+              <Link to="/messages" onClick={() => setMenuOpen(false)}>
+                我的消息{unreadBadge ? ` (${unreadBadge})` : ''}
+              </Link>
               <button
                 type="button"
                 onClick={() => {
@@ -288,79 +423,32 @@ export function Header() {
           >
             {theme === 'dark' ? '浅色模式' : '深色模式'}
           </button>
-          <button type="button" onClick={requireAuth}>
-            VIP
+          <button type="button" onClick={() => goOrLogin(VIP_PANEL.href)}>
+            大会员
           </button>
-          <button type="button" onClick={requireAuth}>
-            消息
-          </button>
+          {!user && (
+            <>
+              <button type="button" onClick={() => goOrLogin('/messages')}>
+                消息
+              </button>
+              <button type="button" onClick={() => goOrLogin('/favorites')}>
+                收藏
+              </button>
+              <button type="button" onClick={() => goOrLogin('/history')}>
+                历史
+              </button>
+            </>
+          )}
           <button type="button" onClick={requireAuth}>
             动态
           </button>
-          <button type="button" onClick={requireAuth}>
-            收藏
-          </button>
-          <button type="button" onClick={requireAuth}>
-            历史
-          </button>
-          <button type="button" onClick={requireAuth}>
+          <button type="button" onClick={() => goOrLogin(undefined, '创作中心即将推出')}>
             创作中心
           </button>
-          <button type="button" onClick={requireAuth}>
+          <button type="button" onClick={() => goOrLogin(undefined, '投稿即将推出')}>
             投稿
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function AccountCard({
-  name,
-  status,
-  email,
-  actions,
-  onTheme,
-  onLogout,
-  onNavigate,
-}: {
-  name: string;
-  status: string;
-  email: string;
-  actions: ReturnType<typeof accountActions>;
-  onTheme: () => void;
-  onLogout: () => void;
-  onNavigate: () => void;
-}) {
-  return (
-    <div className="account-card">
-      <div className="account-card-id">
-        <span className="account-card-name">{name}</span>
-        <span className="account-card-status">{status}</span>
-        {email ? <span className="account-card-email">{email}</span> : null}
-      </div>
-      <div className="account-card-actions">
-        {actions.map((action) => {
-          if (action.id === 'admin') {
-            return (
-              <Link key={action.id} to={action.href} onClick={onNavigate}>
-                {action.label}
-              </Link>
-            );
-          }
-          if (action.id === 'theme') {
-            return (
-              <button key={action.id} type="button" onClick={onTheme}>
-                {action.label}
-              </button>
-            );
-          }
-          return (
-            <button key={action.id} type="button" onClick={onLogout}>
-              {action.label}
-            </button>
-          );
-        })}
       </div>
     </div>
   );
@@ -373,6 +461,7 @@ function ActionBtn({
   onClick,
   popup = false,
   expanded = false,
+  badge = '',
 }: {
   label: string;
   icon: ReactNode;
@@ -380,17 +469,25 @@ function ActionBtn({
   onClick?: () => void;
   popup?: boolean;
   expanded?: boolean;
+  badge?: string;
 }) {
   return (
     <button
       type="button"
       className={`banner-action ${className}`.trim()}
-      title={label}
+      title={badge ? `${label}（${badge} 条未读）` : label}
       aria-haspopup={popup ? 'dialog' : undefined}
       aria-expanded={popup ? expanded : undefined}
       onClick={onClick}
     >
-      <span className="banner-action-icon">{icon}</span>
+      <span className="banner-action-icon">
+        {icon}
+        {badge ? (
+          <span className="banner-badge" aria-label={`${badge} 条未读`}>
+            {badge}
+          </span>
+        ) : null}
+      </span>
       <span>{label}</span>
     </button>
   );

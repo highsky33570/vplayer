@@ -48,6 +48,12 @@ type API struct {
 	AdminMedia adminMediaRepo
 	// Comments optionally overrides Store for video comments (tests).
 	Comments store.CommentRepo
+	// Favorites optionally overrides Store for /me/favorites (tests).
+	Favorites store.FavoriteRepo
+	// History optionally overrides Store for /me/history (tests).
+	History store.HistoryRepo
+	// Notifications optionally overrides Store for /me/notifications and reply notices (tests).
+	Notifications store.NotificationRepo
 	// SourceComments optionally overrides Store for imported source comments (tests).
 	SourceComments store.SourceCommentRepo
 	// Watch optionally overrides Store for related videos and public episodes (tests).

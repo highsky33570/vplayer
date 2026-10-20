@@ -1,5 +1,17 @@
 import type { Category } from '../api';
 
+export type DesktopTextLink = { label: string; href?: string; soon?: boolean };
+
+/** Right-hand text links on the desktop discovery rail. */
+export const DESKTOP_TEXT_LINKS: readonly DesktopTextLink[] = [
+  { label: '历史', href: '/history' },
+  { label: '收藏', href: '/favorites' },
+  { label: '消息', href: '/messages' },
+  { label: 'VIP', href: '/?ch=vip-bluray' },
+  { label: '创作中心', soon: true },
+  { label: '投稿', soon: true },
+];
+
 /** Homepage category buttons in display order (matched from API by name/slug/id). */
 const CANONICAL: { names: string[]; slug: string; id: number }[] = [
   { names: ['电影'], slug: 'movie', id: 2 },

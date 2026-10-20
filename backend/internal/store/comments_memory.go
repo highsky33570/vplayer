@@ -97,7 +97,7 @@ func (m *MemoryComments) CountUserCommentsSince(userID uint64, since time.Time) 
 	return n, nil
 }
 
-func (m *MemoryComments) CreateComment(videoID, userID uint64, body string, now time.Time) (Comment, error) {
+func (m *MemoryComments) CreateComment(videoID, userID uint64, body string, now time.Time, parentID *uint64) (Comment, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.seq++
@@ -111,8 +111,23 @@ func (m *MemoryComments) CreateComment(videoID, userID uint64, body string, now 
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+	if parentID != nil {
+		p := *parentID
+		c.ParentID = &p
+	}
 	m.rows = append(m.rows, c)
 	return c, nil
+}
+
+func (m *MemoryComments) GetVisibleComment(id uint64) (Comment, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, c := range m.rows {
+		if c.ID == id && c.Status == "visible" {
+			return c, nil
+		}
+	}
+	return Comment{}, ErrCommentNotFound
 }
 
 func (m *MemoryComments) SoftDeleteComment(commentID, userID uint64, now time.Time) error {

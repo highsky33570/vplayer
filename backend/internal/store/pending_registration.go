@@ -302,6 +302,7 @@ func (m *MySQL) ConsumePendingAndCreateUser(email, expectedCodeHash string) (*mo
 		ID:        uint64(id),
 		Email:     email,
 		Nickname:  p.Nickname,
+		AvatarHue: -1,
 		IsAdmin:   false,
 		CreatedAt: time.Now().UTC(),
 	}, nil

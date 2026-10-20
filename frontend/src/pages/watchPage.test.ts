@@ -40,16 +40,32 @@ describe('watch page helpers', () => {
 describe('header logged-in presentation', () => {
   it('puts logout before the avatar and keeps the name out of the banner label', () => {
     const start = header.indexOf('banner-user-menu');
-    const menu = header.slice(start, start + 1800);
+    const menu = header.slice(start, start + 2200);
     const logoutAt = menu.indexOf('className="banner-logout"');
     const avatarAt = menu.indexOf('className="banner-user is-logged"');
     assert.ok(logoutAt >= 0 && avatarAt > logoutAt);
     assert.equal(menu.includes("{user.nickname || '已登录'}"), false);
     assert.equal(menu.includes('title={user.email}'), false);
     assert.match(menu, /title=\{\(user\.nickname \?\? ''\)\.trim\(\) \|\| '已登录'\}/);
-    assert.match(menu, /accountDisplayName\(user\.nickname\)/);
+    assert.match(menu, /UserAvatar/);
+    assert.match(menu, /AccountPanel/);
     assert.match(header, /退出登录/);
     assert.match(header, /onClick=\{logout\}/);
+  });
+});
+
+describe('watch favorites and history', () => {
+  it('toggles favorites and records history outside the playback session', () => {
+    assert.match(watch, /getFavoriteStatus/);
+    assert.match(watch, /addFavorite/);
+    assert.match(watch, /removeFavorite/);
+    assert.match(watch, /void upsertHistory\(token, videoId\)/);
+    assert.match(watch, /className=\{`watch-fav/);
+    assert.match(watch, /已收藏|收藏/);
+    const historyEffect = watch.indexOf('// Record watch history');
+    const playbackEffect = watch.indexOf('const session = new WatchPlaybackSession()');
+    assert.ok(historyEffect > 0 && playbackEffect > 0 && historyEffect !== playbackEffect);
+    assert.doesNotMatch(watch.slice(historyEffect, historyEffect + 280), /WatchPlaybackSession|getPlayback\(/);
   });
 });
 
