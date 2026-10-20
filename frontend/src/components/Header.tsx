@@ -1,12 +1,23 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { BannerCarousel } from './BannerCarousel';
 
+const BANNER_LINKS = [
+  { slug: 'home', label: '首页', to: '/' },
+  { slug: 'movie', label: '电影', to: '/?ch=movie' },
+  { slug: 'tv', label: '连续剧', to: '/?ch=tv' },
+  { slug: 'variety', label: '综艺', to: '/?ch=variety' },
+  { slug: 'anime', label: '动漫', to: '/?ch=anime' },
+  { slug: 'midnight', label: '午夜影院', to: '/?ch=midnight' },
+  { slug: 'vip-bluray', label: 'VIP蓝光影院', to: '/?ch=vip-bluray' },
+] as const;
+
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [params] = useSearchParams();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const urlQ = params.get('q') ?? '';
   const [q, setQ] = useState(urlQ);
@@ -38,6 +49,14 @@ export function Header() {
     runSearch();
   }
 
+  const channel = params.get('ch');
+
+  function linkActive(slug: string) {
+    if (pathname !== '/') return false;
+    if (slug === 'home') return !channel;
+    return channel === slug;
+  }
+
   return (
     <div className="banner-shell">
       <BannerCarousel />
@@ -59,19 +78,32 @@ export function Header() {
             <span className="brand-text">VPlayer</span>
           </Link>
 
-          <form className="search" role="search" onSubmit={onSearchSubmit}>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="搜索影视、剧集、动漫"
-              aria-label="搜索"
-              autoComplete="off"
-            />
-            <button type="submit" aria-label="搜索">
-              <SearchIcon />
-            </button>
-          </form>
+          <nav className="banner-nav" aria-label="频道">
+            {BANNER_LINKS.map((link) => (
+              <Link
+                key={link.slug}
+                to={link.to}
+                className={linkActive(link.slug) ? 'is-active' : undefined}
+                onClick={() => setMenuOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
         </div>
+
+        <form className="search" role="search" onSubmit={onSearchSubmit}>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="搜索影视、剧集、动漫"
+            aria-label="搜索"
+            autoComplete="off"
+          />
+          <button type="submit" aria-label="搜索">
+            <SearchIcon />
+          </button>
+        </form>
 
         <div className="banner-actions">
           {user ? (

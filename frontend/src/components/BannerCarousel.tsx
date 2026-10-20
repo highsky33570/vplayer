@@ -6,68 +6,7 @@ import banner04 from '../assets/banners/banner-04.webp';
 import banner05 from '../assets/banners/banner-05.webp';
 import banner06 from '../assets/banners/banner-06.webp';
 
-type BannerTheme = 'blue' | 'red' | 'sakura' | 'gold' | 'teal' | 'purple';
-type BannerPosition = 'bl' | 'bcl' | 'br' | 'blc' | 'brc' | 'bc';
-
-type BannerConfig = {
-  image: string;
-  headline: string;
-  subtitle: string;
-  highlight: string;
-  theme: BannerTheme;
-  position: BannerPosition;
-};
-
-const BANNERS: BannerConfig[] = [
-  {
-    image: banner01,
-    headline: '海量影视 · 高清畅看',
-    subtitle: '热门电影、电视剧、动漫、综艺精彩不断',
-    highlight: '精彩内容 随心观看',
-    theme: 'blue',
-    position: 'bc',
-  },
-  {
-    image: banner02,
-    headline: '热门影视 · 每日更新',
-    subtitle: '发现正在热播的人气电影与精彩剧集',
-    highlight: '热门推荐',
-    theme: 'red',
-    position: 'bc',
-  },
-  {
-    image: banner03,
-    headline: '精彩世界 · 随心探索',
-    subtitle: '发现更多好剧，让每一次观看都有新惊喜',
-    highlight: '发现精彩',
-    theme: 'sakura',
-    position: 'bc',
-  },
-  {
-    image: banner04,
-    headline: '经典大片 · 不容错过',
-    subtitle: '精选热门佳作，开启沉浸式观影体验',
-    highlight: '精选推荐',
-    theme: 'gold',
-    position: 'bc',
-  },
-  {
-    image: banner05,
-    headline: '高清点播 · 畅享精彩',
-    subtitle: '电影、剧集、动漫、综艺，一站尽享',
-    highlight: '高清流畅',
-    theme: 'teal',
-    position: 'bc',
-  },
-  {
-    image: banner06,
-    headline: '精彩动漫 · 热血来袭',
-    subtitle: '热门新番、经典动漫、精彩内容持续更新',
-    highlight: '动漫精选',
-    theme: 'purple',
-    position: 'bc',
-  },
-];
+const BANNERS = [banner01, banner02, banner03, banner04, banner05, banner06];
 
 const HOLD_MS = 5000;
 const TRANSITION_MS = 800;
@@ -90,12 +29,11 @@ export function BannerCarousel() {
   const [animate, setAnimate] = useState(true);
   const active = trackIndex % BANNERS.length;
   const transitioning = useRef(false);
-  const ad = BANNERS[active];
 
   useEffect(() => {
-    BANNERS.forEach((b) => {
+    BANNERS.forEach((src) => {
       const img = new Image();
-      img.src = b.image;
+      img.src = src;
     });
   }, []);
 
@@ -149,9 +87,9 @@ export function BannerCarousel() {
           className={`banner-track${animate && !reducedMotion ? ' is-animated' : ''}`}
           style={{ transform: `translate3d(-${(reducedMotion ? active : trackIndex) * 100}%, 0, 0)` }}
         >
-          {slides.map((b, i) => (
-            <div className="banner-slide" key={`${b.image}-${i}`}>
-              <img src={b.image} alt="" draggable={false} />
+          {slides.map((src, i) => (
+            <div className="banner-slide" key={`${src}-${i}`}>
+              <img src={src} alt="" draggable={false} />
             </div>
           ))}
         </div>
@@ -159,23 +97,10 @@ export function BannerCarousel() {
 
       <div className="banner-shade" aria-hidden />
 
-      <div
-        key={active}
-        className={`banner-ad banner-ad--${ad.theme} banner-ad--${ad.position}${reducedMotion ? ' is-static' : ''}`}
-        aria-hidden
-      >
-        <div className="banner-ad-accent">
-          <span className="banner-ad-line" />
-          <span className="banner-ad-pill">{ad.highlight}</span>
-        </div>
-        <h2 className="banner-ad-headline">{ad.headline}</h2>
-        <p className="banner-ad-subtitle">{ad.subtitle}</p>
-      </div>
-
       <div className="banner-dots" role="tablist" aria-label="横幅切换">
-        {BANNERS.map((b, i) => (
+        {BANNERS.map((src, i) => (
           <button
-            key={b.image}
+            key={src}
             type="button"
             role="tab"
             aria-selected={i === active}
