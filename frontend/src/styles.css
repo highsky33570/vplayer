@@ -157,7 +157,8 @@ img {
   color: #fff;
 }
 
-.banner-shell:has(.mobile-drawer.is-open) {
+.banner-shell:has(.mobile-drawer.is-open),
+.banner-shell:has(.header-flyout-anchor.is-open) {
   overflow: visible;
   z-index: 60;
 }
@@ -517,6 +518,106 @@ img {
   font-weight: 700;
   color: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+@media (min-width: 1024px) {
+  .header-flyout-anchor {
+    position: relative;
+  }
+
+  .banner-user.is-logged,
+  .header-flyout-anchor .banner-action {
+    overflow: visible;
+  }
+
+  /* Transform-only enlarge: no layout reflow of the header row. */
+  .header-flyout-anchor .banner-avatar {
+    transform-origin: center bottom;
+    transition: transform 160ms ease;
+  }
+
+  .header-flyout {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 6;
+    width: max-content;
+    min-width: 220px;
+    max-width: min(280px, calc(100vw - 32px));
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--elevated);
+    color: var(--text);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .header-flyout--account {
+    top: calc(100% - 6px);
+    min-width: 232px;
+    padding: 18px 58px 12px 14px;
+  }
+
+  .header-flyout-anchor.is-enlarged .banner-avatar {
+    position: relative;
+    z-index: 7;
+    transform: scale(1.65) translateY(12px);
+  }
+
+  .account-card-id,
+  .header-flyout-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .account-card-name,
+  .header-flyout-copy strong {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .account-card-status,
+  .account-card-email,
+  .header-flyout-copy p {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .account-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 10px;
+  }
+
+  .account-card-actions a,
+  .account-card-actions button,
+  .header-flyout-copy a {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 7px 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .account-card-actions a:hover,
+  .account-card-actions button:hover,
+  .header-flyout-copy a:hover {
+    color: var(--brand);
+  }
 }
 
 .btn-upload {
@@ -2243,6 +2344,14 @@ html.dark .login-reminder-cta {
   }
 }
 
+@media (min-width: 1280px) {
+  .category-rail,
+  .desktop-rail,
+  .page:not(.watch):not(.auth-page) {
+    width: min(2200px, calc(100% - 112px));
+  }
+}
+
 /* bp:compact — tablet and phone share the drawer and stacked featured area */
 @media (max-width: 1023px) {
   .banner-nav {
@@ -2870,5 +2979,9 @@ html.dark .login-reminder-cta {
 
   .banner-track.is-animated {
     transition: none !important;
+  }
+
+  .header-flyout-anchor.is-enlarged .banner-avatar {
+    transform: none;
   }
 }

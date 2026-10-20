@@ -1,8 +1,20 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { BannerCarousel } from './BannerCarousel';
+import { HeaderFlyout } from './HeaderFlyout';
+import {
+  VIP_PANEL,
+  accountActions,
+  accountDisplayName,
+  accountStatusLabel,
+  canUseFlyout,
+  closeHeaderFlyoutIfCurrent,
+  openHeaderFlyout,
+  shouldEnlargeAvatar,
+  type HeaderFlyoutId,
+} from './headerFlyoutLogic';
 
 const BANNER_LINKS = [
   { slug: 'home', label: '首页', to: '/' },
@@ -24,6 +36,22 @@ export function Header() {
   const [qSource, setQSource] = useState(urlQ);
   const { user, openLogin, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const desktopHover = useDesktopHover();
+  const reducedMotion = usePrefersReducedMotion();
+  const [openFlyout, setOpenFlyout] = useState<HeaderFlyoutId | null>(null);
+
+  useEffect(() => {
+    if (!desktopHover || !user) setOpenFlyout(null);
+  }, [desktopHover, user]);
+
+  function showFlyout(id: HeaderFlyoutId) {
+    if (!canUseFlyout(desktopHover, Boolean(user), id)) return;
+    setOpenFlyout((current) => openHeaderFlyout(current, id));
+  }
+
+  function hideFlyout(id: HeaderFlyoutId) {
+    setOpenFlyout((current) => closeHeaderFlyoutIfCurrent(current, id));
+  }
 
   // Sync input from URL when navigation changes q (e.g. browser back), not while typing.
   if (urlQ !== qSource) {
@@ -111,15 +139,41 @@ export function Header() {
               <button type="button" className="banner-logout" onClick={logout}>
                 退出
               </button>
-              <button
-                type="button"
-                className="banner-user is-logged"
-                title={(user.nickname ?? '').trim() ? (user.nickname ?? '').trim() : '已登录'}
+              <HeaderFlyout
+                id="account"
+                open={openFlyout === 'account'}
+                enabled={canUseFlyout(desktopHover, true, 'account')}
+                label="账号"
+                enlarged={shouldEnlargeAvatar(openFlyout, reducedMotion)}
+                onOpen={showFlyout}
+                onClose={hideFlyout}
+                trigger={
+                  <button
+                    type="button"
+                    className="banner-user is-logged"
+                    title={(user.nickname ?? '').trim() || '已登录'}
+                    aria-haspopup="dialog"
+                    aria-expanded={openFlyout === 'account'}
+                    onClick={() =>
+                      openFlyout === 'account' ? hideFlyout('account') : showFlyout('account')
+                    }
+                  >
+                    <span className="banner-avatar">
+                      {((user.nickname ?? '').trim() || '用').slice(0, 1).toUpperCase()}
+                    </span>
+                  </button>
+                }
               >
-                <span className="banner-avatar">
-                  {((user.nickname ?? '').trim() || '用').slice(0, 1).toUpperCase()}
-                </span>
-              </button>
+                <AccountCard
+                  name={accountDisplayName(user.nickname)}
+                  status={accountStatusLabel(user.is_admin)}
+                  email={user.email}
+                  actions={accountActions(user.is_admin, theme)}
+                  onTheme={toggleTheme}
+                  onLogout={logout}
+                  onNavigate={() => hideFlyout('account')}
+                />
+              </HeaderFlyout>
             </div>
           ) : (
             <button
@@ -144,7 +198,38 @@ export function Header() {
             </span>
             <span>{theme === 'dark' ? '浅色' : '深色'}</span>
           </button>
-          <ActionBtn label="VIP" icon={<VipIcon />} onClick={requireAuth} />
+          <HeaderFlyout
+            id="vip"
+            open={openFlyout === 'vip'}
+            enabled={canUseFlyout(desktopHover, Boolean(user), 'vip')}
+            label={VIP_PANEL.title}
+            onOpen={showFlyout}
+            onClose={hideFlyout}
+            trigger={
+              <ActionBtn
+                label="VIP"
+                icon={<VipIcon />}
+                popup={canUseFlyout(desktopHover, Boolean(user), 'vip')}
+                expanded={openFlyout === 'vip'}
+                onClick={() => {
+                  setMenuOpen(false);
+                  if (!user) {
+                    openLogin('login');
+                    return;
+                  }
+                  navigate(VIP_PANEL.href);
+                }}
+              />
+            }
+          >
+            <div className="header-flyout-copy">
+              <strong>{VIP_PANEL.title}</strong>
+              <p>{VIP_PANEL.body}</p>
+              <Link to={VIP_PANEL.href} onClick={() => hideFlyout('vip')}>
+                进入{VIP_PANEL.title}
+              </Link>
+            </div>
+          </HeaderFlyout>
           <ActionBtn label="消息" icon={<MsgIcon />} onClick={requireAuth} />
           <ActionBtn label="动态" icon={<FeedIcon />} onClick={requireAuth} />
           <ActionBtn label="收藏" icon={<StarIcon />} onClick={requireAuth} />
@@ -230,23 +315,111 @@ export function Header() {
   );
 }
 
+function AccountCard({
+  name,
+  status,
+  email,
+  actions,
+  onTheme,
+  onLogout,
+  onNavigate,
+}: {
+  name: string;
+  status: string;
+  email: string;
+  actions: ReturnType<typeof accountActions>;
+  onTheme: () => void;
+  onLogout: () => void;
+  onNavigate: () => void;
+}) {
+  return (
+    <div className="account-card">
+      <div className="account-card-id">
+        <span className="account-card-name">{name}</span>
+        <span className="account-card-status">{status}</span>
+        {email ? <span className="account-card-email">{email}</span> : null}
+      </div>
+      <div className="account-card-actions">
+        {actions.map((action) => {
+          if (action.id === 'admin') {
+            return (
+              <Link key={action.id} to={action.href} onClick={onNavigate}>
+                {action.label}
+              </Link>
+            );
+          }
+          if (action.id === 'theme') {
+            return (
+              <button key={action.id} type="button" onClick={onTheme}>
+                {action.label}
+              </button>
+            );
+          }
+          return (
+            <button key={action.id} type="button" onClick={onLogout}>
+              {action.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ActionBtn({
   label,
   icon,
   className = '',
   onClick,
+  popup = false,
+  expanded = false,
 }: {
   label: string;
   icon: ReactNode;
   className?: string;
   onClick?: () => void;
+  popup?: boolean;
+  expanded?: boolean;
 }) {
   return (
-    <button type="button" className={`banner-action ${className}`.trim()} title={label} onClick={onClick}>
+    <button
+      type="button"
+      className={`banner-action ${className}`.trim()}
+      title={label}
+      aria-haspopup={popup ? 'dialog' : undefined}
+      aria-expanded={popup ? expanded : undefined}
+      onClick={onClick}
+    >
       <span className="banner-action-icon">{icon}</span>
       <span>{label}</span>
     </button>
   );
+}
+
+function useDesktopHover() {
+  const [desktop, setDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : false,
+  );
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => setDesktop(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return desktop;
+}
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduced(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return reduced;
 }
 
 function SearchIcon() {

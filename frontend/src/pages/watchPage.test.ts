@@ -38,15 +38,16 @@ describe('watch page helpers', () => {
 });
 
 describe('header logged-in presentation', () => {
-  it('puts logout before the avatar and does not print a name under it', () => {
+  it('puts logout before the avatar and keeps the name out of the banner label', () => {
     const start = header.indexOf('banner-user-menu');
-    const menu = header.slice(start, start + 700);
+    const menu = header.slice(start, start + 1800);
     const logoutAt = menu.indexOf('className="banner-logout"');
     const avatarAt = menu.indexOf('className="banner-user is-logged"');
     assert.ok(logoutAt >= 0 && avatarAt > logoutAt);
     assert.equal(menu.includes("{user.nickname || '已登录'}"), false);
     assert.equal(menu.includes('title={user.email}'), false);
-    assert.match(menu, /已登录/);
+    assert.match(menu, /title=\{\(user\.nickname \?\? ''\)\.trim\(\) \|\| '已登录'\}/);
+    assert.match(menu, /accountDisplayName\(user\.nickname\)/);
     assert.match(header, /退出登录/);
     assert.match(header, /onClick=\{logout\}/);
   });
