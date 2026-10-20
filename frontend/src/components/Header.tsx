@@ -25,6 +25,7 @@ import {
   headerDestinationActive,
   openHeaderFlyout,
   shouldEnlargeAvatar,
+  usesCinematicBanner,
   type HeaderFlyoutId,
 } from './headerFlyoutLogic';
 
@@ -152,6 +153,7 @@ export function Header() {
 
   const channel = params.get('ch');
   const destActive = headerDestinationActive(pathname);
+  const showCinematicBanner = usesCinematicBanner(pathname);
 
   function linkActive(slug: string) {
     if (pathname !== '/') return false;
@@ -169,9 +171,9 @@ export function Header() {
   }
 
   return (
-    <div className="banner-shell">
-      {/* Same cinematic banner/header on home and all consumer destination routes. */}
-      <BannerCarousel />
+    <div className={`banner-shell${showCinematicBanner ? '' : ' banner-shell--app'}`}>
+      {/* Cinematic banner on home + most destinations; /messages uses compact chrome only. */}
+      {showCinematicBanner ? <BannerCarousel /> : null}
 
       <header className="banner-bar">
         <div className="banner-left">

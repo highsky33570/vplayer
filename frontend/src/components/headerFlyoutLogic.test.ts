@@ -22,6 +22,7 @@ import {
   isDestinationPath,
   openHeaderFlyout,
   shouldEnlargeAvatar,
+  usesCinematicBanner,
 } from './headerFlyoutLogic.ts';
 import {
   accountStats,
@@ -100,10 +101,13 @@ describe('who can open a flyout', () => {
 });
 
 describe('destination shell helpers', () => {
-  it('marks destination routes while sharing the homepage banner shell', () => {
+  it('marks destination routes; cinematic banner everywhere except /messages', () => {
     assert.equal(headerDestinationActive('/favorites'), 'favorites');
     assert.equal(isDestinationPath('/messages'), true);
     assert.equal(isDestinationPath('/'), false);
+    assert.equal(usesCinematicBanner('/'), true);
+    assert.equal(usesCinematicBanner('/account'), true);
+    assert.equal(usesCinematicBanner('/messages'), false);
     assert.equal(HEADER_NEW_TAB_REL, 'noopener noreferrer');
     assert.deepEqual([...DESTINATION_PATHS], ['/account', '/vip', '/messages', '/favorites', '/history']);
   });
@@ -155,10 +159,10 @@ describe('wired flyouts', () => {
     assert.match(css, /\.is-enlarged \.banner-avatar/);
     assert.match(css, /\.header-flyout--favorites/);
     assert.match(css, /\.vip-dest/);
-    assert.equal(css.includes('banner-shell--app'), false);
+    assert.match(css, /\.banner-shell--app/);
     assert.match(css, /\.msg-center-grid/);
     assert.match(css, /\.history-grid/);
-    assert.match(header, /<BannerCarousel \/>/);
+    assert.match(header, /showCinematicBanner \? <BannerCarousel \/> : null/);
     assert.equal(header.includes('isHomeShell'), false);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.equal(/header-flyout-anchor/.test(phone), false);

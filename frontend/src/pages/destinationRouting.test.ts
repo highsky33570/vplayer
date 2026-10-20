@@ -32,12 +32,13 @@ const NEW_TAB_LINKS = [
 ] as const;
 
 describe('shared homepage banner on destinations', () => {
-  it('always mounts BannerCarousel in Header for home and destinations', () => {
-    assert.match(header, /<BannerCarousel \/>/);
+  it('mounts BannerCarousel for home and non-messages destinations; compact shell on /messages', () => {
+    assert.match(header, /usesCinematicBanner\(pathname\)/);
+    assert.match(header, /showCinematicBanner \? <BannerCarousel \/> : null/);
+    assert.match(header, /banner-shell--app/);
+    assert.match(css, /\.banner-shell--app/);
     assert.equal(header.includes('headerShellMode'), false);
     assert.equal(header.includes('isHomeShell'), false);
-    assert.equal(header.includes('banner-shell--app'), false);
-    assert.equal(css.includes('banner-shell--app'), false);
     assert.equal(vip.includes('BannerCarousel'), false);
     assert.equal(messages.includes('BannerCarousel'), false);
     assert.equal(favorites.includes('BannerCarousel'), false);
@@ -139,7 +140,7 @@ describe('homepage DiscoveryNav stays on Home only', () => {
 });
 
 describe('destination main content reuses homepage gutters', () => {
-  it('shares .page width tokens with destination mains', () => {
+  it('shares .page width tokens with destination mains (messages uses its own centered workspace)', () => {
     const desk = css.slice(css.indexOf('/* Desktop subcategory rail'), css.indexOf('/* bp:compact'));
     assert.match(desk, /width:\s*min\(2200px,\s*calc\(100% - 64px\)\)/);
     assert.match(desk, /@media \(min-width: 1280px\)/);
@@ -147,7 +148,8 @@ describe('destination main content reuses homepage gutters', () => {
     assert.match(desk, /\.page:not\(\.watch\):not\(\.auth-page\)/);
     assert.match(desk, /\.vip-dest-body/);
     assert.match(account, /className="page space-page"/);
-    assert.match(messages, /className="page msg-dest"/);
+    assert.match(messages, /msg-dest/);
+    assert.match(css, /min\(1160px/);
     assert.match(favorites, /className="page me-page/);
     assert.match(history, /className="page me-page/);
     assert.equal(account.includes('space-cover'), false);

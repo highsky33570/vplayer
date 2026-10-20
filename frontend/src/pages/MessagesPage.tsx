@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
+  fetchUnreadCount,
   listNotificationsPage,
   markNotificationsRead,
   type UserNotification,
@@ -10,12 +11,18 @@ import { publishUnreadCount } from '../account/unreadEvents';
 import { AuthGate } from '../auth/AuthGate';
 import {
   MESSAGE_TABS,
-  emptyMessagesText,
   formatHistoryTime,
   messageKindLabel,
-  notificationHref,
   parseMessageFilter,
 } from '../components/headerFlyoutData';
+import {
+  emptyDetailCopy,
+  emptyListCopy,
+  messageDetailHeading,
+  messageListPreview,
+  messageListPrimary,
+  messageWatchHref,
+} from './messagesPageLogic';
 
 const PAGE_SIZE = 30;
 
@@ -33,7 +40,22 @@ function MessagesContent({ token }: { token: string }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [totalUnread, setTotalUnread] = useState(0);
   const requestRef = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchUnreadCount(token)
+      .then((n) => {
+        if (!cancelled) setTotalUnread(n);
+      })
+      .catch(() => {
+        if (!cancelled) setTotalUnread(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   useEffect(() => {
     const request = ++requestRef.current;
@@ -45,7 +67,6 @@ function MessagesContent({ token }: { token: string }) {
         if (requestRef.current !== request) return;
         setItems(page.data);
         setHasMore(page.has_more);
-        setSelectedId(page.data[0]?.id ?? null);
       })
       .catch((e) => {
         if (requestRef.current !== request) return;
@@ -59,8 +80,7 @@ function MessagesContent({ token }: { token: string }) {
 
   const selected = items.find((item) => item.id === selectedId) ?? null;
   const unreadHere = countUnread(items);
-  const replyUnread = countUnread(items.filter((item) => item.kind === 'comment_reply'));
-  const systemUnread = countUnread(items.filter((item) => item.kind === 'system'));
+  const listTitle = MESSAGE_TABS.find((tab) => tab.id === filter)?.label ?? '我的消息';
 
   async function loadMore() {
     const request = requestRef.current;
@@ -88,12 +108,17 @@ function MessagesContent({ token }: { token: string }) {
     setSelectedId(item.id);
     if (item.is_read) return;
     setItems((current) => markRead(current, [item.id]));
+    setTotalUnread((n) => Math.max(0, n - 1));
     markNotificationsRead(token, { ids: [item.id] })
-      .then(publishUnreadCount)
+      .then((unread) => {
+        setTotalUnread(unread);
+        publishUnreadCount(unread);
+      })
       .catch(() => {
         setItems((current) =>
           current.map((row) => (row.id === item.id ? { ...row, is_read: false } : row)),
         );
+        setTotalUnread((n) => n + 1);
       });
   }
 
@@ -101,39 +126,42 @@ function MessagesContent({ token }: { token: string }) {
     try {
       const unread = await markNotificationsRead(token, { all: true });
       setItems((current) => markRead(current, 'all'));
+      setTotalUnread(unread);
       publishUnreadCount(unread);
     } catch (e) {
       setError(e instanceof Error ? e.message : '操作失败');
     }
   }
 
-  function tabUnread(id: string): number {
-    if (id === 'comment_reply') return replyUnread;
-    if (id === 'system') return systemUnread;
-    return unreadHere;
+  function clearSelection() {
+    setSelectedId(null);
   }
 
-  const listTitle = MESSAGE_TABS.find((tab) => tab.id === filter)?.label ?? '我的消息';
+  const watchHref = selected ? messageWatchHref(selected) : null;
 
   return (
-    <div className="page msg-dest">
-      <div className="msg-center-grid">
+    <div
+      className={`msg-dest${selected ? ' msg-dest--detail' : ''}`}
+      data-testid="messages-page"
+    >
+      <div className="msg-center-grid" data-testid="messages-workspace">
         <aside className="msg-sidebar" aria-label="消息分类">
           <div className="msg-sidebar-head">
             <h1 className="msg-sidebar-title">消息中心</h1>
           </div>
           <nav className="msg-nav">
             {MESSAGE_TABS.map((tab) => {
-              const badge = tabUnread(tab.id);
+              const showTotalBadge = tab.id === 'all' && totalUnread > 0;
               return (
                 <button
                   key={tab.id}
                   type="button"
                   className={filter === tab.id ? 'is-active' : undefined}
+                  aria-current={filter === tab.id ? 'page' : undefined}
                   onClick={() => selectTab(tab.id)}
                 >
                   <span>{tab.label}</span>
-                  {badge > 0 ? <em>{badge > 99 ? '99+' : badge}</em> : null}
+                  {showTotalBadge ? <em>{totalUnread > 99 ? '99+' : totalUnread}</em> : null}
                 </button>
               );
             })}
@@ -141,7 +169,7 @@ function MessagesContent({ token }: { token: string }) {
           <button
             type="button"
             className="me-btn msg-sidebar-action"
-            disabled={unreadHere === 0 && !loading}
+            disabled={totalUnread === 0 && unreadHere === 0 && !loading}
             onClick={() => void onMarkAll()}
           >
             全部已读
@@ -158,10 +186,10 @@ function MessagesContent({ token }: { token: string }) {
             </p>
           ) : null}
           {loading ? (
-            <p className="me-status">加载中…</p>
+            <p className="me-status msg-pane-status">加载中…</p>
           ) : items.length === 0 ? (
-            <div className="me-empty">
-              <p>{emptyMessagesText(filter)}</p>
+            <div className="msg-list-empty" data-testid="messages-list-empty">
+              <p>{emptyListCopy(filter)}</p>
             </div>
           ) : (
             <>
@@ -173,6 +201,7 @@ function MessagesContent({ token }: { token: string }) {
                       className={`msg-item${item.is_read ? '' : ' is-unread'}${
                         selectedId === item.id ? ' is-selected' : ''
                       }`}
+                      data-testid={`message-item-${item.id}`}
                       onClick={() => void onSelect(item)}
                     >
                       <span className="msg-avatar" aria-hidden>
@@ -181,13 +210,12 @@ function MessagesContent({ token }: { token: string }) {
                       <span className="msg-body">
                         <span className="msg-head">
                           <span className="msg-kind">{messageKindLabel(item.kind)}</span>
-                          <strong>{item.title}</strong>
+                          <strong>{messageListPrimary(item)}</strong>
                         </span>
-                        {item.body ? <span className="msg-text">{item.body}</span> : null}
-                        <span className="msg-meta">
-                          {item.actor_name ? `${item.actor_name} · ` : ''}
-                          {formatHistoryTime(item.created_at)}
-                        </span>
+                        {messageListPreview(item) ? (
+                          <span className="msg-text">{messageListPreview(item)}</span>
+                        ) : null}
+                        <span className="msg-meta">{formatHistoryTime(item.created_at)}</span>
                       </span>
                       {!item.is_read ? <span className="msg-dot" aria-label="未读" /> : null}
                     </button>
@@ -210,15 +238,20 @@ function MessagesContent({ token }: { token: string }) {
           )}
         </section>
 
-        <section className="msg-detail-pane" aria-label="消息详情">
+        <section className="msg-detail-pane" aria-label="消息详情" data-testid="messages-detail">
           {!selected ? (
-            <div className="me-empty msg-detail-empty">
-              <div className="msg-detail-art" aria-hidden />
-              <p>选择左侧消息开始查看</p>
+            <div className="msg-detail-empty" data-testid="messages-detail-empty">
+              <div className="msg-detail-icon" aria-hidden>
+                <MsgEmptyIcon />
+              </div>
+              <p>{emptyDetailCopy()}</p>
             </div>
           ) : (
-            <article className="msg-detail">
-              <p className="msg-kind">{messageKindLabel(selected.kind)}</p>
+            <article className="msg-detail" data-testid="messages-detail-body">
+              <button type="button" className="msg-detail-back" onClick={clearSelection}>
+                返回列表
+              </button>
+              <p className="msg-kind">{messageDetailHeading(selected)}</p>
               <h2>{selected.title}</h2>
               <p className="msg-meta">
                 {selected.actor_name ? `${selected.actor_name} · ` : ''}
@@ -228,9 +261,9 @@ function MessagesContent({ token }: { token: string }) {
               {selected.kind === 'comment_reply' ? (
                 <div className="msg-detail-actions">
                   {selected.actor_name ? <p>回复者：{selected.actor_name}</p> : null}
-                  {notificationHref(selected) ? (
-                    <Link className="me-btn me-btn--primary" to={notificationHref(selected)!}>
-                      打开相关视频
+                  {watchHref ? (
+                    <Link className="me-btn me-btn--primary" to={watchHref} data-testid="message-watch-link">
+                      查看视频
                     </Link>
                   ) : (
                     <p className="me-hint">该回复没有关联视频</p>
@@ -238,7 +271,13 @@ function MessagesContent({ token }: { token: string }) {
                 </div>
               ) : (
                 <div className="msg-detail-actions">
-                  <p className="me-hint">系统通知</p>
+                  {watchHref ? (
+                    <Link className="me-btn me-btn--primary" to={watchHref}>
+                      查看相关内容
+                    </Link>
+                  ) : (
+                    <p className="me-hint">系统通知</p>
+                  )}
                 </div>
               )}
             </article>
@@ -246,5 +285,21 @@ function MessagesContent({ token }: { token: string }) {
         </section>
       </div>
     </div>
+  );
+}
+
+function MsgEmptyIcon() {
+  return (
+    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden>
+      <rect x="8" y="14" width="40" height="28" rx="6" stroke="currentColor" strokeWidth="2" opacity="0.55" />
+      <path
+        d="M12 18l16 12 16-12"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.55"
+      />
+    </svg>
   );
 }

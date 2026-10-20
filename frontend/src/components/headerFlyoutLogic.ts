@@ -4,13 +4,21 @@ export const HEADER_FLYOUTS = ['account', 'vip', 'messages', 'favorites', 'histo
 export type HeaderFlyoutId = (typeof HEADER_FLYOUTS)[number];
 
 /**
- * Consumer destinations that share the homepage top banner/header.
- * Main content below the banner changes; the banner shell does not.
+ * Consumer destinations. Most share the homepage cinematic banner;
+ * /messages is the exception (compact app chrome — see usesCinematicBanner).
  */
 export const DESTINATION_PATHS = ['/account', '/vip', '/messages', '/favorites', '/history'] as const;
 
 export function isDestinationPath(pathname: string): boolean {
   return DESTINATION_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/**
+ * Homepage + account/vip/favorites/history keep BannerCarousel.
+ * /messages is a workspace page: compact global top bar only.
+ */
+export function usesCinematicBanner(pathname: string): boolean {
+  return !(pathname === '/messages' || pathname.startsWith('/messages/'));
 }
 
 /** Which header action matches the current destination route (for active styling). */
