@@ -362,12 +362,6 @@ export function Header() {
           >
             <HistoryPanel onNavigate={() => hideFlyout('history')} />
           </HeaderFlyout>
-          <ActionBtn
-            label="创作中心"
-            icon={<CreateIcon />}
-            className="hide-md"
-            onClick={() => goOrLogin(undefined, '创作中心即将推出')}
-          />
           <button
             type="button"
             className="btn-upload"
@@ -457,57 +451,12 @@ export function Header() {
               </button>
             </>
           )}
-          <button type="button" onClick={() => goOrLogin(undefined, '创作中心即将推出')}>
-            创作中心
-          </button>
           <button type="button" onClick={() => goOrLogin(undefined, '投稿即将推出')}>
             投稿
           </button>
         </div>
       </div>
     </div>
-  );
-}
-
-function ActionBtn({
-  label,
-  icon,
-  className = '',
-  onClick,
-  popup = false,
-  expanded = false,
-  active = false,
-  badge = '',
-}: {
-  label: string;
-  icon: ReactNode;
-  className?: string;
-  onClick?: () => void;
-  popup?: boolean;
-  expanded?: boolean;
-  active?: boolean;
-  badge?: string;
-}) {
-  return (
-    <button
-      type="button"
-      className={`banner-action${active ? ' is-route-active' : ''} ${className}`.trim()}
-      title={badge ? `${label}（${badge} 条未读）` : label}
-      aria-haspopup={popup ? 'dialog' : undefined}
-      aria-expanded={popup ? expanded : undefined}
-      aria-current={active ? 'page' : undefined}
-      onClick={onClick}
-    >
-      <span className="banner-action-icon">
-        {icon}
-        {badge ? (
-          <span className="banner-badge" aria-label={`${badge} 条未读`}>
-            {badge}
-          </span>
-        ) : null}
-      </span>
-      <span>{label}</span>
-    </button>
   );
 }
 
@@ -665,14 +614,6 @@ function MsgIcon() {
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function CreateIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 19h14M8 15l8-8 3 3-8 8H8v-3z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
     </svg>
   );
 }

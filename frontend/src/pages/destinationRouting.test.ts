@@ -151,7 +151,8 @@ describe('destination main content reuses homepage gutters', () => {
     assert.match(messages, /msg-dest/);
     assert.match(css, /min\(1160px/);
     assert.match(css, /min\(1240px/);
-    assert.match(favorites, /className="page me-page/);
+    assert.match(favorites, /fav-dest/);
+    assert.match(css, /min\(1280px/);
     assert.match(history, /hist-dest/);
     assert.equal(account.includes('space-cover'), false);
     assert.match(account, /space-identity/);
@@ -189,11 +190,11 @@ describe('destination page composition markers', () => {
     assert.match(tabs, /label: '系统通知'/);
   });
 
-  it('favorites uses library sidebar + folder main', () => {
-    assert.match(favorites, /lib-dest/);
-    assert.match(favorites, /lib-banner/);
+  it('favorites uses centered library sidebar + folder main under cinematic shell', () => {
+    assert.match(favorites, /fav-dest/);
+    assert.match(favorites, /fav-sidebar/);
     assert.match(favorites, /全部收藏/);
-    assert.match(favorites, /me-folders/);
+    assert.match(favorites, /fav-grid/);
   });
 
   it('history uses centered timeline workspace destination', () => {

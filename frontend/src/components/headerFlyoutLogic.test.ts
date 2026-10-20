@@ -153,7 +153,8 @@ describe('wired flyouts', () => {
     assert.match(header, /label="消息"/);
     assert.match(header, /label="收藏"/);
     assert.match(header, /label="历史"/);
-    assert.match(header, /label="创作中心"/);
+    assert.equal(header.includes('创作中心'), false);
+    assert.match(header, /投稿/);
     assert.match(flyout, /Escape/);
     assert.match(flyout, /pointerdown/);
     assert.match(flyout, /onMouseEnter/);

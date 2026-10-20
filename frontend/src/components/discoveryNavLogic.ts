@@ -8,7 +8,6 @@ export const DESKTOP_TEXT_LINKS: readonly DesktopTextLink[] = [
   { label: '收藏', href: '/favorites', auth: true },
   { label: '消息', href: '/messages', auth: true },
   { label: 'VIP', href: '/vip' },
-  { label: '创作中心', soon: true },
   { label: '投稿', soon: true },
 ];
 
