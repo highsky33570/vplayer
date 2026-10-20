@@ -6,6 +6,7 @@ import {
   groupHistoryItems,
   historyGroupId,
   historyProgressRatio,
+  isHistoryCompleted,
 } from './historyPageLogic.ts';
 
 function row(id: number, iso: string, title = `V${id}`): HistoryVideo {
@@ -52,5 +53,7 @@ describe('history page logic', () => {
     assert.equal(historyProgressRatio(25, 100), 0.25);
     assert.equal(historyProgressRatio(0, 100), 0);
     assert.equal(historyProgressRatio(200, 100), 1);
+    assert.equal(isHistoryCompleted(90, 100), true);
+    assert.equal(isHistoryCompleted(50, 100), false);
   });
 });

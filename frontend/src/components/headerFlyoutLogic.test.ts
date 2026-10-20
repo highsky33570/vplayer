@@ -101,13 +101,14 @@ describe('who can open a flyout', () => {
 });
 
 describe('destination shell helpers', () => {
-  it('marks destination routes; cinematic banner everywhere except /messages', () => {
+  it('marks destination routes; cinematic banner everywhere except /messages and /history', () => {
     assert.equal(headerDestinationActive('/favorites'), 'favorites');
     assert.equal(isDestinationPath('/messages'), true);
     assert.equal(isDestinationPath('/'), false);
     assert.equal(usesCinematicBanner('/'), true);
     assert.equal(usesCinematicBanner('/account'), true);
     assert.equal(usesCinematicBanner('/messages'), false);
+    assert.equal(usesCinematicBanner('/history'), false);
     assert.equal(HEADER_NEW_TAB_REL, 'noopener noreferrer');
     assert.deepEqual([...DESTINATION_PATHS], ['/account', '/vip', '/messages', '/favorites', '/history']);
   });
@@ -161,7 +162,7 @@ describe('wired flyouts', () => {
     assert.match(css, /\.vip-dest/);
     assert.match(css, /\.banner-shell--app/);
     assert.match(css, /\.msg-center-grid/);
-    assert.match(css, /\.history-grid/);
+    assert.match(css, /\.hist-grid/);
     assert.match(header, /showCinematicBanner \? <BannerCarousel \/> : null/);
     assert.equal(header.includes('isHomeShell'), false);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));

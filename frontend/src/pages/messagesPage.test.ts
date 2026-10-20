@@ -29,7 +29,7 @@ describe('messages shell — no cinematic banner', () => {
     assert.equal(usesCinematicBanner('/account'), true);
     assert.equal(usesCinematicBanner('/vip'), true);
     assert.equal(usesCinematicBanner('/favorites'), true);
-    assert.equal(usesCinematicBanner('/history'), true);
+    assert.equal(usesCinematicBanner('/history'), false);
     assert.match(header, /usesCinematicBanner\(pathname\)/);
     assert.match(header, /showCinematicBanner \? <BannerCarousel \/> : null/);
     assert.match(header, /banner-shell--app/);

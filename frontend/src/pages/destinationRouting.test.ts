@@ -32,7 +32,7 @@ const NEW_TAB_LINKS = [
 ] as const;
 
 describe('shared homepage banner on destinations', () => {
-  it('mounts BannerCarousel for home and non-messages destinations; compact shell on /messages', () => {
+  it('mounts BannerCarousel for home and non-compact destinations; compact shell on /messages and /history', () => {
     assert.match(header, /usesCinematicBanner\(pathname\)/);
     assert.match(header, /showCinematicBanner \? <BannerCarousel \/> : null/);
     assert.match(header, /banner-shell--app/);
@@ -150,8 +150,9 @@ describe('destination main content reuses homepage gutters', () => {
     assert.match(account, /className="page space-page"/);
     assert.match(messages, /msg-dest/);
     assert.match(css, /min\(1160px/);
+    assert.match(css, /min\(1240px/);
     assert.match(favorites, /className="page me-page/);
-    assert.match(history, /className="page me-page/);
+    assert.match(history, /hist-dest/);
     assert.equal(account.includes('space-cover'), false);
     assert.match(account, /space-identity/);
   });
@@ -195,10 +196,11 @@ describe('destination page composition markers', () => {
     assert.match(favorites, /me-folders/);
   });
 
-  it('history uses dense grouped grid destination', () => {
-    assert.match(history, /history-dest/);
-    assert.match(history, /history-title/);
-    assert.match(history, /history-grid/);
+  it('history uses centered timeline workspace destination', () => {
+    assert.match(history, /hist-dest/);
+    assert.match(history, /hist-title/);
+    assert.match(history, /hist-grid/);
     assert.match(history, /清空历史/);
+    assert.match(history, /批量管理/);
   });
 });
