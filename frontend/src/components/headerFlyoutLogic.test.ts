@@ -17,8 +17,8 @@ import {
   closeHeaderFlyoutIfCurrent,
   flyoutAfterPointer,
   flyoutPanelClass,
+  HEADER_NEW_TAB_REL,
   headerDestinationActive,
-  headerShellMode,
   isDestinationPath,
   openHeaderFlyout,
   shouldEnlargeAvatar,
@@ -100,11 +100,11 @@ describe('who can open a flyout', () => {
 });
 
 describe('destination shell helpers', () => {
-  it('uses home shell only on / and marks destination routes', () => {
-    assert.equal(headerShellMode('/'), 'home');
-    assert.equal(headerShellMode('/vip'), 'app');
+  it('marks destination routes while sharing the homepage banner shell', () => {
     assert.equal(headerDestinationActive('/favorites'), 'favorites');
     assert.equal(isDestinationPath('/messages'), true);
+    assert.equal(isDestinationPath('/'), false);
+    assert.equal(HEADER_NEW_TAB_REL, 'noopener noreferrer');
     assert.deepEqual([...DESTINATION_PATHS], ['/account', '/vip', '/messages', '/favorites', '/history']);
   });
 });
@@ -127,17 +127,23 @@ describe('wired flyouts', () => {
     }
   });
 
-  it('wires hover flyouts and click destinations to full pages', () => {
+  it('wires hover flyouts and new-tab destination anchors', () => {
     for (const id of HEADER_FLYOUTS) {
       assert.match(header, new RegExp(`id="${id}"`));
       assert.equal(flyoutPanelClass(id), `header-flyout header-flyout--${id}`);
     }
     assert.match(header, /HeaderAccountAvatar/);
-    assert.match(readFileSync(join(here, 'HeaderAccountAvatar.tsx'), 'utf8'), /to="\/account"/);
-    assert.match(header, /goOrLogin\(VIP_PANEL\.href, undefined, \{ public: true \}\)/);
-    assert.match(header, /goOrLogin\('\/messages'\)/);
-    assert.match(header, /goOrLogin\('\/favorites'\)/);
-    assert.match(header, /goOrLogin\('\/history'\)/);
+    const avatarSrc = readFileSync(join(here, 'HeaderAccountAvatar.tsx'), 'utf8');
+    assert.match(avatarSrc, /href="\/account"/);
+    assert.match(avatarSrc, /target="_blank"/);
+    assert.match(avatarSrc, /rel="noopener noreferrer"/);
+    assert.match(header, /function DestNavLink/);
+    assert.match(header, /href=\{VIP_PANEL\.href\}/);
+    assert.match(header, /href="\/messages"/);
+    assert.match(header, /href="\/favorites"/);
+    assert.match(header, /href="\/history"/);
+    assert.match(header, /target="_blank"/);
+    assert.match(header, /rel=\{HEADER_NEW_TAB_REL\}/);
     assert.match(header, /label="大会员"/);
     assert.match(header, /label="消息"/);
     assert.match(header, /label="收藏"/);
@@ -149,10 +155,11 @@ describe('wired flyouts', () => {
     assert.match(css, /\.is-enlarged \.banner-avatar/);
     assert.match(css, /\.header-flyout--favorites/);
     assert.match(css, /\.vip-dest/);
-    assert.match(css, /\.banner-shell--app/);
+    assert.equal(css.includes('banner-shell--app'), false);
     assert.match(css, /\.msg-center-grid/);
     assert.match(css, /\.history-grid/);
-    assert.match(header, /isHomeShell \? <BannerCarousel \/> : null/);
+    assert.match(header, /<BannerCarousel \/>/);
+    assert.equal(header.includes('isHomeShell'), false);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.equal(/header-flyout-anchor/.test(phone), false);
   });

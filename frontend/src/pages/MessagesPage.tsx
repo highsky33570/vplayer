@@ -116,7 +116,7 @@ function MessagesContent({ token }: { token: string }) {
   const listTitle = MESSAGE_TABS.find((tab) => tab.id === filter)?.label ?? '我的消息';
 
   return (
-    <div className="msg-dest">
+    <div className="page msg-dest">
       <div className="msg-center-grid">
         <aside className="msg-sidebar" aria-label="消息分类">
           <div className="msg-sidebar-head">

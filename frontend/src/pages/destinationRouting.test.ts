@@ -5,8 +5,8 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   DESTINATION_PATHS,
+  HEADER_NEW_TAB_REL,
   headerDestinationActive,
-  headerShellMode,
   isDestinationPath,
 } from '../components/headerFlyoutLogic.ts';
 
@@ -14,28 +14,35 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const app = readFileSync(join(root, 'App.tsx'), 'utf8');
 const header = readFileSync(join(root, 'components/Header.tsx'), 'utf8');
+const avatar = readFileSync(join(root, 'components/HeaderAccountAvatar.tsx'), 'utf8');
 const home = readFileSync(join(root, 'pages/Home.tsx'), 'utf8');
 const vip = readFileSync(join(root, 'pages/VipPage.tsx'), 'utf8');
 const messages = readFileSync(join(root, 'pages/MessagesPage.tsx'), 'utf8');
 const favorites = readFileSync(join(root, 'pages/FavoritesPage.tsx'), 'utf8');
 const history = readFileSync(join(root, 'pages/HistoryPage.tsx'), 'utf8');
 const account = readFileSync(join(root, 'pages/AccountPage.tsx'), 'utf8');
+const css = readFileSync(join(root, 'styles.css'), 'utf8');
 
-const CLICK_NAV = [
-  { label: 'account', path: '/account' },
-  { label: '大会员', path: '/vip' },
-  { label: '消息', path: '/messages' },
-  { label: '收藏', path: '/favorites' },
-  { label: '历史', path: '/history' },
+const NEW_TAB_LINKS = [
+  { label: 'avatar', href: '/account', source: avatar },
+  { label: '大会员', href: '/vip', source: header },
+  { label: '消息', href: '/messages', source: header },
+  { label: '收藏', href: '/favorites', source: header },
+  { label: '历史', href: '/history', source: header },
 ] as const;
 
-describe('destination shell mode', () => {
-  it('keeps cinematic banner shell only on homepage', () => {
-    assert.equal(headerShellMode('/'), 'home');
-    for (const path of DESTINATION_PATHS) {
-      assert.equal(headerShellMode(path), 'app');
-    }
-    assert.equal(headerShellMode('/watch/1'), 'app');
+describe('shared homepage banner on destinations', () => {
+  it('always mounts BannerCarousel in Header for home and destinations', () => {
+    assert.match(header, /<BannerCarousel \/>/);
+    assert.equal(header.includes('headerShellMode'), false);
+    assert.equal(header.includes('isHomeShell'), false);
+    assert.equal(header.includes('banner-shell--app'), false);
+    assert.equal(css.includes('banner-shell--app'), false);
+    assert.equal(vip.includes('BannerCarousel'), false);
+    assert.equal(messages.includes('BannerCarousel'), false);
+    assert.equal(favorites.includes('BannerCarousel'), false);
+    assert.equal(history.includes('BannerCarousel'), false);
+    assert.equal(account.includes('BannerCarousel'), false);
   });
 
   it('maps each destination pathname to its header active id', () => {
@@ -48,7 +55,7 @@ describe('destination shell mode', () => {
     assert.equal(headerDestinationActive('/watch/9'), null);
   });
 
-  it('flags destination paths for homepage chrome exclusion', () => {
+  it('flags destination paths without changing the shared top shell', () => {
     for (const path of DESTINATION_PATHS) {
       assert.equal(isDestinationPath(path), true);
     }
@@ -68,51 +75,51 @@ describe('router registers real destination routes', () => {
   });
 });
 
-describe('header click navigates to destination pathnames', () => {
-  it('wires avatar Link and right-header actions to destination pathnames', () => {
-    assert.match(header, /HeaderAccountAvatar/);
-    const avatar = readFileSync(join(root, 'components/HeaderAccountAvatar.tsx'), 'utf8');
-    assert.match(avatar, /to="\/account"/);
+describe('desktop top-right destinations open in a new browser tab', () => {
+  it('renders real anchors with href, target=_blank, and noopener noreferrer', () => {
+    assert.equal(HEADER_NEW_TAB_REL, 'noopener noreferrer');
+    assert.match(avatar, /href="\/account"/);
+    assert.match(avatar, /target="_blank"/);
+    assert.match(avatar, /rel="noopener noreferrer"/);
     assert.match(avatar, /data-testid="header-account-avatar"/);
-    assert.match(header, /goOrLogin\(VIP_PANEL\.href/);
-    assert.match(header, /goOrLogin\('\/messages'\)/);
-    assert.match(header, /goOrLogin\('\/favorites'\)/);
-    assert.match(header, /goOrLogin\('\/history'\)/);
-    assert.equal(
-      readFileSync(join(root, 'components/headerFlyoutLogic.ts'), 'utf8').includes("href: '/vip'"),
-      true,
-    );
+    assert.equal(avatar.includes("navigate('/account')"), false);
+    assert.equal(avatar.includes('to="/account"'), false);
+
+    assert.match(header, /function DestNavLink/);
+    assert.match(header, /href=\{VIP_PANEL\.href\}/);
+    assert.match(header, /href="\/messages"/);
+    assert.match(header, /href="\/favorites"/);
+    assert.match(header, /href="\/history"/);
+    assert.match(header, /target="_blank"/);
+    assert.match(header, /rel=\{HEADER_NEW_TAB_REL\}/);
+    // Desktop top-right uses DestNavLink (new tab); mobile drawer may still goOrLogin same-tab.
+    assert.match(header, /<DestNavLink[\s\S]*href=\{VIP_PANEL\.href\}/);
+    assert.match(header, /<DestNavLink[\s\S]*href="\/messages"/);
+    assert.match(header, /<DestNavLink[\s\S]*href="\/favorites"/);
+    assert.match(header, /<DestNavLink[\s\S]*href="\/history"/);
   });
 
-  it('documents the expected click → pathname mapping', () => {
-    for (const item of CLICK_NAV) {
-      assert.ok(item.path.startsWith('/'));
-      assert.equal(headerShellMode(item.path), 'app');
-      assert.ok(headerDestinationActive(item.path));
+  it('documents the expected new-tab href mapping', () => {
+    assert.match(avatar, /href="\/account"/);
+    assert.match(header, /VIP_PANEL\.href/);
+    assert.match(header, /href="\/messages"/);
+    assert.match(header, /href="\/favorites"/);
+    assert.match(header, /href="\/history"/);
+    for (const item of NEW_TAB_LINKS) {
+      assert.ok(item.href.startsWith('/'));
+      assert.ok(headerDestinationActive(item.href));
     }
   });
 
-  it('closes the open flyout on avatar click while Link owns navigation', () => {
-    const css = readFileSync(join(root, 'styles.css'), 'utf8');
-    const avatar = readFileSync(join(root, 'components/HeaderAccountAvatar.tsx'), 'utf8');
+  it('closes the open flyout on avatar click while the anchor owns new-tab navigation', () => {
     assert.match(header, /setOpenFlyout\(null\)/);
     assert.match(header, /hideFlyout\('account'\)/);
-    assert.match(avatar, /to="\/account"/);
+    assert.match(avatar, /href="\/account"/);
     assert.match(css, /\.header-flyout--account[\s\S]*pointer-events:\s*none/);
   });
 });
 
-describe('homepage-only chrome stays off destination pages', () => {
-  it('renders BannerCarousel only in home shell mode', () => {
-    assert.match(header, /isHomeShell \? <BannerCarousel \/> : null/);
-    assert.match(header, /headerShellMode\(pathname\)/);
-    assert.equal(vip.includes('BannerCarousel'), false);
-    assert.equal(messages.includes('BannerCarousel'), false);
-    assert.equal(favorites.includes('BannerCarousel'), false);
-    assert.equal(history.includes('BannerCarousel'), false);
-    assert.equal(account.includes('BannerCarousel'), false);
-  });
-
+describe('homepage DiscoveryNav stays on Home only', () => {
   it('keeps DiscoveryNav on Home only', () => {
     assert.match(home, /<DiscoveryNav/);
     assert.equal(vip.includes('DiscoveryNav'), false);
@@ -131,6 +138,23 @@ describe('homepage-only chrome stays off destination pages', () => {
   });
 });
 
+describe('destination main content reuses homepage gutters', () => {
+  it('shares .page width tokens with destination mains', () => {
+    const desk = css.slice(css.indexOf('/* Desktop subcategory rail'), css.indexOf('/* bp:compact'));
+    assert.match(desk, /width:\s*min\(2200px,\s*calc\(100% - 64px\)\)/);
+    assert.match(desk, /@media \(min-width: 1280px\)/);
+    assert.match(desk, /width:\s*min\(2200px,\s*calc\(100% - 112px\)\)/);
+    assert.match(desk, /\.page:not\(\.watch\):not\(\.auth-page\)/);
+    assert.match(desk, /\.vip-dest-body/);
+    assert.match(account, /className="page space-page"/);
+    assert.match(messages, /className="page msg-dest"/);
+    assert.match(favorites, /className="page me-page/);
+    assert.match(history, /className="page me-page/);
+    assert.equal(account.includes('space-cover'), false);
+    assert.match(account, /space-identity/);
+  });
+});
+
 describe('动态 is removed', () => {
   it('has no 动态 label or feed destination in header and destinations', () => {
     assert.equal(header.includes('动态'), false);
@@ -142,7 +166,7 @@ describe('动态 is removed', () => {
 });
 
 describe('destination page composition markers', () => {
-  it('vip uses a full-bleed hero stage', () => {
+  it('vip uses a full-bleed hero stage under the shared banner', () => {
     assert.match(vip, /vip-dest/);
     assert.match(vip, /vip-hero-stage/);
     assert.match(vip, /vip-status-card/);

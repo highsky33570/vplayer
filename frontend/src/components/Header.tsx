@@ -17,12 +17,12 @@ import {
 } from './HeaderFlyoutPanels';
 import { unreadBadgeLabel } from './headerFlyoutData';
 import {
+  HEADER_NEW_TAB_REL,
   VIP_PANEL,
   accountDisplayName,
   canUseFlyout,
   closeHeaderFlyoutIfCurrent,
   headerDestinationActive,
-  headerShellMode,
   openHeaderFlyout,
   shouldEnlargeAvatar,
   type HeaderFlyoutId,
@@ -151,9 +151,7 @@ export function Header() {
   }
 
   const channel = params.get('ch');
-  const shellMode = headerShellMode(pathname);
   const destActive = headerDestinationActive(pathname);
-  const isHomeShell = shellMode === 'home';
 
   function linkActive(slug: string) {
     if (pathname !== '/') return false;
@@ -161,10 +159,19 @@ export function Header() {
     return channel === slug;
   }
 
+  /** Desktop top-right destinations: new tab; guests get login on this tab instead. */
+  function onDestLinkClick(id: HeaderFlyoutId, event: { preventDefault: () => void }, opts?: { public?: boolean }) {
+    hideFlyout(id);
+    if (!opts?.public && !user) {
+      event.preventDefault();
+      openLogin('login');
+    }
+  }
+
   return (
-    <div className={`banner-shell banner-shell--${shellMode}`}>
-      {/* Homepage cinematic banner only — destination routes must not inherit it. */}
-      {isHomeShell ? <BannerCarousel /> : null}
+    <div className="banner-shell">
+      {/* Same cinematic banner/header on home and all consumer destination routes. */}
+      <BannerCarousel />
 
       <header className="banner-bar">
         <div className="banner-left">
@@ -275,14 +282,15 @@ export function Header() {
             onOpen={showFlyout}
             onClose={hideFlyout}
             trigger={
-              <ActionBtn
+              <DestNavLink
+                href={VIP_PANEL.href}
                 label="大会员"
                 icon={<VipIcon />}
                 className="hide-sm"
                 active={destActive === 'vip'}
                 popup={canUseFlyout(desktopHover, Boolean(user), 'vip')}
                 expanded={openFlyout === 'vip'}
-                onClick={() => goOrLogin(VIP_PANEL.href, undefined, { public: true })}
+                onClick={(event) => onDestLinkClick('vip', event, { public: true })}
               />
             }
           >
@@ -296,14 +304,15 @@ export function Header() {
             onOpen={showFlyout}
             onClose={hideFlyout}
             trigger={
-              <ActionBtn
+              <DestNavLink
+                href="/messages"
                 label="消息"
                 icon={<MsgIcon />}
                 badge={unreadBadge}
                 active={destActive === 'messages'}
                 popup={canUseFlyout(desktopHover, Boolean(user), 'messages')}
                 expanded={openFlyout === 'messages'}
-                onClick={() => goOrLogin('/messages')}
+                onClick={(event) => onDestLinkClick('messages', event)}
               />
             }
           >
@@ -317,13 +326,14 @@ export function Header() {
             onOpen={showFlyout}
             onClose={hideFlyout}
             trigger={
-              <ActionBtn
+              <DestNavLink
+                href="/favorites"
                 label="收藏"
                 icon={<StarIcon />}
                 active={destActive === 'favorites'}
                 popup={canUseFlyout(desktopHover, Boolean(user), 'favorites')}
                 expanded={openFlyout === 'favorites'}
-                onClick={() => goOrLogin('/favorites')}
+                onClick={(event) => onDestLinkClick('favorites', event)}
               />
             }
           >
@@ -337,13 +347,14 @@ export function Header() {
             onOpen={showFlyout}
             onClose={hideFlyout}
             trigger={
-              <ActionBtn
+              <DestNavLink
+                href="/history"
                 label="历史"
                 icon={<HistoryIcon />}
                 active={destActive === 'history'}
                 popup={canUseFlyout(desktopHover, Boolean(user), 'history')}
                 expanded={openFlyout === 'history'}
-                onClick={() => goOrLogin('/history')}
+                onClick={(event) => onDestLinkClick('history', event)}
               />
             }
           >
@@ -495,6 +506,54 @@ function ActionBtn({
       </span>
       <span>{label}</span>
     </button>
+  );
+}
+
+/** Top-right destination: real href + new browser tab (current tab stays put). */
+function DestNavLink({
+  href,
+  label,
+  icon,
+  className = '',
+  onClick,
+  popup = false,
+  expanded = false,
+  active = false,
+  badge = '',
+}: {
+  href: string;
+  label: string;
+  icon: ReactNode;
+  className?: string;
+  onClick?: (event: { preventDefault: () => void }) => void;
+  popup?: boolean;
+  expanded?: boolean;
+  active?: boolean;
+  badge?: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel={HEADER_NEW_TAB_REL}
+      className={`banner-action${active ? ' is-route-active' : ''} ${className}`.trim()}
+      title={badge ? `${label}（${badge} 条未读）` : `${label}（新标签页）`}
+      aria-haspopup={popup ? 'dialog' : undefined}
+      aria-expanded={popup ? expanded : undefined}
+      aria-current={active ? 'page' : undefined}
+      data-dest-href={href}
+      onClick={onClick}
+    >
+      <span className="banner-action-icon">
+        {icon}
+        {badge ? (
+          <span className="banner-badge" aria-label={`${badge} 条未读`}>
+            {badge}
+          </span>
+        ) : null}
+      </span>
+      <span>{label}</span>
+    </a>
   );
 }
 

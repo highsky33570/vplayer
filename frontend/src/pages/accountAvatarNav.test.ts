@@ -1,6 +1,6 @@
 /**
- * Integration: click the real HeaderAccountAvatar (same trigger Header mounts)
- * and assert window.location.pathname becomes /account.
+ * Integration: HeaderAccountAvatar is a real new-tab link to /account.
+ * Current-tab pathname must NOT change on click.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -11,14 +11,13 @@ import { JSDOM } from 'jsdom';
 import React, { createElement, type ReactNode } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { BrowserRouter, MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
 import { AuthTestProvider } from '../auth/AuthContext.tsx';
 import { HeaderAccountAvatar } from '../components/HeaderAccountAvatar.tsx';
 import { HeaderFlyout } from '../components/HeaderFlyout.tsx';
 import { ThemeProvider } from '../theme/ThemeContext.tsx';
 import { AccountPage } from './AccountPage.tsx';
 
-// Classic JSX emit in some deps expects a global React; act() needs the flag.
 (globalThis as { React?: typeof React }).React = React;
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -121,7 +120,7 @@ function stubFetch() {
     const url = String(input);
     if (url.includes('/api/v1/me/summary')) {
       return new Response(
-        JSON.stringify({ ok: true, data: { favorites: 2, history: 3, unread_notifications: 0 } }),
+        JSON.stringify({ ok: true, data: { favorites: 0, history: 0, unread_notifications: 0 } }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -135,6 +134,27 @@ function stubFetch() {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
+    if (url.includes('/api/v1/videos')) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: [
+            {
+              id: 7,
+              title: 'Catalog Rec',
+              cover_url: '/c.jpg',
+              duration_sec: 120,
+              category_name: '电影',
+            },
+          ],
+          total: 1,
+          limit: 12,
+          offset: 0,
+          has_more: false,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
     if (typeof original === 'function') return original(input);
     return new Response(JSON.stringify({ ok: false }), { status: 404 });
   }) as typeof fetch;
@@ -143,7 +163,7 @@ function stubFetch() {
   };
 }
 
-describe('avatar click navigates to /account', () => {
+describe('avatar opens /account in a new tab (current tab unchanged)', () => {
   let dom: JSDOM;
   let reactRoot: Root;
   let restoreFetch: () => void;
@@ -160,23 +180,26 @@ describe('avatar click navigates to /account', () => {
     dom.window.close();
   });
 
-  it('Header mounts HeaderAccountAvatar Link to /account', () => {
+  it('Header mounts HeaderAccountAvatar as a new-tab link to /account', () => {
     const headerSrc = readFileSync(join(rootDir, 'components/Header.tsx'), 'utf8');
     const avatarSrc = readFileSync(join(rootDir, 'components/HeaderAccountAvatar.tsx'), 'utf8');
     assert.match(headerSrc, /HeaderAccountAvatar/);
-    assert.match(avatarSrc, /to="\/account"/);
+    assert.match(avatarSrc, /href="\/account"/);
+    assert.match(avatarSrc, /target="_blank"/);
+    assert.match(avatarSrc, /rel="noopener noreferrer"/);
     assert.match(avatarSrc, /data-testid="header-account-avatar"/);
     assert.equal(avatarSrc.includes("navigate('/account')"), false);
+    assert.equal(avatarSrc.includes('to="/account"'), false);
   });
 
-  it('clicking the avatar sets window.location.pathname to /account and renders AccountPage', async () => {
+  it('avatar link attributes are correct and click does not change current pathname', async () => {
     assert.equal(window.location.pathname, '/');
 
     await act(async () => {
       reactRoot.render(
         createElement(
-          BrowserRouter,
-          null,
+          MemoryRouter,
+          { initialEntries: ['/'] },
           createElement(
             Routes,
             null,
@@ -205,7 +228,11 @@ describe('avatar click navigates to /account', () => {
     ) as HTMLAnchorElement | null;
     assert.ok(avatar, 'avatar trigger missing');
     assert.equal(avatar.getAttribute('href'), '/account');
+    assert.equal(avatar.getAttribute('target'), '_blank');
+    assert.match(avatar.getAttribute('rel') ?? '', /noopener/);
+    assert.match(avatar.getAttribute('rel') ?? '', /noreferrer/);
     assert.ok(document.querySelector('[data-testid="header-chrome"]'));
+    assert.ok(document.querySelector('[data-testid="home-marker"]'));
 
     await act(async () => {
       avatar.dispatchEvent(
@@ -213,18 +240,13 @@ describe('avatar click navigates to /account', () => {
       );
     });
 
-    assert.equal(
-      window.location.pathname,
-      '/account',
-      `expected /account after avatar click, got ${window.location.pathname}`,
-    );
-    assert.ok(document.querySelector('[data-testid="account-page"]'), 'AccountPage missing');
-    assert.equal(document.querySelector('[data-testid="home-marker"]'), null);
-    assert.equal(document.querySelector('.discovery'), null);
-    assert.equal(document.querySelector('.banner-carousel'), null);
+    // New-tab semantics: this tab stays on /
+    assert.equal(window.location.pathname, '/');
+    assert.ok(document.querySelector('[data-testid="home-marker"]'));
+    assert.equal(document.querySelector('[data-testid="account-page"]'), null);
   });
 
-  it('direct /account entry renders AccountPage without homepage DiscoveryNav/BannerCarousel', async () => {
+  it('direct /account entry renders AccountPage under the shell without DiscoveryNav', async () => {
     const mount = document.createElement('div');
     document.body.appendChild(mount);
     const localRoot = createRoot(mount);
@@ -260,7 +282,8 @@ describe('avatar click navigates to /account', () => {
     assert.ok(mount.querySelector('[data-testid="account-page"]'));
     assert.equal(mount.querySelector('[data-testid="home-marker"]'), null);
     assert.equal(mount.querySelector('.discovery'), null);
-    assert.equal(mount.querySelector('.banner-carousel'), null);
+    assert.ok(mount.querySelector('.space-identity'));
+    assert.equal(mount.querySelector('.space-cover'), null);
 
     localRoot.unmount();
     mount.remove();

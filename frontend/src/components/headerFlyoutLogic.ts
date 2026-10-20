@@ -3,9 +3,14 @@ export const HEADER_FLYOUTS = ['account', 'vip', 'messages', 'favorites', 'histo
 
 export type HeaderFlyoutId = (typeof HEADER_FLYOUTS)[number];
 
-/** Homepage keeps the cinematic banner; every other consumer route uses compact app chrome. */
-export function headerShellMode(pathname: string): 'home' | 'app' {
-  return pathname === '/' ? 'home' : 'app';
+/**
+ * Consumer destinations that share the homepage top banner/header.
+ * Main content below the banner changes; the banner shell does not.
+ */
+export const DESTINATION_PATHS = ['/account', '/vip', '/messages', '/favorites', '/history'] as const;
+
+export function isDestinationPath(pathname: string): boolean {
+  return DESTINATION_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 /** Which header action matches the current destination route (for active styling). */
@@ -18,12 +23,8 @@ export function headerDestinationActive(pathname: string): HeaderFlyoutId | null
   return null;
 }
 
-/** Routes that must NOT render homepage BannerCarousel / DiscoveryNav. */
-export const DESTINATION_PATHS = ['/account', '/vip', '/messages', '/favorites', '/history'] as const;
-
-export function isDestinationPath(pathname: string): boolean {
-  return DESTINATION_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
+/** Desktop header destinations open in a new browser tab. */
+export const HEADER_NEW_TAB_REL = 'noopener noreferrer';
 
 export const FLYOUT_OPEN_DELAY_MS = 80;
 export const FLYOUT_CLOSE_DELAY_MS = 180;

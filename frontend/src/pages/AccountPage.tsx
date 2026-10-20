@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import {
   fetchMeSummary,
@@ -115,7 +115,6 @@ function AccountSpace({ token }: { token: string }) {
   const currentHue = user.avatar_hue ?? -1;
   const dirty = nickname.trim() !== (user.nickname ?? '').trim();
   const unread = unreadBadgeLabel(summary?.unread_notifications ?? 0);
-  const hue = avatarHue(user);
   const displayName = (user.nickname ?? '').trim() || '已登录';
   const ownedUploads = accountOwnedUploadVideos(user.id);
   const ownedEmpty = accountOwnedUploadsEmptyCopy();
@@ -146,34 +145,27 @@ function AccountSpace({ token }: { token: string }) {
   }
 
   return (
-    <div className="space-page" data-testid="account-page">
-      <section
-        className="space-cover"
-        aria-label="个人空间封面"
-        style={{ '--space-hue': String(hue) } as CSSProperties}
-      >
-        <div className="space-cover-shade" aria-hidden />
-        <div className="space-cover-inner">
-          <UserAvatar user={user} className="space-cover-avatar" />
-          <div className="space-cover-meta">
-            <h1 className="space-cover-name">{displayName}</h1>
-            <p className="space-cover-role">
-              <span className="me-role">{roleLabel(user.is_admin)}</span>
-              <span className="space-cover-email">{user.email}</span>
-            </p>
-          </div>
-          <dl className="space-cover-stats" aria-label="我的数据">
-            <div>
-              <dd>{summary ? summary.favorites : '—'}</dd>
-              <dt>收藏</dt>
-            </div>
-            <div>
-              <dd>{summary ? summary.history : '—'}</dd>
-              <dt>历史</dt>
-            </div>
-          </dl>
+    <div className="page space-page" data-testid="account-page">
+      <header className="space-identity" aria-label="个人资料">
+        <UserAvatar user={user} className="space-identity-avatar" />
+        <div className="space-identity-meta">
+          <h1 className="space-identity-name">{displayName}</h1>
+          <p className="space-identity-role">
+            <span className="me-role">{roleLabel(user.is_admin)}</span>
+            <span className="space-identity-email">{user.email}</span>
+          </p>
         </div>
-      </section>
+        <dl className="space-identity-stats" aria-label="我的数据">
+          <div>
+            <dd>{summary ? summary.favorites : '—'}</dd>
+            <dt>收藏</dt>
+          </div>
+          <div>
+            <dd>{summary ? summary.history : '—'}</dd>
+            <dt>历史</dt>
+          </div>
+        </dl>
+      </header>
 
       <nav className="space-rail" aria-label="个人空间导航">
         <NavLink to="/account" end className={({ isActive }) => (isActive ? 'is-active' : undefined)}>
