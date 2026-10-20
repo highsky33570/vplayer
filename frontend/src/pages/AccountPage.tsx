@@ -6,9 +6,11 @@ import {
   listFavoriteFolders,
   listFavoritesPage,
   listHistoryPage,
+  listVideosPage,
   type FavoriteVideo,
   type HistoryVideo,
   type MeSummary,
+  type Video,
 } from '../api';
 import { nicknameValidationMessage, roleLabel } from '../account/accountLogic';
 import { AVATAR_HUE_CHOICES, avatarHue, avatarStyle } from '../account/avatar';
@@ -24,10 +26,18 @@ import {
 } from '../components/headerFlyoutData';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
 import { useTheme } from '../theme/ThemeContext';
+import {
+  ACCOUNT_FAVORITES_PREVIEW_LIMIT,
+  ACCOUNT_HISTORY_PREVIEW_LIMIT,
+  ACCOUNT_RECOMMEND_LIMIT,
+  accountFavoritesPreview,
+  accountHistoryPreview,
+  accountOwnedUploadVideos,
+  accountOwnedUploadsEmptyCopy,
+  accountRecommendMeta,
+  accountRecommendVideos,
+} from './accountPageLogic';
 import { historyProgressRatio } from './historyPageLogic';
-
-const RECENT_HISTORY_LIMIT = 8;
-const RECENT_FAVORITES_LIMIT = 6;
 
 export function AccountPage() {
   return <AuthGate>{({ token }) => <AccountSpace token={token} />}</AuthGate>;
@@ -40,6 +50,7 @@ function AccountSpace({ token }: { token: string }) {
   const [folders, setFolders] = useState<FolderItem[]>(() => normalizeFolders([]));
   const [recentHistory, setRecentHistory] = useState<HistoryVideo[]>([]);
   const [recentFavorites, setRecentFavorites] = useState<FavoriteVideo[]>([]);
+  const [recommended, setRecommended] = useState<Video[]>([]);
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [nickSource, setNickSource] = useState(user?.nickname ?? '');
   const [message, setMessage] = useState('');
@@ -68,19 +79,31 @@ function AccountSpace({ token }: { token: string }) {
       .catch(() => {
         if (!cancelled) setFolders(normalizeFolders([]));
       });
-    listHistoryPage(token, { limit: RECENT_HISTORY_LIMIT, offset: 0 })
+    listHistoryPage(token, { limit: ACCOUNT_HISTORY_PREVIEW_LIMIT, offset: 0 })
       .then((page) => {
-        if (!cancelled) setRecentHistory(page.data);
+        if (!cancelled) setRecentHistory(accountHistoryPreview(page.data));
       })
       .catch(() => {
         if (!cancelled) setRecentHistory([]);
       });
-    listFavoritesPage(token, { limit: RECENT_FAVORITES_LIMIT, offset: 0 })
+    listFavoritesPage(token, { limit: ACCOUNT_FAVORITES_PREVIEW_LIMIT, offset: 0 })
       .then((page) => {
-        if (!cancelled) setRecentFavorites(page.data);
+        if (!cancelled) setRecentFavorites(accountFavoritesPreview(page.data));
       })
       .catch(() => {
         if (!cancelled) setRecentFavorites([]);
+      });
+    // Catalog recommendations (not personal ownership) — same latest feed as homepage.
+    listVideosPage({
+      limit: ACCOUNT_RECOMMEND_LIMIT,
+      offset: 0,
+      excludeCategorySlug: 'midnight',
+    })
+      .then((page) => {
+        if (!cancelled) setRecommended(accountRecommendVideos(page.data));
+      })
+      .catch(() => {
+        if (!cancelled) setRecommended([]);
       });
     return () => {
       cancelled = true;
@@ -94,6 +117,8 @@ function AccountSpace({ token }: { token: string }) {
   const unread = unreadBadgeLabel(summary?.unread_notifications ?? 0);
   const hue = avatarHue(user);
   const displayName = (user.nickname ?? '').trim() || '已登录';
+  const ownedUploads = accountOwnedUploadVideos(user.id);
+  const ownedEmpty = accountOwnedUploadsEmptyCopy();
 
   async function save(patch: { nickname?: string; avatar_hue?: number }, done: string) {
     setSaving(true);
@@ -186,9 +211,9 @@ function AccountSpace({ token }: { token: string }) {
               </Link>
             </header>
             {recentHistory.length === 0 ? (
-              <p className="space-empty">暂无观看历史</p>
+              <p className="space-empty space-empty--compact">暂无观看历史 · 打开任意视频即可记录</p>
             ) : (
-              <div className="space-video-grid">
+              <div className="space-video-grid" data-testid="account-history-grid">
                 {recentHistory.map((video) => {
                   const progress = formatProgress(video.progress_sec);
                   const ratio = historyProgressRatio(video.progress_sec, video.duration_sec);
@@ -226,23 +251,43 @@ function AccountSpace({ token }: { token: string }) {
             )}
           </section>
 
-          <section className="space-section" aria-label="我的视频">
+          <section className="space-section space-section--compact" aria-label="我的视频">
             <header className="space-section-head">
               <h2>
-                我的视频<em>0</em>
+                我的视频<em>{ownedUploads.length}</em>
               </h2>
             </header>
-            <div className="space-empty space-empty--panel">
-              <p>暂无投稿视频</p>
-              <p className="space-empty-hint">VPlayer 暂未开放用户投稿，此区域不会展示片库内容。</p>
-            </div>
+            {ownedUploads.length === 0 ? (
+              <div className="space-empty space-empty--compact" data-testid="account-uploads-empty">
+                <p>{ownedEmpty.title}</p>
+                <p className="space-empty-hint">{ownedEmpty.hint}</p>
+              </div>
+            ) : (
+              <div className="space-video-grid">
+                {ownedUploads.map((video) => (
+                  <article key={video.id} className="space-video-card">
+                    <Link to={`/watch/${video.id}`} title={video.title}>
+                      <span className="space-video-thumb">
+                        <img
+                          src={coverImgSrc(video.cover_url)}
+                          alt=""
+                          loading="lazy"
+                          onError={onCoverImgError}
+                        />
+                      </span>
+                      <span className="space-video-title">{video.title}</span>
+                    </Link>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="space-section" aria-label="收藏夹">
             <header className="space-section-head">
               <h2>
                 收藏夹
-                <em>{folders.filter((f) => f.id > 0).length || folders.length}</em>
+                <em>{summary ? summary.favorites : folders.reduce((n, f) => n + f.count, 0)}</em>
               </h2>
               <Link to="/favorites" className="space-more">
                 查看更多
@@ -278,7 +323,7 @@ function AccountSpace({ token }: { token: string }) {
               })}
             </div>
             {recentFavorites.length > 0 ? (
-              <div className="space-video-grid space-video-grid--fav">
+              <div className="space-video-grid space-video-grid--fav" data-testid="account-favorites-grid">
                 {recentFavorites.map((video) => (
                   <article key={video.id} className="space-video-card">
                     <Link to={`/watch/${video.id}`} title={video.title}>
@@ -297,7 +342,47 @@ function AccountSpace({ token }: { token: string }) {
                 ))}
               </div>
             ) : (
-              <p className="space-empty">这里还没有收藏的视频</p>
+              <p className="space-empty space-empty--compact">这里还没有收藏的视频</p>
+            )}
+          </section>
+
+          <section className="space-section" aria-label="猜你喜欢" data-testid="account-recommend">
+            <header className="space-section-head">
+              <h2>
+                猜你喜欢
+                {recommended.length > 0 ? <em>{recommended.length}</em> : null}
+              </h2>
+              <p className="space-section-note">站内片库推荐 · 非个人投稿</p>
+            </header>
+            {recommended.length === 0 ? (
+              <p className="space-empty space-empty--compact">暂时没有可推荐的内容</p>
+            ) : (
+              <div className="space-video-grid" data-testid="account-recommend-grid">
+                {recommended.map((video) => {
+                  const meta = accountRecommendMeta(video);
+                  return (
+                    <article key={video.id} className="space-video-card">
+                      <Link to={`/watch/${video.id}`} title={video.title}>
+                        <span className="space-video-thumb">
+                          <img
+                            src={coverImgSrc(video.cover_url)}
+                            alt=""
+                            loading="lazy"
+                            onError={onCoverImgError}
+                          />
+                          {video.duration_sec > 0 ? (
+                            <span className="space-video-duration">
+                              {formatDuration(video.duration_sec)}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="space-video-title">{video.title}</span>
+                        {meta ? <span className="space-video-sub">{meta}</span> : null}
+                      </Link>
+                    </article>
+                  );
+                })}
+              </div>
             )}
           </section>
         </div>

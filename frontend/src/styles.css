@@ -5206,6 +5206,23 @@ html.dark .login-reminder-cta {
   font-size: 13px;
 }
 
+.space-empty--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 8px 0 2px;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.space-empty--compact p {
+  margin: 0;
+}
+
 .space-empty--panel {
   display: grid;
   place-content: center;
@@ -5223,6 +5240,18 @@ html.dark .login-reminder-cta {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.space-section--compact {
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.space-section-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .space-video-grid {
