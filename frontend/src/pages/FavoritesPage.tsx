@@ -14,6 +14,7 @@ import {
 import { appendUnique, removeById } from '../account/accountLogic';
 import { AuthGate } from '../auth/AuthGate';
 import { formatHistoryTime, normalizeFolders, type FolderItem } from '../components/headerFlyoutData';
+import { HoverPreviewThumb } from '../components/HoverPreviewThumb';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
 import {
   FAVORITES_PERSONAL_NAV,
@@ -454,19 +455,18 @@ function FavoritesContent({ token }: { token: string }) {
                             }
                           }}
                         >
-                          <span className="fav-card-thumb">
-                            <img
-                              src={coverImgSrc(video.cover_url)}
-                              alt=""
-                              loading="lazy"
-                              onError={onCoverImgError}
-                            />
+                          <HoverPreviewThumb
+                            videoId={video.id}
+                            coverUrl={video.cover_url}
+                            durationSec={video.duration_sec}
+                            className="fav-card-thumb"
+                          >
                             {video.duration_sec > 0 ? (
                               <span className="fav-card-duration">
                                 {formatDuration(video.duration_sec)}
                               </span>
                             ) : null}
-                          </span>
+                          </HoverPreviewThumb>
                           <span className="fav-card-title">{video.title}</span>
                           <span className="fav-card-sub">
                             {formatHistoryTime(video.favorited_at)}

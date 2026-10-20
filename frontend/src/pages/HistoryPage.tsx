@@ -11,7 +11,7 @@ import {
 } from '../api';
 import { appendUnique, removeById } from '../account/accountLogic';
 import { AuthGate } from '../auth/AuthGate';
-import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
+import { HoverPreviewThumb } from '../components/HoverPreviewThumb';
 import { formatProgress } from '../components/headerFlyoutData';
 import {
   HISTORY_STATUS_FILTER_OPTIONS,
@@ -422,13 +422,12 @@ function HistoryContent({ token }: { token: string }) {
                             }
                           }}
                         >
-                          <span className="hist-card-thumb">
-                            <img
-                              src={coverImgSrc(video.cover_url)}
-                              alt=""
-                              loading="lazy"
-                              onError={onCoverImgError}
-                            />
+                          <HoverPreviewThumb
+                            videoId={video.id}
+                            coverUrl={video.cover_url}
+                            durationSec={video.duration_sec}
+                            className="hist-card-thumb"
+                          >
                             {clock ? <span className="hist-card-clock">{clock}</span> : null}
                             {completed ? (
                               <span className="hist-card-done">已看完</span>
@@ -440,7 +439,7 @@ function HistoryContent({ token }: { token: string }) {
                             {!completed && video.duration_sec > 0 && !clock ? (
                               <span className="hist-duration">{formatDuration(video.duration_sec)}</span>
                             ) : null}
-                          </span>
+                          </HoverPreviewThumb>
                           <span className="hist-card-title">{video.title}</span>
                           <span className="hist-card-sub">
                             {formatHistoryCardTime(video.last_watched_at)}

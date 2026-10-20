@@ -24,6 +24,7 @@ import {
   unreadBadgeLabel,
   type FolderItem,
 } from '../components/headerFlyoutData';
+import { HoverPreviewThumb } from '../components/HoverPreviewThumb';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
 import { useTheme } from '../theme/ThemeContext';
 import {
@@ -212,13 +213,12 @@ function AccountSpace({ token }: { token: string }) {
                   return (
                     <article key={video.id} className="space-video-card">
                       <Link to={`/watch/${video.id}`} title={video.title}>
-                        <span className="space-video-thumb">
-                          <img
-                            src={coverImgSrc(video.cover_url)}
-                            alt=""
-                            loading="lazy"
-                            onError={onCoverImgError}
-                          />
+                        <HoverPreviewThumb
+                          videoId={video.id}
+                          coverUrl={video.cover_url}
+                          durationSec={video.duration_sec}
+                          className="space-video-thumb"
+                        >
                           {ratio > 0 ? (
                             <span className="space-video-progress" aria-hidden>
                               <span style={{ width: `${Math.round(ratio * 100)}%` }} />
@@ -229,7 +229,7 @@ function AccountSpace({ token }: { token: string }) {
                               {formatDuration(video.duration_sec)}
                             </span>
                           ) : null}
-                        </span>
+                        </HoverPreviewThumb>
                         <span className="space-video-title">{video.title}</span>
                         <span className="space-video-sub">
                           {formatHistoryTime(video.last_watched_at)}
@@ -259,14 +259,12 @@ function AccountSpace({ token }: { token: string }) {
                 {ownedUploads.map((video) => (
                   <article key={video.id} className="space-video-card">
                     <Link to={`/watch/${video.id}`} title={video.title}>
-                      <span className="space-video-thumb">
-                        <img
-                          src={coverImgSrc(video.cover_url)}
-                          alt=""
-                          loading="lazy"
-                          onError={onCoverImgError}
-                        />
-                      </span>
+                      <HoverPreviewThumb
+                        videoId={video.id}
+                        coverUrl={video.cover_url}
+                        durationSec={video.duration_sec}
+                        className="space-video-thumb"
+                      />
                       <span className="space-video-title">{video.title}</span>
                     </Link>
                   </article>
@@ -319,14 +317,12 @@ function AccountSpace({ token }: { token: string }) {
                 {recentFavorites.map((video) => (
                   <article key={video.id} className="space-video-card">
                     <Link to={`/watch/${video.id}`} title={video.title}>
-                      <span className="space-video-thumb">
-                        <img
-                          src={coverImgSrc(video.cover_url)}
-                          alt=""
-                          loading="lazy"
-                          onError={onCoverImgError}
-                        />
-                      </span>
+                      <HoverPreviewThumb
+                        videoId={video.id}
+                        coverUrl={video.cover_url}
+                        durationSec={video.duration_sec}
+                        className="space-video-thumb"
+                      />
                       <span className="space-video-title">{video.title}</span>
                       <span className="space-video-sub">{formatHistoryTime(video.favorited_at)}</span>
                     </Link>
@@ -355,19 +351,18 @@ function AccountSpace({ token }: { token: string }) {
                   return (
                     <article key={video.id} className="space-video-card">
                       <Link to={`/watch/${video.id}`} title={video.title}>
-                        <span className="space-video-thumb">
-                          <img
-                            src={coverImgSrc(video.cover_url)}
-                            alt=""
-                            loading="lazy"
-                            onError={onCoverImgError}
-                          />
+                        <HoverPreviewThumb
+                          videoId={video.id}
+                          coverUrl={video.cover_url}
+                          durationSec={video.duration_sec}
+                          className="space-video-thumb"
+                        >
                           {video.duration_sec > 0 ? (
                             <span className="space-video-duration">
                               {formatDuration(video.duration_sec)}
                             </span>
                           ) : null}
-                        </span>
+                        </HoverPreviewThumb>
                         <span className="space-video-title">{video.title}</span>
                         {meta ? <span className="space-video-sub">{meta}</span> : null}
                       </Link>

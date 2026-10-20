@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { formatDuration, formatViews, type Video } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { videoEntryHref } from '../auth/paths';
-import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
+import { HoverPreviewThumb } from './HoverPreviewThumb';
 
 type Props = {
   video: Video;
@@ -36,14 +36,14 @@ export function VideoCard({ video, compact, categoryName }: Props) {
       onClick={onClick}
       className={`video-card${compact ? ' is-compact' : ''}`}
       title={video.title}
+      data-testid={`video-card-${video.id}`}
     >
-      <div className="thumb">
-        <img
-          src={coverImgSrc(video.cover_url)}
-          alt=""
-          loading="lazy"
-          onError={onCoverImgError}
-        />
+      <HoverPreviewThumb
+        videoId={video.id}
+        coverUrl={video.cover_url}
+        durationSec={video.duration_sec}
+        className="thumb"
+      >
         <div className="thumb-stats">
           <span>
             <PlayIcon />
@@ -51,7 +51,7 @@ export function VideoCard({ video, compact, categoryName }: Props) {
           </span>
           {showDuration ? <span>{formatDuration(video.duration_sec)}</span> : null}
         </div>
-      </div>
+      </HoverPreviewThumb>
       <div className="video-title">{video.title}</div>
       {!compact && (
         <div className="video-meta">

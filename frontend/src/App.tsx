@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { AdminCategories } from './admin/AdminCategories';
 import { AdminCategoryDetail } from './admin/AdminCategoryDetail';
 import { AdminDashboard } from './admin/AdminDashboard';
@@ -15,8 +16,10 @@ import { AdminVideoDetail } from './admin/AdminVideoDetail';
 import { AdminVideos } from './admin/AdminVideos';
 import { AuthProvider } from './auth/AuthContext';
 import { Header } from './components/Header';
+import { stopAllHoverPreviews } from './components/HoverPreviewThumb';
 import { LoginModal } from './components/LoginModal';
 import { LoginReminder } from './components/LoginReminder';
+import { clearHoverPreviewCache } from './media/hoverPreviewResolve';
 import { AccountPage } from './pages/AccountPage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { HistoryPage } from './pages/HistoryPage';
@@ -28,6 +31,12 @@ import { Watch } from './pages/Watch';
 import { ThemeProvider } from './theme/ThemeContext';
 
 function ConsumerShell() {
+  const location = useLocation();
+  useEffect(() => {
+    stopAllHoverPreviews();
+    clearHoverPreviewCache();
+  }, [location.pathname, location.search]);
+
   return (
     <div className="shell">
       <Header />
