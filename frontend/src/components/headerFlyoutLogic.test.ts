@@ -78,6 +78,7 @@ describe('who can open a flyout', () => {
       assert.equal(canUseFlyout(true, false, id), false);
     }
     assert.equal(canUseFlyout(true, true, 'feed'), false);
+    assert.equal(canUseFlyout(true, true, 'creator'), false);
   });
 
   it('builds a truthful account card with real destinations and no invented stats', () => {
@@ -95,17 +96,16 @@ describe('who can open a flyout', () => {
 });
 
 describe('wired flyouts', () => {
-  it('exposes five real flyouts and omits feed/creator/upload previews', () => {
+  it('exposes five real flyouts and omits creator/upload; 动态 is gone', () => {
     assert.deepEqual(HEADER_FLYOUTS, ['account', 'vip', 'messages', 'favorites', 'history']);
     const omitted = new Set(OMITTED_HEADER_PREVIEWS.map((item) => item.id));
-    assert.equal(omitted.has('feed'), true);
+    assert.equal(omitted.has('feed'), false);
     assert.equal(omitted.has('creator'), true);
     assert.equal(omitted.has('upload'), true);
-    assert.equal(omitted.has('messages'), false);
-    assert.equal(omitted.has('favorites'), false);
-    assert.equal(omitted.has('history'), false);
     assert.match(VIP_PANEL.body, /没有付费会员/);
-    assert.equal(VIP_PANEL.href, '/?ch=vip-bluray');
+    assert.equal(VIP_PANEL.href, '/vip');
+    assert.equal(header.includes('动态'), false);
+    assert.equal(header.includes('FeedIcon'), false);
     for (const phrase of ['粉丝', '关注', '硬币', '经验', '免广告', '4K', '专属装扮', 'B币']) {
       assert.equal(header.includes(phrase), false);
       assert.equal(VIP_PANEL.body.includes(phrase), false);
@@ -113,36 +113,29 @@ describe('wired flyouts', () => {
     }
   });
 
-  it('wires all five flyouts with Escape, outside click, and desktop-only CSS', () => {
+  it('wires hover flyouts and click destinations to full pages', () => {
     for (const id of HEADER_FLYOUTS) {
       assert.match(header, new RegExp(`id="${id}"`));
       assert.equal(flyoutPanelClass(id), `header-flyout header-flyout--${id}`);
     }
-    assert.match(header, /HeaderFlyout/);
-    assert.match(header, /AccountPanel|FavoritesPanel|HistoryPanel|MessagesMenu|VipPanel/);
-    assert.match(flyout, /Escape/);
-    assert.match(flyout, /pointerdown/);
-    assert.match(flyout, /onMouseEnter/);
-    assert.match(flyout, /onMouseLeave/);
-    assert.match(header, /aria-haspopup="dialog"/);
-    assert.match(header, /aria-expanded=/);
-    assert.match(header, /onClick=\{logout\}/);
-    assert.match(header, /toggleTheme/);
+    assert.match(header, /navigate\('\/account'\)/);
+    assert.match(header, /goOrLogin\(VIP_PANEL\.href, undefined, \{ public: true \}\)/);
+    assert.match(header, /goOrLogin\('\/messages'\)/);
+    assert.match(header, /goOrLogin\('\/favorites'\)/);
+    assert.match(header, /goOrLogin\('\/history'\)/);
     assert.match(header, /label="大会员"/);
     assert.match(header, /label="消息"/);
     assert.match(header, /label="收藏"/);
     assert.match(header, /label="历史"/);
-    assert.match(header, /to="\/account"/);
-    assert.match(header, /to="\/favorites"/);
-    assert.match(header, /to="\/history"/);
-    assert.match(header, /to="\/messages"/);
-    assert.match(css, /prefers-reduced-motion: reduce/);
+    assert.match(header, /label="创作中心"/);
+    assert.match(flyout, /Escape/);
+    assert.match(flyout, /pointerdown/);
+    assert.match(flyout, /onMouseEnter/);
     assert.match(css, /\.is-enlarged \.banner-avatar/);
-    assert.match(css, /transform-origin:\s*center bottom/);
     assert.match(css, /\.header-flyout--favorites/);
-    assert.match(css, /\.header-flyout--history/);
-    assert.match(css, /\.header-flyout--messages/);
-    assert.match(css, /@media \(min-width: 1024px\)/);
+    assert.match(css, /\.vip-page/);
+    assert.match(css, /\.msg-center-grid/);
+    assert.match(css, /\.history-grid/);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.equal(/header-flyout-anchor/.test(phone), false);
   });

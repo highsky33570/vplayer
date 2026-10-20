@@ -1,13 +1,13 @@
 import type { Category } from '../api';
 
-export type DesktopTextLink = { label: string; href?: string; soon?: boolean };
+export type DesktopTextLink = { label: string; href?: string; soon?: boolean; auth?: boolean };
 
 /** Right-hand text links on the desktop discovery rail. */
 export const DESKTOP_TEXT_LINKS: readonly DesktopTextLink[] = [
-  { label: '历史', href: '/history' },
-  { label: '收藏', href: '/favorites' },
-  { label: '消息', href: '/messages' },
-  { label: 'VIP', href: '/?ch=vip-bluray' },
+  { label: '历史', href: '/history', auth: true },
+  { label: '收藏', href: '/favorites', auth: true },
+  { label: '消息', href: '/messages', auth: true },
+  { label: 'VIP', href: '/vip' },
   { label: '创作中心', soon: true },
   { label: '投稿', soon: true },
 ];

@@ -14,14 +14,14 @@ export function flyoutPanelClass(id: HeaderFlyoutId): string {
 /**
  * Header previews with no VPlayer page, API, or stored data.
  * These stay simple direct actions and do not grow a flyout.
+ * 动态 was removed entirely — do not restore a feed preview.
  */
 export const OMITTED_HEADER_PREVIEWS = [
-  { id: 'feed', reason: 'no feed page or preview items' },
   { id: 'creator', reason: 'no creator dashboard' },
   { id: 'upload', reason: 'no member upload manager' },
 ] as const;
 
-/** 大会员 / VIP蓝光影院: truthful copy, no invented paid benefits. */
+/** 大会员 / VIP蓝光影院: truthful copy, no invented paid benefits. Click opens /vip. */
 export const VIP_PANEL = {
   title: '大会员',
   subtitle: 'VIP蓝光影院',
@@ -31,8 +31,9 @@ export const VIP_PANEL = {
     '按分类集中浏览，随时进入观看',
     '无需开通或付费，登录即可使用',
   ],
-  href: '/?ch=vip-bluray',
-  cta: '进入 VIP蓝光影院',
+  href: '/vip',
+  channelHref: '/?ch=vip-bluray',
+  cta: '进入大会员页',
 } as const;
 
 export const ACCOUNT_UPLOAD_NOTE = '投稿管理 · 即将推出';

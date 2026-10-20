@@ -23,6 +23,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { Home } from './pages/Home';
 import { LoginPage } from './pages/Login';
 import { MessagesPage } from './pages/MessagesPage';
+import { VipPage } from './pages/VipPage';
 import { Watch } from './pages/Watch';
 import { ThemeProvider } from './theme/ThemeContext';
 
@@ -63,6 +64,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/watch/:id" element={<Watch />} />
               <Route path="/account" element={<AccountPage />} />
+              <Route path="/vip" element={<VipPage />} />
               <Route path="/favorites" element={<FavoritesPage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/messages" element={<MessagesPage />} />

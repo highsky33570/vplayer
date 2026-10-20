@@ -53,11 +53,6 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
   const subrowRef = useRef<HTMLDivElement>(null);
   const desktopSubsRef = useRef<HTMLDivElement>(null);
 
-  function requireAuth() {
-    // 动态 has no feed page yet; guests are asked to log in.
-    if (!user) openLogin('login');
-  }
-
   useEffect(() => {
     setExpandedParentSlug((current) =>
       syncExpandedParentSlug(categories, mains, active, current),
@@ -200,10 +195,6 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
 
       <nav className="desktop-rail" aria-label="子分类">
         <div className="desktop-rail-primary">
-          <button type="button" className="desktop-primary desktop-primary--feed" onClick={requireAuth}>
-            <FeedMark />
-            <span>动态</span>
-          </button>
           <button
             type="button"
             className={`desktop-primary desktop-primary--hot${active === 'home' ? ' is-active' : ''}`}
@@ -255,7 +246,11 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
               title={link.soon ? '即将推出' : undefined}
               aria-disabled={link.soon && user ? true : undefined}
               onClick={() => {
-                if (!user) {
+                if (link.soon) {
+                  if (!user) openLogin('login');
+                  return;
+                }
+                if (link.auth && !user) {
                   openLogin('login');
                   return;
                 }
@@ -306,14 +301,6 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
         </div>
       </div>
     </div>
-  );
-}
-
-function FeedMark() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
   );
 }
 

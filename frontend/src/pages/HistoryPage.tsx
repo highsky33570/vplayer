@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   clearHistory,
   deleteHistoryItem,
+  formatDuration,
   listHistoryPage,
   type HistoryVideo,
 } from '../api';
@@ -10,8 +11,13 @@ import { appendUnique, removeById } from '../account/accountLogic';
 import { AuthGate } from '../auth/AuthGate';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
 import { formatHistoryTime, formatProgress } from '../components/headerFlyoutData';
+import {
+  filterHistoryByQuery,
+  groupHistoryItems,
+  historyProgressRatio,
+} from './historyPageLogic';
 
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 36;
 
 export function HistoryPage() {
   return <AuthGate>{({ token }) => <HistoryContent token={token} />}</AuthGate>;
@@ -24,6 +30,7 @@ function HistoryContent({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
   const requestRef = useRef(0);
 
   useEffect(() => {
@@ -42,6 +49,9 @@ function HistoryContent({ token }: { token: string }) {
         if (requestRef.current === request) setLoading(false);
       });
   }, [token]);
+
+  const filtered = useMemo(() => filterHistoryByQuery(items, query), [items, query]);
+  const groups = useMemo(() => groupHistoryItems(filtered), [filtered]);
 
   async function loadMore() {
     setLoadingMore(true);
@@ -81,14 +91,28 @@ function HistoryContent({ token }: { token: string }) {
   }
 
   return (
-    <div className="page me-page">
+    <div className="page me-page history-page">
       <div className="me-title-row">
-        <h1 className="me-title">观看历史</h1>
-        {items.length > 0 ? (
-          <button type="button" className="me-btn me-btn--danger" onClick={() => void onClear()}>
-            清空历史
-          </button>
-        ) : null}
+        <div>
+          <h1 className="me-title">历史记录</h1>
+          <p className="me-count">视频 · 共 {total} 条</p>
+        </div>
+        <div className="history-toolbar">
+          <label className="lib-search">
+            <span className="sr-only">搜索历史</span>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索已加载的历史"
+              autoComplete="off"
+            />
+          </label>
+          {items.length > 0 ? (
+            <button type="button" className="me-btn me-btn--danger" onClick={() => void onClear()}>
+              清空历史
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {error ? (
@@ -99,50 +123,62 @@ function HistoryContent({ token }: { token: string }) {
 
       {loading ? (
         <p className="me-status">加载中…</p>
-      ) : items.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="me-empty">
-          <p>暂无观看历史</p>
+          <p>{items.length === 0 ? '暂无观看历史' : '没有匹配的历史标题'}</p>
           <Link to="/" className="me-btn me-btn--primary">
             去首页逛逛
           </Link>
         </div>
       ) : (
         <>
-          <p className="me-count">共 {total} 条记录</p>
-          <ul className="history-list">
-            {items.map((video) => {
-              const progress = formatProgress(video.progress_sec);
-              return (
-                <li key={video.id} className="history-item">
-                  <Link to={`/watch/${video.id}`} className="history-link" title={video.title}>
-                    <img
-                      className="history-cover"
-                      src={coverImgSrc(video.cover_url)}
-                      alt=""
-                      loading="lazy"
-                      onError={onCoverImgError}
-                    />
-                    <span className="history-text">
-                      <span className="history-title">{video.title}</span>
-                      <span className="history-sub">
-                        {formatHistoryTime(video.last_watched_at)}
-                        {progress ? ` · ${progress}` : ''}
-                      </span>
-                    </span>
-                  </Link>
-                  <button
-                    type="button"
-                    className="me-btn me-btn--small"
-                    aria-label={`删除历史：${video.title}`}
-                    onClick={() => void onRemove(video)}
-                  >
-                    删除
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {hasMore ? (
+          {groups.map((group) => (
+            <section key={group.id} className="history-group" aria-label={group.label}>
+              <h2 className="history-group-title">{group.label}</h2>
+              <div className="history-grid">
+                {group.items.map((video) => {
+                  const progress = formatProgress(video.progress_sec);
+                  const ratio = historyProgressRatio(video.progress_sec, video.duration_sec);
+                  return (
+                    <article key={video.id} className="history-card">
+                      <Link to={`/watch/${video.id}`} className="history-card-link" title={video.title}>
+                        <span className="history-card-thumb">
+                          <img
+                            src={coverImgSrc(video.cover_url)}
+                            alt=""
+                            loading="lazy"
+                            onError={onCoverImgError}
+                          />
+                          {ratio > 0 ? (
+                            <span className="history-progress" aria-hidden>
+                              <span style={{ width: `${Math.round(ratio * 100)}%` }} />
+                            </span>
+                          ) : null}
+                          {video.duration_sec > 0 ? (
+                            <span className="history-duration">{formatDuration(video.duration_sec)}</span>
+                          ) : null}
+                        </span>
+                        <span className="history-card-title">{video.title}</span>
+                        <span className="history-card-sub">
+                          {formatHistoryTime(video.last_watched_at)}
+                          {progress ? ` · ${progress}` : ''}
+                        </span>
+                      </Link>
+                      <button
+                        type="button"
+                        className="history-card-remove"
+                        aria-label={`删除历史：${video.title}`}
+                        onClick={() => void onRemove(video)}
+                      >
+                        删除
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+          {hasMore && !query.trim() ? (
             <div className="load-more-wrap">
               <button
                 type="button"

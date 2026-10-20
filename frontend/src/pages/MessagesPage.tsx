@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   listNotificationsPage,
   markNotificationsRead,
@@ -17,14 +17,13 @@ import {
   parseMessageFilter,
 } from '../components/headerFlyoutData';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 30;
 
 export function MessagesPage() {
   return <AuthGate>{({ token }) => <MessagesContent token={token} />}</AuthGate>;
 }
 
 function MessagesContent({ token }: { token: string }) {
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const filter = parseMessageFilter(params.get('kind'));
   const kind = MESSAGE_TABS.find((tab) => tab.id === filter)?.kind;
@@ -33,17 +32,20 @@ function MessagesContent({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const requestRef = useRef(0);
 
   useEffect(() => {
     const request = ++requestRef.current;
     setLoading(true);
     setError('');
+    setSelectedId(null);
     listNotificationsPage(token, { kind, limit: PAGE_SIZE, offset: 0 })
       .then((page) => {
         if (requestRef.current !== request) return;
         setItems(page.data);
         setHasMore(page.has_more);
+        setSelectedId(page.data[0]?.id ?? null);
       })
       .catch((e) => {
         if (requestRef.current !== request) return;
@@ -54,6 +56,11 @@ function MessagesContent({ token }: { token: string }) {
         if (requestRef.current === request) setLoading(false);
       });
   }, [token, kind]);
+
+  const selected = items.find((item) => item.id === selectedId) ?? null;
+  const unreadHere = countUnread(items);
+  const replyUnread = countUnread(items.filter((item) => item.kind === 'comment_reply'));
+  const systemUnread = countUnread(items.filter((item) => item.kind === 'system'));
 
   async function loadMore() {
     const request = requestRef.current;
@@ -77,19 +84,17 @@ function MessagesContent({ token }: { token: string }) {
     setParams(next, { replace: true });
   }
 
-  async function onOpen(item: UserNotification) {
-    const href = notificationHref(item);
-    if (!item.is_read) {
-      setItems((current) => markRead(current, [item.id]));
-      markNotificationsRead(token, { ids: [item.id] })
-        .then(publishUnreadCount)
-        .catch(() => {
-          setItems((current) =>
-            current.map((row) => (row.id === item.id ? { ...row, is_read: false } : row)),
-          );
-        });
-    }
-    if (href) navigate(href);
+  async function onSelect(item: UserNotification) {
+    setSelectedId(item.id);
+    if (item.is_read) return;
+    setItems((current) => markRead(current, [item.id]));
+    markNotificationsRead(token, { ids: [item.id] })
+      .then(publishUnreadCount)
+      .catch(() => {
+        setItems((current) =>
+          current.map((row) => (row.id === item.id ? { ...row, is_read: false } : row)),
+        );
+      });
   }
 
   async function onMarkAll() {
@@ -102,94 +107,136 @@ function MessagesContent({ token }: { token: string }) {
     }
   }
 
-  const unreadHere = countUnread(items);
+  function tabUnread(id: string): number {
+    if (id === 'comment_reply') return replyUnread;
+    if (id === 'system') return systemUnread;
+    return unreadHere;
+  }
 
   return (
-    <div className="page me-page">
-      <div className="me-title-row">
-        <h1 className="me-title">我的消息</h1>
-        <button
-          type="button"
-          className="me-btn"
-          disabled={unreadHere === 0 && !loading}
-          onClick={() => void onMarkAll()}
-        >
-          全部已读
-        </button>
-      </div>
-
-      <div className="me-tabs" role="tablist" aria-label="消息类型">
-        {MESSAGE_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={filter === tab.id}
-            className={filter === tab.id ? 'is-active' : undefined}
-            onClick={() => selectTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {error ? (
-        <p className="me-feedback is-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      {loading ? (
-        <p className="me-status">加载中…</p>
-      ) : items.length === 0 ? (
-        <div className="me-empty">
-          <p>{emptyMessagesText(filter)}</p>
-        </div>
-      ) : (
-        <>
-          <ul className="msg-list">
-            {items.map((item) => {
-              const href = notificationHref(item);
+    <div className="page me-page msg-center">
+      <div className="msg-center-grid">
+        <aside className="msg-sidebar" aria-label="消息分类">
+          <h1 className="me-title">消息中心</h1>
+          <nav className="msg-nav">
+            {MESSAGE_TABS.map((tab) => {
+              const badge = tabUnread(tab.id);
               return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className={`msg-item${item.is_read ? '' : ' is-unread'}`}
-                    onClick={() => void onOpen(item)}
-                    title={href ? '查看视频' : undefined}
-                  >
-                    <span className="msg-dot" aria-hidden />
-                    <span className="msg-body">
-                      <span className="msg-head">
-                        <span className="msg-kind">{messageKindLabel(item.kind)}</span>
-                        <strong>{item.title}</strong>
-                        {item.is_read ? null : <span className="sr-only">未读</span>}
-                      </span>
-                      {item.body ? <span className="msg-text">{item.body}</span> : null}
-                      <span className="msg-meta">
-                        {item.actor_name ? `${item.actor_name} · ` : ''}
-                        {formatHistoryTime(item.created_at)}
-                      </span>
-                    </span>
-                  </button>
-                </li>
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={filter === tab.id ? 'is-active' : undefined}
+                  onClick={() => selectTab(tab.id)}
+                >
+                  <span>{tab.label}</span>
+                  {badge > 0 ? <em>{badge > 99 ? '99+' : badge}</em> : null}
+                </button>
               );
             })}
-          </ul>
-          {hasMore ? (
-            <div className="load-more-wrap">
-              <button
-                type="button"
-                className="me-btn"
-                disabled={loadingMore}
-                onClick={() => void loadMore()}
-              >
-                {loadingMore ? '加载中…' : '加载更多'}
-              </button>
-            </div>
+          </nav>
+          <button
+            type="button"
+            className="me-btn"
+            disabled={unreadHere === 0 && !loading}
+            onClick={() => void onMarkAll()}
+          >
+            全部已读
+          </button>
+        </aside>
+
+        <section className="msg-list-pane" aria-label="消息列表">
+          {error ? (
+            <p className="me-feedback is-error" role="alert">
+              {error}
+            </p>
           ) : null}
-        </>
-      )}
+          {loading ? (
+            <p className="me-status">加载中…</p>
+          ) : items.length === 0 ? (
+            <div className="me-empty">
+              <p>{emptyMessagesText(filter)}</p>
+            </div>
+          ) : (
+            <>
+              <ul className="msg-list msg-list--center">
+                {items.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className={`msg-item${item.is_read ? '' : ' is-unread'}${
+                        selectedId === item.id ? ' is-selected' : ''
+                      }`}
+                      onClick={() => void onSelect(item)}
+                    >
+                      <span className="msg-avatar" aria-hidden>
+                        {(item.actor_name || messageKindLabel(item.kind)).slice(0, 1)}
+                      </span>
+                      <span className="msg-body">
+                        <span className="msg-head">
+                          <span className="msg-kind">{messageKindLabel(item.kind)}</span>
+                          <strong>{item.title}</strong>
+                        </span>
+                        {item.body ? <span className="msg-text">{item.body}</span> : null}
+                        <span className="msg-meta">
+                          {item.actor_name ? `${item.actor_name} · ` : ''}
+                          {formatHistoryTime(item.created_at)}
+                        </span>
+                      </span>
+                      {!item.is_read ? <span className="msg-dot" aria-label="未读" /> : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {hasMore ? (
+                <div className="load-more-wrap">
+                  <button
+                    type="button"
+                    className="me-btn"
+                    disabled={loadingMore}
+                    onClick={() => void loadMore()}
+                  >
+                    {loadingMore ? '加载中…' : '加载更多'}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          )}
+        </section>
+
+        <section className="msg-detail-pane" aria-label="消息详情">
+          {!selected ? (
+            <div className="me-empty msg-detail-empty">
+              <p>选择一条消息查看详情</p>
+            </div>
+          ) : (
+            <article className="msg-detail">
+              <p className="msg-kind">{messageKindLabel(selected.kind)}</p>
+              <h2>{selected.title}</h2>
+              <p className="msg-meta">
+                {selected.actor_name ? `${selected.actor_name} · ` : ''}
+                {formatHistoryTime(selected.created_at)}
+              </p>
+              {selected.body ? <p className="msg-detail-body">{selected.body}</p> : null}
+              {selected.kind === 'comment_reply' ? (
+                <div className="msg-detail-actions">
+                  {selected.actor_name ? <p>回复者：{selected.actor_name}</p> : null}
+                  {notificationHref(selected) ? (
+                    <Link className="me-btn me-btn--primary" to={notificationHref(selected)!}>
+                      打开相关视频
+                    </Link>
+                  ) : (
+                    <p className="me-hint">该回复没有关联视频</p>
+                  )}
+                </div>
+              ) : (
+                <div className="msg-detail-actions">
+                  <p className="me-hint">系统通知</p>
+                </div>
+              )}
+            </article>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

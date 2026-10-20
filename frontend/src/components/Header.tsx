@@ -118,10 +118,14 @@ export function Header() {
     setQ(urlQ);
   }
 
-  /** Guest: login. Signed-in: go to the page (or show a coming-soon notice when href is omitted). */
-  const goOrLogin = (href?: string, soon?: string) => {
+  /** Guest: login when auth is required. Signed-in: navigate (or coming-soon notice). */
+  const goOrLogin = (href?: string, soon?: string, opts?: { public?: boolean }) => {
     setMenuOpen(false);
     setOpenFlyout(null);
+    if (href && opts?.public) {
+      navigate(href);
+      return;
+    }
     if (!user) {
       openLogin('login');
       return;
@@ -129,9 +133,6 @@ export function Header() {
     if (href) navigate(href);
     else if (soon) showNotice(soon);
   };
-
-  /** 动态 has no feed page yet: login for guests, otherwise a notice. */
-  const requireAuth = () => goOrLogin(undefined, '动态即将推出');
 
   /** Submit-only search: never runs from typing / onChange. */
   function runSearch() {
@@ -223,9 +224,10 @@ export function Header() {
                     title={(user.nickname ?? '').trim() || '已登录'}
                     aria-haspopup="dialog"
                     aria-expanded={openFlyout === 'account'}
-                    onClick={() =>
-                      openFlyout === 'account' ? hideFlyout('account') : showFlyout('account')
-                    }
+                    onClick={() => {
+                      hideFlyout('account');
+                      navigate('/account');
+                    }}
                   >
                     <UserAvatar user={user} />
                   </button>
@@ -279,7 +281,7 @@ export function Header() {
                 className="hide-sm"
                 popup={canUseFlyout(desktopHover, Boolean(user), 'vip')}
                 expanded={openFlyout === 'vip'}
-                onClick={() => goOrLogin(VIP_PANEL.href)}
+                onClick={() => goOrLogin(VIP_PANEL.href, undefined, { public: true })}
               />
             }
           >
@@ -305,7 +307,6 @@ export function Header() {
           >
             <MessagesMenu unread={unread} onNavigate={() => hideFlyout('messages')} />
           </HeaderFlyout>
-          <ActionBtn label="动态" icon={<FeedIcon />} className="hide-md" onClick={requireAuth} />
           <HeaderFlyout
             id="favorites"
             open={openFlyout === 'favorites'}
@@ -423,7 +424,7 @@ export function Header() {
           >
             {theme === 'dark' ? '浅色模式' : '深色模式'}
           </button>
-          <button type="button" onClick={() => goOrLogin(VIP_PANEL.href)}>
+          <button type="button" onClick={() => goOrLogin(VIP_PANEL.href, undefined, { public: true })}>
             大会员
           </button>
           {!user && (
@@ -439,9 +440,6 @@ export function Header() {
               </button>
             </>
           )}
-          <button type="button" onClick={requireAuth}>
-            动态
-          </button>
           <button type="button" onClick={() => goOrLogin(undefined, '创作中心即将推出')}>
             创作中心
           </button>
@@ -599,15 +597,6 @@ function MsgIcon() {
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function FeedIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M5 19c1.5-3 4-4.5 7-4.5S17.5 16 19 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
