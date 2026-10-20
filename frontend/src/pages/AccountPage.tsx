@@ -76,7 +76,7 @@ function AccountContent() {
   const unread = unreadBadgeLabel(summary?.unread_notifications ?? 0);
 
   return (
-    <div className="page me-page">
+    <div className="page me-page account-dest">
       <h1 className="me-title">个人中心</h1>
 
       <section className="me-card me-profile" aria-label="账号信息">

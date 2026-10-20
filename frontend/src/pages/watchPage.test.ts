@@ -42,7 +42,7 @@ describe('header logged-in presentation', () => {
     const start = header.indexOf('banner-user-menu');
     const menu = header.slice(start, start + 2200);
     const logoutAt = menu.indexOf('className="banner-logout"');
-    const avatarAt = menu.indexOf('className="banner-user is-logged"');
+    const avatarAt = menu.indexOf('banner-user is-logged');
     assert.ok(logoutAt >= 0 && avatarAt > logoutAt);
     assert.equal(menu.includes("{user.nickname || '已登录'}"), false);
     assert.equal(menu.includes('title={user.email}'), false);

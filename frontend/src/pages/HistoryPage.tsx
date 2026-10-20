@@ -91,19 +91,20 @@ function HistoryContent({ token }: { token: string }) {
   }
 
   return (
-    <div className="page me-page history-page">
-      <div className="me-title-row">
-        <div>
-          <h1 className="me-title">历史记录</h1>
-          <p className="me-count">视频 · 共 {total} 条</p>
-        </div>
+    <div className="page me-page history-page history-dest">
+      <div className="history-head">
+        <h1 className="history-title">
+          <span className="history-title-icon" aria-hidden />
+          历史记录
+        </h1>
         <div className="history-toolbar">
+          <p className="me-count">视频 · 共 {total} 条</p>
           <label className="lib-search">
             <span className="sr-only">搜索历史</span>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索已加载的历史"
+              placeholder="搜索标题"
               autoComplete="off"
             />
           </label>

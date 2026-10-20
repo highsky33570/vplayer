@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  DESTINATION_PATHS,
   FLYOUT_CLOSE_DELAY_MS,
   FLYOUT_OPEN_DELAY_MS,
   HEADER_FLYOUTS,
@@ -16,6 +17,9 @@ import {
   closeHeaderFlyoutIfCurrent,
   flyoutAfterPointer,
   flyoutPanelClass,
+  headerDestinationActive,
+  headerShellMode,
+  isDestinationPath,
   openHeaderFlyout,
   shouldEnlargeAvatar,
 } from './headerFlyoutLogic.ts';
@@ -95,6 +99,16 @@ describe('who can open a flyout', () => {
   });
 });
 
+describe('destination shell helpers', () => {
+  it('uses home shell only on / and marks destination routes', () => {
+    assert.equal(headerShellMode('/'), 'home');
+    assert.equal(headerShellMode('/vip'), 'app');
+    assert.equal(headerDestinationActive('/favorites'), 'favorites');
+    assert.equal(isDestinationPath('/messages'), true);
+    assert.deepEqual([...DESTINATION_PATHS], ['/account', '/vip', '/messages', '/favorites', '/history']);
+  });
+});
+
 describe('wired flyouts', () => {
   it('exposes five real flyouts and omits creator/upload; 动态 is gone', () => {
     assert.deepEqual(HEADER_FLYOUTS, ['account', 'vip', 'messages', 'favorites', 'history']);
@@ -133,9 +147,11 @@ describe('wired flyouts', () => {
     assert.match(flyout, /onMouseEnter/);
     assert.match(css, /\.is-enlarged \.banner-avatar/);
     assert.match(css, /\.header-flyout--favorites/);
-    assert.match(css, /\.vip-page/);
+    assert.match(css, /\.vip-dest/);
+    assert.match(css, /\.banner-shell--app/);
     assert.match(css, /\.msg-center-grid/);
     assert.match(css, /\.history-grid/);
+    assert.match(header, /isHomeShell \? <BannerCarousel \/> : null/);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.equal(/header-flyout-anchor/.test(phone), false);
   });

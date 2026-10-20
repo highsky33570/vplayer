@@ -20,6 +20,8 @@ import {
   accountDisplayName,
   canUseFlyout,
   closeHeaderFlyoutIfCurrent,
+  headerDestinationActive,
+  headerShellMode,
   openHeaderFlyout,
   shouldEnlargeAvatar,
   type HeaderFlyoutId,
@@ -148,6 +150,9 @@ export function Header() {
   }
 
   const channel = params.get('ch');
+  const shellMode = headerShellMode(pathname);
+  const destActive = headerDestinationActive(pathname);
+  const isHomeShell = shellMode === 'home';
 
   function linkActive(slug: string) {
     if (pathname !== '/') return false;
@@ -156,8 +161,9 @@ export function Header() {
   }
 
   return (
-    <div className="banner-shell">
-      <BannerCarousel />
+    <div className={`banner-shell banner-shell--${shellMode}`}>
+      {/* Homepage cinematic banner only — destination routes must not inherit it. */}
+      {isHomeShell ? <BannerCarousel /> : null}
 
       <header className="banner-bar">
         <div className="banner-left">
@@ -220,7 +226,7 @@ export function Header() {
                 trigger={
                   <button
                     type="button"
-                    className="banner-user is-logged"
+                    className={`banner-user is-logged${destActive === 'account' ? ' is-route-active' : ''}`}
                     title={(user.nickname ?? '').trim() || '已登录'}
                     aria-haspopup="dialog"
                     aria-expanded={openFlyout === 'account'}
@@ -279,6 +285,7 @@ export function Header() {
                 label="大会员"
                 icon={<VipIcon />}
                 className="hide-sm"
+                active={destActive === 'vip'}
                 popup={canUseFlyout(desktopHover, Boolean(user), 'vip')}
                 expanded={openFlyout === 'vip'}
                 onClick={() => goOrLogin(VIP_PANEL.href, undefined, { public: true })}
@@ -299,6 +306,7 @@ export function Header() {
                 label="消息"
                 icon={<MsgIcon />}
                 badge={unreadBadge}
+                active={destActive === 'messages'}
                 popup={canUseFlyout(desktopHover, Boolean(user), 'messages')}
                 expanded={openFlyout === 'messages'}
                 onClick={() => goOrLogin('/messages')}
@@ -318,6 +326,7 @@ export function Header() {
               <ActionBtn
                 label="收藏"
                 icon={<StarIcon />}
+                active={destActive === 'favorites'}
                 popup={canUseFlyout(desktopHover, Boolean(user), 'favorites')}
                 expanded={openFlyout === 'favorites'}
                 onClick={() => goOrLogin('/favorites')}
@@ -337,6 +346,7 @@ export function Header() {
               <ActionBtn
                 label="历史"
                 icon={<HistoryIcon />}
+                active={destActive === 'history'}
                 popup={canUseFlyout(desktopHover, Boolean(user), 'history')}
                 expanded={openFlyout === 'history'}
                 onClick={() => goOrLogin('/history')}
@@ -459,6 +469,7 @@ function ActionBtn({
   onClick,
   popup = false,
   expanded = false,
+  active = false,
   badge = '',
 }: {
   label: string;
@@ -467,15 +478,17 @@ function ActionBtn({
   onClick?: () => void;
   popup?: boolean;
   expanded?: boolean;
+  active?: boolean;
   badge?: string;
 }) {
   return (
     <button
       type="button"
-      className={`banner-action ${className}`.trim()}
+      className={`banner-action${active ? ' is-route-active' : ''} ${className}`.trim()}
       title={badge ? `${label}（${badge} 条未读）` : label}
       aria-haspopup={popup ? 'dialog' : undefined}
       aria-expanded={popup ? expanded : undefined}
+      aria-current={active ? 'page' : undefined}
       onClick={onClick}
     >
       <span className="banner-action-icon">

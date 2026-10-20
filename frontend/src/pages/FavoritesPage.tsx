@@ -117,7 +117,7 @@ function FavoritesContent({ token }: { token: string }) {
   const favCount = summary?.favorites ?? folders.reduce((n, f) => n + f.count, 0);
 
   return (
-    <div className="page me-page lib-page">
+    <div className="page me-page lib-page lib-dest">
       <header className="lib-banner" aria-label="我的收藏">
         <UserAvatar user={user} className="me-avatar lib-banner-avatar" />
         <div className="lib-banner-main">
@@ -126,19 +126,18 @@ function FavoritesContent({ token }: { token: string }) {
             {roleLabel(user.is_admin)} · 收藏 {favCount}
           </p>
         </div>
-        <nav className="lib-tabs" aria-label="个人内容">
+        <nav className="lib-rail" aria-label="个人内容">
           <Link to="/favorites" className="is-active" aria-current="page">
             收藏
           </Link>
           <Link to="/history">历史</Link>
-          <Link to="/messages">消息</Link>
           <Link to="/account">个人中心</Link>
         </nav>
       </header>
 
       <div className="me-layout lib-layout">
         <nav className="me-folders" aria-label="我的收藏夹">
-          <p className="me-folders-title">我的收藏</p>
+          <p className="me-folders-title">我创建的收藏夹</p>
           <button
             type="button"
             className={folderId === 0 ? 'is-active' : undefined}
@@ -162,18 +161,18 @@ function FavoritesContent({ token }: { token: string }) {
             ))}
         </nav>
 
-        <section className="me-main" aria-label={activeName}>
-          <div className="me-title-row">
+        <section className="me-main lib-main" aria-label={activeName}>
+          <div className="lib-folder-head">
             <div>
               <h2 className="lib-section-title">{activeName}</h2>
-              <p className="me-count">共 {total} 个视频</p>
+              <p className="me-count">{total} 个视频</p>
             </div>
             <label className="lib-search">
               <span className="sr-only">搜索当前已加载收藏</span>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索已加载的收藏"
+                placeholder="搜索收藏夹内视频"
                 autoComplete="off"
               />
             </label>

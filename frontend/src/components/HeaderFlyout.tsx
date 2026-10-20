@@ -84,9 +84,15 @@ export function HeaderFlyout({
         closeTimer.current = window.setTimeout(() => onClose(id), FLYOUT_CLOSE_DELAY_MS);
       }}
     >
+      {/* Trigger clicks must navigate; panel is pointer-events only — never block the button. */}
       {trigger}
       {open ? (
-        <div className={flyoutPanelClass(id)} role="dialog" aria-label={label}>
+        <div
+          className={flyoutPanelClass(id)}
+          role="dialog"
+          aria-label={label}
+          onClick={(event) => event.stopPropagation()}
+        >
           {children}
         </div>
       ) : null}

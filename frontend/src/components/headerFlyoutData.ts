@@ -146,9 +146,9 @@ export function accountStats(summary: MeSummary | null | undefined): { label: st
 export type MessageFilter = 'all' | NotificationKind;
 
 export const MESSAGE_TABS: { id: MessageFilter; label: string; kind?: NotificationKind }[] = [
-  { id: 'all', label: '全部' },
+  { id: 'all', label: '我的消息' },
   { id: 'comment_reply', label: '回复我的', kind: 'comment_reply' },
-  { id: 'system', label: '系统消息', kind: 'system' },
+  { id: 'system', label: '系统通知', kind: 'system' },
 ];
 
 export function parseMessageFilter(raw: string | null | undefined): MessageFilter {
@@ -157,7 +157,7 @@ export function parseMessageFilter(raw: string | null | undefined): MessageFilte
 
 export function messageKindLabel(kind: string): string {
   if (kind === 'comment_reply') return '回复我的';
-  if (kind === 'system') return '系统消息';
+  if (kind === 'system') return '系统通知';
   return '消息';
 }
 
@@ -168,13 +168,13 @@ export function notificationHref(n: Pick<UserNotification, 'video_id'>): string 
 
 export function emptyMessagesText(filter: MessageFilter): string {
   if (filter === 'comment_reply') return '还没有人回复你的评论';
-  if (filter === 'system') return '暂无系统消息';
+  if (filter === 'system') return '暂无系统通知';
   return '暂无消息';
 }
 
 /** Header 消息 flyout menu. */
 export const MESSAGE_MENU = [
   { id: 'reply', label: '回复我的', href: '/messages?kind=comment_reply' },
-  { id: 'system', label: '系统消息', href: '/messages?kind=system' },
+  { id: 'system', label: '系统通知', href: '/messages?kind=system' },
   { id: 'all', label: '我的消息', href: '/messages' },
 ] as const;

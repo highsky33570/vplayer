@@ -113,11 +113,15 @@ function MessagesContent({ token }: { token: string }) {
     return unreadHere;
   }
 
+  const listTitle = MESSAGE_TABS.find((tab) => tab.id === filter)?.label ?? '我的消息';
+
   return (
-    <div className="page me-page msg-center">
+    <div className="msg-dest">
       <div className="msg-center-grid">
         <aside className="msg-sidebar" aria-label="消息分类">
-          <h1 className="me-title">消息中心</h1>
+          <div className="msg-sidebar-head">
+            <h1 className="msg-sidebar-title">消息中心</h1>
+          </div>
           <nav className="msg-nav">
             {MESSAGE_TABS.map((tab) => {
               const badge = tabUnread(tab.id);
@@ -136,7 +140,7 @@ function MessagesContent({ token }: { token: string }) {
           </nav>
           <button
             type="button"
-            className="me-btn"
+            className="me-btn msg-sidebar-action"
             disabled={unreadHere === 0 && !loading}
             onClick={() => void onMarkAll()}
           >
@@ -145,6 +149,9 @@ function MessagesContent({ token }: { token: string }) {
         </aside>
 
         <section className="msg-list-pane" aria-label="消息列表">
+          <header className="msg-pane-head">
+            <h2>{listTitle}</h2>
+          </header>
           {error ? (
             <p className="me-feedback is-error" role="alert">
               {error}
@@ -206,7 +213,8 @@ function MessagesContent({ token }: { token: string }) {
         <section className="msg-detail-pane" aria-label="消息详情">
           {!selected ? (
             <div className="me-empty msg-detail-empty">
-              <p>选择一条消息查看详情</p>
+              <div className="msg-detail-art" aria-hidden />
+              <p>选择左侧消息开始查看</p>
             </div>
           ) : (
             <article className="msg-detail">

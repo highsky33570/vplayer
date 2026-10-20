@@ -61,27 +61,8 @@ export function VipPage() {
   const status = vipAccessStatus(Boolean(user));
 
   return (
-    <div className="page vip-page">
-      <header className="vip-page-head">
-        <div>
-          <p className="vip-eyebrow">VPlayer · {VIP_CHANNEL_NAME}</p>
-          <h1 className="vip-page-title">大会员</h1>
-          <p className="vip-page-lead">
-            高质量片库落地页。站点没有付费订阅；本页展示现有 {VIP_CHANNEL_NAME} 频道内容。
-          </p>
-        </div>
-        <Link className="me-btn" to={`/?ch=${VIP_CHANNEL_SLUG}`}>
-          频道筛选浏览
-        </Link>
-      </header>
-
-      {error ? (
-        <p className="me-feedback is-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <section className="vip-hero-wrap" aria-label="精选推荐">
+    <div className="vip-dest">
+      <section className="vip-hero-stage" aria-label="大会员精选">
         {loading ? (
           <div className="vip-hero vip-hero--empty">加载中…</div>
         ) : hero ? (
@@ -95,7 +76,7 @@ export function VipPage() {
             <div className="vip-hero-shade" aria-hidden />
             <div className="vip-hero-body">
               <p className="vip-hero-kicker">{VIP_CHANNEL_NAME}</p>
-              <h2 className="vip-hero-title">{hero.title}</h2>
+              <h1 className="vip-hero-title">{hero.title}</h1>
               <p className="vip-hero-meta">
                 {[hero.year, hero.area, hero.duration_sec > 0 ? `${Math.round(hero.duration_sec / 60)} 分钟` : '']
                   .filter(Boolean)
@@ -103,11 +84,11 @@ export function VipPage() {
               </p>
               {hero.description ? <p className="vip-hero-desc">{hero.description}</p> : null}
               <div className="vip-hero-actions">
-                <Link className="me-btn me-btn--primary" to={`/watch/${hero.id}`}>
+                <Link className="vip-cta" to={`/watch/${hero.id}`}>
                   立即观看
                 </Link>
-                <Link className="me-btn" to={`/watch/${hero.id}`}>
-                  查看详情
+                <Link className="vip-cta vip-cta--ghost" to={`/?ch=${VIP_CHANNEL_SLUG}`}>
+                  浏览频道
                 </Link>
               </div>
             </div>
@@ -115,7 +96,7 @@ export function VipPage() {
         ) : (
           <div className="vip-hero vip-hero--empty">
             <p>暂无 VIP蓝光影院 内容</p>
-            <Link className="me-btn me-btn--primary" to="/">
+            <Link className="vip-cta" to="/">
               返回首页
             </Link>
           </div>
@@ -152,59 +133,79 @@ export function VipPage() {
             </div>
           </dl>
           {ready && !user ? (
-            <button type="button" className="me-btn me-btn--primary" onClick={() => openLogin('login')}>
+            <button type="button" className="vip-cta" onClick={() => openLogin('login')}>
               登录观看
             </button>
           ) : (
-            <Link className="me-btn me-btn--primary" to={hero ? `/watch/${hero.id}` : `/?ch=${VIP_CHANNEL_SLUG}`}>
+            <Link
+              className="vip-cta"
+              to={hero ? `/watch/${hero.id}` : `/?ch=${VIP_CHANNEL_SLUG}`}
+            >
               开始浏览
             </Link>
           )}
         </aside>
+
+        {featured.length > 0 ? (
+          <div className="vip-featured-overlap" aria-label="精选横滑">
+            <div className="vip-featured-row">
+              {featured.map((video) => (
+                <Link
+                  key={video.id}
+                  to={`/watch/${video.id}`}
+                  className="vip-featured-card"
+                  title={video.title}
+                >
+                  <img
+                    src={coverImgSrc(video.cover_url)}
+                    alt=""
+                    loading="lazy"
+                    onError={onCoverImgError}
+                  />
+                  <span>{video.title}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
 
-      {featured.length > 0 ? (
-        <section className="vip-featured" aria-label="精选横滑">
-          <h2>精选推荐</h2>
-          <div className="vip-featured-row">
-            {featured.map((video) => (
-              <Link key={video.id} to={`/watch/${video.id}`} className="vip-featured-card" title={video.title}>
-                <img src={coverImgSrc(video.cover_url)} alt="" loading="lazy" onError={onCoverImgError} />
-                <span>{video.title}</span>
-              </Link>
-            ))}
-          </div>
+      <div className="vip-dest-body">
+        {error ? (
+          <p className="me-feedback is-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <section className="vip-features" aria-label="功能说明">
+          {VIP_FEATURE_CARDS.map((card) => (
+            <article key={card.id} className={`vip-feature-card vip-feature-card--${card.id}`}>
+              <h2>{card.title}</h2>
+              <p>{card.body}</p>
+            </article>
+          ))}
         </section>
-      ) : null}
 
-      <section className="vip-features" aria-label="功能说明">
-        {VIP_FEATURE_CARDS.map((card) => (
-          <article key={card.id} className="vip-feature-card">
-            <h3>{card.title}</h3>
-            <p>{card.body}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="vip-catalog" aria-label={`${VIP_CHANNEL_NAME}片库`}>
-        <div className="me-title-row">
-          <h2>片库推荐</h2>
-          {vipCat ? <p className="me-count">共 {total} 部</p> : null}
-        </div>
-        {loading ? (
-          <p className="me-status">加载中…</p>
-        ) : catalog.length === 0 ? (
-          <div className="me-empty">
-            <p>该频道暂时没有更多内容</p>
+        <section className="vip-catalog" aria-label={`${VIP_CHANNEL_NAME}片库`}>
+          <div className="me-title-row">
+            <h2>猜你喜欢</h2>
+            {vipCat ? <p className="me-count">共 {total} 部</p> : null}
           </div>
-        ) : (
-          <div className="video-grid">
-            {catalog.map((video) => (
-              <VideoCard key={video.id} video={video} />
-            ))}
-          </div>
-        )}
-      </section>
+          {loading ? (
+            <p className="me-status">加载中…</p>
+          ) : catalog.length === 0 ? (
+            <div className="me-empty">
+              <p>该频道暂时没有更多内容</p>
+            </div>
+          ) : (
+            <div className="video-grid">
+              {catalog.map((video) => (
+                <VideoCard key={video.id} video={video} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
