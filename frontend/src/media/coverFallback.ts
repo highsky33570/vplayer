@@ -1,4 +1,4 @@
-/** Branded VPlayer poster when cover_url is missing or fails to load. */
+/** Branded poster when cover_url is missing or fails to load. */
 export const COVER_FALLBACK =
   'data:image/svg+xml,' +
   encodeURIComponent(
@@ -8,7 +8,7 @@ export const COVER_FALLBACK =
       </linearGradient></defs>
       <rect width="640" height="360" fill="#f1f2f3"/>
       <rect width="640" height="360" fill="url(#g)" opacity=".35"/>
-      <text x="320" y="188" text-anchor="middle" fill="#fff" font-size="36" font-family="sans-serif" font-weight="700">VPlayer</text>
+      <text x="320" y="188" text-anchor="middle" fill="#fff" font-size="36" font-family="sans-serif" font-weight="700">天涯欧乐</text>
     </svg>`,
   );
 

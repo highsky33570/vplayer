@@ -36,9 +36,9 @@ export function LoginModal() {
         </button>
 
         <div className="auth-modal-brand">
-          <span className="brand-mark">V</span>
+          <span className="brand-mark">天</span>
           <div>
-            <h2 id="auth-modal-title">{authMode === 'register' ? '注册 VPlayer' : '登录 VPlayer'}</h2>
+            <h2 id="auth-modal-title">{authMode === 'register' ? '注册 天涯欧乐' : '登录 天涯欧乐'}</h2>
             <p>高清点播 · 畅享精彩影视</p>
           </div>
         </div>

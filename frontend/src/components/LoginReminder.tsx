@@ -29,7 +29,7 @@ export function LoginReminder() {
           V
         </span>
         <div>
-          <p className="login-reminder-title">登录 VPlayer，畅享高清影视！</p>
+          <p className="login-reminder-title">登录 天涯欧乐，畅享高清影视！</p>
           <p className="login-reminder-sub">登录后可使用收藏、历史记录等功能</p>
         </div>
       </div>

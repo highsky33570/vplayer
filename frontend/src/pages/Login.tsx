@@ -39,9 +39,9 @@ export function LoginPage() {
     <div className="page auth-page">
       <div className="auth-page-card">
         <div className="auth-modal-brand">
-          <span className="brand-mark">V</span>
+          <span className="brand-mark">天</span>
           <div>
-            <h2>登录 VPlayer</h2>
+            <h2>登录 天涯欧乐</h2>
             <p>高清点播 · 畅享精彩影视</p>
           </div>
         </div>

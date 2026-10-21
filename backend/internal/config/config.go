@@ -146,7 +146,7 @@ func Load() Config {
 		SMTPUsername:             getenv("SMTP_USERNAME", ""),
 		SMTPPassword:             getenv("SMTP_PASSWORD", ""),
 		SMTPFromEmail:            getenv("SMTP_FROM_EMAIL", ""),
-		SMTPFromName:             getenv("SMTP_FROM_NAME", "VPlayer"),
+		SMTPFromName:             getenv("SMTP_FROM_NAME", "天涯欧乐"),
 		EmailCodePepper:          getenv("EMAIL_CODE_PEPPER", ""),
 
 		AdminAPIToken: getenv("ADMIN_API_TOKEN", "dev-admin-token"),

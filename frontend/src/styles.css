@@ -378,19 +378,19 @@ img {
   display: grid;
   place-items: center;
   color: #fff;
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: 14px;
-  letter-spacing: -0.03em;
+  font-family: 'Noto Sans SC', var(--display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   flex-shrink: 0;
 }
 
 .brand-text {
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: 1.2rem;
-  letter-spacing: -0.03em;
+  font-family: 'Noto Sans SC', var(--display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
   line-height: 1;
   color: #fff;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.28);
@@ -2280,10 +2280,11 @@ html.dark .category-btn--child.is-active {
 
 .auth-modal-brand h2 {
   margin: 0;
-  font-size: 1.35rem;
-  font-weight: 800;
+  font-size: 1.25rem;
+  font-weight: 700;
   color: var(--text);
-  font-family: var(--display);
+  font-family: 'Noto Sans SC', var(--display);
+  letter-spacing: 0.02em;
 }
 
 html.dark .auth-modal {
@@ -3161,7 +3162,8 @@ html.dark .login-reminder-cta {
 
   .brand-text {
     display: inline;
-    font-size: 1.15rem;
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
   }
 
   .banner-actions {

@@ -188,8 +188,8 @@ export function Header() {
           </button>
 
           <Link to="/" className="brand" onClick={() => setMenuOpen(false)}>
-            <span className="brand-mark">V</span>
-            <span className="brand-text">VPlayer</span>
+            <span className="brand-mark">天</span>
+            <span className="brand-text">天涯欧乐</span>
           </Link>
 
           <nav className="banner-nav" aria-label="频道">

@@ -58,7 +58,7 @@ export const OMITTED_HEADER_PREVIEWS = [
 export const VIP_PANEL = {
   title: '大会员',
   subtitle: 'VIP蓝光影院',
-  body: 'VPlayer 没有付费会员或会员等级。VIP蓝光影院是站内的高质量片库频道，登录后即可浏览观看。',
+  body: '天涯欧乐 没有付费会员或会员等级。VIP蓝光影院是站内的高质量片库频道，登录后即可浏览观看。',
   bullets: [
     '站内精选的 VIP蓝光 片库频道',
     '按分类集中浏览，随时进入观看',

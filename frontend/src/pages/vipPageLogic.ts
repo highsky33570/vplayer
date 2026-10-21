@@ -51,7 +51,7 @@ export function vipAccessStatus(authenticated: boolean): { label: string; detail
   if (authenticated) {
     return {
       label: '可浏览 VIP蓝光影院',
-      detail: 'VPlayer 没有付费会员等级。登录后即可浏览本频道片库并观看内容。',
+      detail: '天涯欧乐 没有付费会员等级。登录后即可浏览本频道片库并观看内容。',
     };
   }
   return {

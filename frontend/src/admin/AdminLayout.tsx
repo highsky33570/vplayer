@@ -23,9 +23,9 @@ export function AdminLayout() {
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <span className="admin-brand-mark">V</span>
+          <span className="admin-brand-mark">天</span>
           <div>
-            <strong>VPlayer Admin</strong>
+            <strong>天涯欧乐 Admin</strong>
             <span>运营控制台</span>
           </div>
         </div>

@@ -77,14 +77,17 @@
   place-items: center;
   background: linear-gradient(145deg, var(--brand), var(--brand-deep));
   color: #fff;
-  font-family: var(--display);
+  font-family: 'Noto Sans SC', var(--display);
   font-weight: 700;
+  font-size: 16px;
 }
 
 .admin-brand strong {
   display: block;
-  font-family: var(--display);
+  font-family: 'Noto Sans SC', var(--display);
   font-size: 1rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .admin-brand span {
