@@ -107,21 +107,22 @@ export function Watch() {
       });
     listRelated(videoId)
       .then((rows) => {
-        if (!cancelled) setRelated(rows);
+        if (!cancelled) setRelated(Array.isArray(rows) ? rows : []);
       })
       .catch(() => {
         if (!cancelled) setRelated([]);
       });
     listEpisodes(videoId)
       .then((rows) => {
-        if (!cancelled) setEpisodes(rows);
+        // Production may return data:null for videos with no episode rows (e.g. id 10056).
+        if (!cancelled) setEpisodes(Array.isArray(rows) ? rows : []);
       })
       .catch(() => {
         if (!cancelled) setEpisodes([]);
       });
     listCategories()
       .then((rows) => {
-        if (!cancelled) setCategories(rows);
+        if (!cancelled) setCategories(Array.isArray(rows) ? rows : []);
       })
       .catch(() => {
         if (!cancelled) setCategories([]);

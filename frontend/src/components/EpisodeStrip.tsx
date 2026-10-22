@@ -12,12 +12,13 @@ export function EpisodeStrip({
   activeNid: number;
   onSelect: (episode: PublicEpisode) => void;
 }) {
-  if (!showEpisodeSelector(episodes.length)) return null;
+  const list = Array.isArray(episodes) ? episodes : [];
+  if (!showEpisodeSelector(list.length)) return null;
   return (
     <section className="watch-episodes" aria-label="选集">
       <h3>选集</h3>
       <div className="watch-episode-grid">
-        {episodes.map((episode) => {
+        {list.map((episode) => {
           const selected = episode.sid === activeSid && episode.nid === activeNid;
           const label = (episode.title ?? '').trim() || `${episode.sid}-${episode.nid}`;
           return (

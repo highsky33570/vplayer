@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
-import { ApiError, bearerAuthHeader, getPlayback } from './api.ts';
+import { ApiError, bearerAuthHeader, getPlayback, listEpisodes, listRelated } from './api.ts';
 
 describe('bearerAuthHeader', () => {
   it('sets Bearer token', () => {
@@ -53,5 +53,45 @@ describe('getPlayback auth header', () => {
         return true;
       },
     );
+  });
+});
+
+describe('catalog list null payloads (video 10056 regression)', () => {
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  it('listEpisodes normalizes data:null to []', async () => {
+    mock.method(globalThis, 'fetch', async () => {
+      return new Response(JSON.stringify({ ok: true, data: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const rows = await listEpisodes(10056);
+    assert.deepEqual(rows, []);
+    assert.equal(rows.length, 0);
+  });
+
+  it('listRelated normalizes data:null to []', async () => {
+    mock.method(globalThis, 'fetch', async () => {
+      return new Response(JSON.stringify({ ok: true, data: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    assert.deepEqual(await listRelated(10056), []);
+  });
+
+  it('listEpisodes keeps a real episode array', async () => {
+    mock.method(globalThis, 'fetch', async () => {
+      return new Response(
+        JSON.stringify({ ok: true, data: [{ sid: 1, nid: 1, title: '第1集' }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    });
+    const rows = await listEpisodes(10077);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.title, '第1集');
   });
 });

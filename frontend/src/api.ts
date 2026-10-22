@@ -166,8 +166,14 @@ async function getJSON<T>(path: string, token?: string | null): Promise<T> {
   return json.data as T;
 }
 
+/** Catalog list endpoints may return JSON null for empty data; treat as []. */
+async function getJSONArray<T>(path: string, token?: string | null): Promise<T[]> {
+  const data = await getJSON<T[] | null | undefined>(path, token);
+  return Array.isArray(data) ? data : [];
+}
+
 export function listCategories() {
-  return getJSON<Category[]>('/api/v1/categories');
+  return getJSONArray<Category>('/api/v1/categories');
 }
 
 export async function listVideosPage(opts?: {
@@ -300,11 +306,11 @@ export type CommentPage = {
 };
 
 export function listRelated(id: number) {
-  return getJSON<RelatedVideo[]>(`/api/v1/videos/${id}/related?limit=10`);
+  return getJSONArray<RelatedVideo>(`/api/v1/videos/${id}/related?limit=10`);
 }
 
 export function listEpisodes(id: number) {
-  return getJSON<PublicEpisode[]>(`/api/v1/videos/${id}/episodes`);
+  return getJSONArray<PublicEpisode>(`/api/v1/videos/${id}/episodes`);
 }
 
 export async function listComments(

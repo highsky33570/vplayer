@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -114,6 +115,22 @@ func TestPublicEpisodeSQLAndOrder(t *testing.T) {
 	})
 	if got[0].Title != "a1" || got[1].Title != "a3" || got[2].Title != "b" {
 		t.Fatalf("order=%v", got)
+	}
+}
+
+func TestSortPublicEpisodesEmptyIsJSONArray(t *testing.T) {
+	for _, in := range [][]PublicEpisode{nil, {}} {
+		out := SortPublicEpisodes(in)
+		if out == nil {
+			t.Fatalf("expected non-nil empty slice for input %#v", in)
+		}
+		raw, err := json.Marshal(map[string]any{"ok": true, "data": out})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(raw) != `{"data":[],"ok":true}` {
+			t.Fatalf("json=%s", raw)
+		}
 	}
 }
 

@@ -13,6 +13,11 @@ export function showEpisodeSelector(count: number): boolean {
   return count > 1;
 }
 
+/** Normalize catalog list payloads that may be JSON null (empty episode/related lists). */
+export function asCatalogList<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
 export function recommendationMeta(parts: Array<string | number | null | undefined>): string {
   return parts
     .map((part) => (part == null ? '' : String(part).trim()))

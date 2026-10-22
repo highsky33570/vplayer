@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  asCatalogList,
   commentValidationMessage,
   recommendationMeta,
   showEpisodeSelector,
@@ -34,6 +35,22 @@ describe('watch page helpers', () => {
 
   it('builds a compact recommendation meta line', () => {
     assert.equal(recommendationMeta(['12 播放', '', '2024', '电影']), '12 播放 · 2024 · 电影');
+  });
+
+  it('normalizes null catalog lists like video 10056 episodes', () => {
+    assert.deepEqual(asCatalogList(null), []);
+    assert.deepEqual(asCatalogList(undefined), []);
+    assert.deepEqual(asCatalogList([{ sid: 1, nid: 1, title: '1' }]), [{ sid: 1, nid: 1, title: '1' }]);
+    assert.equal(showEpisodeSelector(asCatalogList(null).length), false);
+  });
+});
+
+describe('watch null-episode crash guard', () => {
+  it('EpisodeStrip and Watch normalize non-array episode payloads before .length', () => {
+    assert.match(episodes, /Array\.isArray\(episodes\)/);
+    assert.match(watch, /Array\.isArray\(rows\) \? rows : \[\]/);
+    assert.match(watch, /listEpisodes/);
+    assert.match(recs, /Array\.isArray\(items\)/);
   });
 });
 

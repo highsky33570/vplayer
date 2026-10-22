@@ -466,6 +466,18 @@ func TestRelatedAndEpisodesHTTP(t *testing.T) {
 	if len(generic) != 3 {
 		t.Fatalf("episode fields=%v", generic)
 	}
+
+	// Video with zero episode rows must serialize data as [] not null (video 10056 regression).
+	empty := doJSON(t, r, http.MethodGet, "/api/v1/videos/2/episodes", "", "")
+	if empty.Code != http.StatusOK {
+		t.Fatalf("empty episodes status=%d body=%s", empty.Code, empty.Body.String())
+	}
+	if !strings.Contains(empty.Body.String(), `"data":[]`) {
+		t.Fatalf("expected empty JSON array, got %s", empty.Body.String())
+	}
+	if strings.Contains(empty.Body.String(), `"data":null`) {
+		t.Fatalf("data:null must not appear for zero episodes: %s", empty.Body.String())
+	}
 }
 
 func TestPlayRouteStillRequiresUser(t *testing.T) {

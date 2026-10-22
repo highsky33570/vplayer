@@ -121,9 +121,10 @@ func (a *API) ListEpisodes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
+	rows = store.SortPublicEpisodes(rows)
+	// SortPublicEpisodes always returns non-nil; keep an explicit empty slice for JSON [].
 	if rows == nil {
 		rows = []store.PublicEpisode{}
 	}
-	rows = store.SortPublicEpisodes(rows)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": rows})
 }

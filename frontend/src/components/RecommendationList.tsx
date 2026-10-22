@@ -10,12 +10,13 @@ export function RecommendationList({
   items: RelatedVideo[];
   categoryName: (categoryId: number) => string;
 }) {
-  if (items.length === 0) return null;
+  const list = Array.isArray(items) ? items : [];
+  if (list.length === 0) return null;
   return (
     <aside className="watch-recs" aria-label="推荐视频">
       <h3>推荐视频</h3>
       <ul className="watch-rec-list">
-        {items.map((item) => (
+        {list.map((item) => (
           <li key={item.id}>
             <Link className="watch-rec" to={`/watch/${item.id}`}>
               <img

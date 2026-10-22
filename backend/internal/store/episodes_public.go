@@ -14,7 +14,7 @@ func (m *MySQL) ListPublicEpisodes(videoID uint64) ([]PublicEpisode, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []PublicEpisode
+	out := make([]PublicEpisode, 0)
 	for rows.Next() {
 		var ep PublicEpisode
 		if err := rows.Scan(&ep.SID, &ep.NID, &ep.Title); err != nil {
