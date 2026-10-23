@@ -61,7 +61,7 @@ What the script does (summary):
 8. Restarts **only** `vplayer-api.service` **after** migrations are in place so startup can discover/apply new SQL. Does **not** start oneshot workers. Does **not** run a separate migrate CLI. Does **not** run `syncleafmembership` or `syncleafimport`.
 9. Installs/updates `vplayer-migratemedia.service` + `.timer`, `daemon-reload`, `enable` + `restart` on the **timer only** (never starts the migratemedia oneshot; timer must not `Requires=` the oneshot).
 10. Installs Plan 8 ops scripts under `/opt/vplayer/deploy/ops/`, ensures `/opt/vplayer/backups/mysql` exists (mode 700), installs `vplayer-db-backup` + `vplayer-healthcheck` units, enables/restarts **those timers only**. Does **not** start a DB dump or restore during deploy.
-11. Verifies API + sync/enrichment/migration/DB-backup/health **timers** active, migratemedia and db-backup **services** not active, `nginx -t`, local `/health`, and local homepage HTTP.
+11. Verifies API + sync/enrichment/migration/DB-backup/health **timers** active, migratemedia and db-backup **services** not active, `nginx -t`, local `/health`, local homepage HTTP, and local `GET /api/v1/videos?limit=1` (must be HTTP 200).
 12. Keeps the newest 5 **deploy rollback** directories under `/opt/vplayer/releases/backups/` (separate from MySQL dumps).
 
 MySQL backup/restore runbook: [`docs/BACKUP_RESTORE.md`](../docs/BACKUP_RESTORE.md).

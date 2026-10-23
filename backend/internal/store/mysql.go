@@ -37,16 +37,118 @@ func (m *MySQL) Migrate(sqlText string) error {
 	return nil
 }
 
+// splitSQL splits a migration script on semicolons that terminate statements.
+// Semicolons inside -- line comments, # line comments, /* block comments */,
+// and quoted literals stay inside the statement. Comment text is preserved so
+// MySQL still receives it; only the split points change.
 func splitSQL(sqlText string) []string {
-	parts := strings.Split(sqlText, ";")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
+	var out []string
+	var b strings.Builder
+	flush := func() {
+		s := strings.TrimSpace(b.String())
+		b.Reset()
+		if s != "" {
+			out = append(out, s)
 		}
 	}
+
+	const (
+		stateNormal = iota
+		stateLineComment
+		stateBlockComment
+		stateSingle
+		stateDouble
+		stateBacktick
+	)
+	state := stateNormal
+	for i := 0; i < len(sqlText); {
+		c := sqlText[i]
+		switch state {
+		case stateLineComment:
+			b.WriteByte(c)
+			i++
+			if c == '\n' {
+				state = stateNormal
+			}
+		case stateBlockComment:
+			if c == '*' && i+1 < len(sqlText) && sqlText[i+1] == '/' {
+				b.WriteString("*/")
+				i += 2
+				state = stateNormal
+				continue
+			}
+			b.WriteByte(c)
+			i++
+		case stateSingle, stateDouble, stateBacktick:
+			quote := byte('\'')
+			if state == stateDouble {
+				quote = '"'
+			} else if state == stateBacktick {
+				quote = '`'
+			}
+			b.WriteByte(c)
+			i++
+			// MySQL default escaping. Backticks escape by doubling only.
+			if c == '\\' && state != stateBacktick && i < len(sqlText) {
+				b.WriteByte(sqlText[i])
+				i++
+				continue
+			}
+			if c == quote {
+				if i < len(sqlText) && sqlText[i] == quote {
+					b.WriteByte(quote)
+					i++
+					continue
+				}
+				state = stateNormal
+			}
+		default:
+			if c == '-' && i+1 < len(sqlText) && sqlText[i+1] == '-' && (i+2 >= len(sqlText) || isSQLCommentSpace(sqlText[i+2])) {
+				b.WriteByte(c)
+				i++
+				state = stateLineComment
+				continue
+			}
+			if c == '#' {
+				b.WriteByte(c)
+				i++
+				state = stateLineComment
+				continue
+			}
+			if c == '/' && i+1 < len(sqlText) && sqlText[i+1] == '*' {
+				b.WriteString("/*")
+				i += 2
+				state = stateBlockComment
+				continue
+			}
+			if c == ';' {
+				flush()
+				i++
+				continue
+			}
+			b.WriteByte(c)
+			i++
+			switch c {
+			case '\'':
+				state = stateSingle
+			case '"':
+				state = stateDouble
+			case '`':
+				state = stateBacktick
+			}
+		}
+	}
+	flush()
 	return out
+}
+
+func isSQLCommentSpace(c byte) bool {
+	switch c {
+	case ' ', '\t', '\n', '\r', '\v', '\f':
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *MySQL) ListCategories() ([]model.Category, error) {

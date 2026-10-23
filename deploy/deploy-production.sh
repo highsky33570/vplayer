@@ -628,6 +628,17 @@ main() {
     die "homepage HTTP check failed (status=${home_code})"
   fi
 
+  # Same API listener as /health. A missing column returns HTTP 500 here while
+  # /health and the static homepage stay 200. Non-200 fails the deploy, which
+  # rolls back installed artifacts when INSTALL_STARTED is set.
+  local catalog_url catalog_code
+  catalog_url="${health_url%/health}/api/v1/videos?limit=1"
+  log "GET ${catalog_url}"
+  catalog_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "${catalog_url}" || true)"
+  if [[ "${catalog_code}" != "200" ]]; then
+    die "catalog HTTP check failed (status=${catalog_code} url=${catalog_url})"
+  fi
+
   prune_old_backups
 
   log ""

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -38,7 +39,8 @@ func New(cfg config.Config) (*Server, error) {
 		mysql = db
 		if dir := store.FindMigrationsDir(); dir != "" {
 			if err := mysql.ApplyMigrationsDir(dir); err != nil {
-				log.Printf("migrate warning: %v", err)
+				_ = mysql.DB.Close()
+				return nil, fmt.Errorf("migrate: %w", err)
 			}
 		}
 	}
