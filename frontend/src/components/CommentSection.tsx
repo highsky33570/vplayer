@@ -7,6 +7,7 @@ import {
   type SourceComment,
   type VideoComment,
 } from '../api';
+import { useAuth } from '../auth/AuthContext';
 import {
   canDeleteComment,
   commentValidationMessage,
@@ -110,6 +111,7 @@ export function CommentSection({
   nickname: string;
   onLogin: () => void;
 }) {
+  const { authRequired } = useAuth();
   const [items, setItems] = useState<VideoComment[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -269,7 +271,7 @@ export function CommentSection({
       </section>
       <section className="watch-vplayer-comments" aria-label="天涯欧乐 评论">
         <h4>天涯欧乐 评论 {total}</h4>
-        {token ? (
+        {authRequired && token ? (
           <form
             className="watch-composer"
             onSubmit={(event) => {
@@ -291,11 +293,11 @@ export function CommentSection({
               {posting ? '发布中…' : '发布'}
             </button>
           </form>
-        ) : (
+        ) : authRequired ? (
           <button type="button" className="watch-comment-login" onClick={onLogin}>
             登录后发表评论
           </button>
-        )}
+        ) : null}
         {formError && <p className="watch-comments-error">{formError}</p>}
         {loading && <p className="watch-comments-empty">加载中…</p>}
         {!loading && error && (

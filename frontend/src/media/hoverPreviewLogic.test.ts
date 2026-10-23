@@ -46,6 +46,9 @@ describe('hoverPreviewLogic', () => {
     assert.equal(canResolveHoverPreview(''), false);
     assert.equal(canResolveHoverPreview('   '), false);
     assert.equal(canResolveHoverPreview('tok'), true);
+    assert.equal(canResolveHoverPreview(null, false), true);
+    assert.equal(canResolveHoverPreview('', false), true);
+    assert.equal(canResolveHoverPreview(null, true), false);
   });
 
   it('gates on hover:hover + fine pointer', () => {

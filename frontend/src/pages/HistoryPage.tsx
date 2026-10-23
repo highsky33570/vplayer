@@ -10,7 +10,9 @@ import {
   type HistoryVideo,
 } from '../api';
 import { appendUnique, removeById } from '../account/accountLogic';
+import { useAuth } from '../auth/AuthContext';
 import { AuthGate } from '../auth/AuthGate';
+import { GuestHistoryPage } from '../guest/GuestHistoryPage';
 import { HoverPreviewThumb } from '../components/HoverPreviewThumb';
 import { formatProgress } from '../components/headerFlyoutData';
 import {
@@ -40,6 +42,15 @@ const INITIAL_FILTERS: HistoryFilterState = {
 };
 
 export function HistoryPage() {
+  const { authRequired, ready } = useAuth();
+  if (!ready) {
+    return (
+      <div className="page me-page">
+        <p className="me-status">正在验证登录状态…</p>
+      </div>
+    );
+  }
+  if (!authRequired) return <GuestHistoryPage />;
   return <AuthGate>{({ token }) => <HistoryContent token={token} />}</AuthGate>;
 }
 

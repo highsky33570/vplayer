@@ -23,6 +23,12 @@ import {
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
+import {
+  addGuestFavorite,
+  isGuestFavorite,
+  removeGuestFavorite,
+  upsertGuestHistory,
+} from '../guest/guestLibrary';
 import { CommentSection } from '../components/CommentSection';
 import { EpisodeStrip } from '../components/EpisodeStrip';
 import { RecommendationList } from '../components/RecommendationList';
@@ -58,11 +64,12 @@ export function Watch() {
   const { id } = useParams();
   const videoId = Number(id);
   const navigate = useNavigate();
-  const { user, token, ready, logout, openLogin } = useAuth();
+  const { user, token, ready, authRequired, logout, openLogin } = useAuth();
   const userId = user?.id ?? 0;
   const [favorited, setFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<Video | null>(null);
   const playerRef = useRef<Player | null>(null);
   const sessionRef = useRef(new WatchPlaybackSession());
   const [video, setVideo] = useState<Video | null>(null);
@@ -76,6 +83,8 @@ export function Watch() {
   const [playFor, setPlayFor] = useState(id ?? '');
   const [sid, setSid] = useState(0);
   const [nid, setNid] = useState(0);
+
+  videoRef.current = video;
 
   if ((id ?? '') !== playFor) {
     setPlayFor(id ?? '');
@@ -133,9 +142,8 @@ export function Watch() {
   }, [videoId]);
 
   useEffect(() => {
-    if (!videoId || !ready || !user || !token) {
-      return;
-    }
+    if (!videoId || !ready) return;
+    if (authRequired && (!user || !token)) return;
     const session = new WatchPlaybackSession();
     sessionRef.current = session;
 
@@ -174,7 +182,7 @@ export function Watch() {
       setPlayLoading(true);
       setPlayError('');
       try {
-        const playback = await getPlayback(videoId, sid, nid, token);
+        const playback = await getPlayback(videoId, sid, nid, authRequired ? token : null);
         if (session.debugState().cancelled || !rootRef.current) return;
         if (!playback.url) {
           throw new Error('无可用播放地址');
@@ -183,7 +191,7 @@ export function Watch() {
         startPlayer(playback.url, playback.type);
       } catch (e) {
         if (session.debugState().cancelled) return;
-        if (e instanceof ApiError && e.status === 401) {
+        if (authRequired && e instanceof ApiError && e.status === 401) {
           logout();
           navigate(loginWithNext(`/watch/${videoId}`), { replace: true });
           return;
@@ -199,15 +207,28 @@ export function Watch() {
     })();
 
     return () => {
+      if (!authRequired) {
+        const current = videoRef.current;
+        if (current && current.id === videoId) {
+          const played = (playerRef.current as { currentTime?: number } | null)?.currentTime;
+          const progress = typeof played === 'number' && Number.isFinite(played) ? Math.floor(played) : 0;
+          upsertGuestHistory(current, progress);
+        }
+      }
       session.cancel();
       destroyPlayer();
     };
-  }, [videoId, sid, nid, ready, user, token, navigate, logout]);
+  }, [videoId, sid, nid, ready, authRequired, user, token, navigate, logout]);
 
   // Favorite status for the signed-in user.
   useEffect(() => {
     setFavorited(false);
-    if (!ready || !userId || !token || !Number.isFinite(videoId) || videoId <= 0) return;
+    if (!ready || !Number.isFinite(videoId) || videoId <= 0) return;
+    if (!authRequired) {
+      setFavorited(isGuestFavorite(videoId));
+      return;
+    }
+    if (!userId || !token) return;
     let cancelled = false;
     getFavoriteStatus(token, videoId)
       .then((value) => {
@@ -219,17 +240,29 @@ export function Watch() {
     return () => {
       cancelled = true;
     };
-  }, [ready, userId, token, videoId]);
+  }, [ready, authRequired, userId, token, videoId]);
+
+  useEffect(() => {
+    if (!ready || authRequired || !video || video.id !== videoId) return;
+    upsertGuestHistory(video, 0);
+  }, [ready, authRequired, video, videoId]);
 
   // Record watch history once per visit (fire-and-forget; independent from playback).
   useEffect(() => {
-    if (!ready || !userId || !token || !Number.isFinite(videoId) || videoId <= 0) return;
+    if (!ready || !authRequired || !userId || !token || !Number.isFinite(videoId) || videoId <= 0) return;
     void upsertHistory(token, videoId).catch(() => {
       /* history is best-effort */
     });
-  }, [ready, userId, token, videoId]);
+  }, [ready, authRequired, userId, token, videoId]);
 
   async function toggleFavorite() {
+    if (!authRequired) {
+      if (!video) return;
+      if (favorited) removeGuestFavorite(videoId);
+      else addGuestFavorite(video);
+      setFavorited(isGuestFavorite(videoId));
+      return;
+    }
     if (!user || !token) {
       openLogin('login');
       return;
@@ -311,7 +344,7 @@ export function Watch() {
       </header>
       <div className={`watch-main-grid${related.length > 0 ? ' has-recs' : ''}`}>
         <div className="player-panel">
-          {user && token ? (
+          {!authRequired || (user && token) ? (
             <>
               <div className="player-wrap" ref={rootRef} />
               {playLoading && <p style={{ padding: 12, color: 'var(--muted)' }}>加载中…</p>}
@@ -331,7 +364,7 @@ export function Watch() {
           activeSid={activeSid}
           activeNid={activeNid}
           onSelect={(episode) => {
-            if (!user || !token) {
+            if (authRequired && (!user || !token)) {
               navigate(loginWithNext(`/watch/${videoId}`));
               return;
             }
@@ -359,7 +392,9 @@ export function Watch() {
         videoId={videoId}
         token={token}
         nickname={user?.nickname ?? ''}
-        onLogin={() => navigate(loginWithNext(`/watch/${videoId}`))}
+        onLogin={() => {
+          if (authRequired) navigate(loginWithNext(`/watch/${videoId}`));
+        }}
       />
     </div>
   );

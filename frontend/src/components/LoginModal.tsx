@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { AuthForm } from './AuthForm';
 
 export function LoginModal() {
-  const { loginOpen, closeLogin, authMode } = useAuth();
+  const { loginOpen, closeLogin, authMode, authRequired } = useAuth();
 
   useEffect(() => {
     if (!loginOpen) return;
@@ -20,7 +20,7 @@ export function LoginModal() {
     };
   }, [loginOpen, closeLogin]);
 
-  if (!loginOpen) return null;
+  if (!authRequired || !loginOpen) return null;
 
   return createPortal(
     <div className="auth-overlay" role="presentation" onMouseDown={closeLogin}>

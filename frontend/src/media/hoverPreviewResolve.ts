@@ -31,11 +31,12 @@ export function clearHoverPreviewCache() {
 export async function resolveHoverPreviewMedia(
   videoId: number,
   token: string | null | undefined,
+  authRequired = true,
 ): Promise<HoverPreviewMedia | null> {
-  if (!canResolveHoverPreview(token) || !Number.isFinite(videoId) || videoId <= 0) {
+  if (!canResolveHoverPreview(token, authRequired) || !Number.isFinite(videoId) || videoId <= 0) {
     return null;
   }
-  const key = cacheKey(videoId, token!);
+  const key = cacheKey(videoId, authRequired ? token || '' : 'guest');
   const hit = cache.get(key);
   if (hit) return hit.media;
 

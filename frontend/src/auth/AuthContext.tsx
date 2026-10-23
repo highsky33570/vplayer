@@ -28,6 +28,8 @@ type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
   ready: boolean;
+  /** Server AUTH_REQUIRED. True until the public config response says otherwise. */
+  authRequired: boolean;
   loginOpen: boolean;
   openLogin: (mode?: 'login' | 'register') => void;
   closeLogin: () => void;
@@ -49,7 +51,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [ready, setReady] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [configReady, setConfigReady] = useState(false);
+  const [authRequired, setAuthRequired] = useState(true);
+  const ready = sessionReady && configReady;
   const [loginOpen, setLoginOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [registrationConfig, setRegistrationConfig] = useState<RegistrationConfigStatus>('loading');
@@ -64,10 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRegistrationConfig(
           registrationConfigAfterFetch({ ok: true, emailVerificationEnabled: opts.email_verification_enabled === true }),
         );
+        setAuthRequired(opts.auth_required !== false);
+        setConfigReady(true);
       })
       .catch(() => {
         if (registrationRequest.current !== request) return;
         setRegistrationConfig(registrationConfigAfterFetch({ ok: false }));
+        setAuthRequired(true);
+        setConfigReady(true);
       });
   }, []);
 
@@ -81,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!token) {
         if (!cancelled) {
           setUser(null);
-          setReady(true);
+          setSessionReady(true);
         }
         return;
       }
@@ -95,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       } finally {
-        if (!cancelled) setReady(true);
+        if (!cancelled) setSessionReady(true);
       }
     }
     void hydrate();
@@ -160,10 +169,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [token],
   );
 
-  const openLogin = useCallback((mode: 'login' | 'register' = 'login') => {
-    setAuthMode(mode);
-    setLoginOpen(true);
-  }, []);
+  const openLogin = useCallback(
+    (mode: 'login' | 'register' = 'login') => {
+      if (!authRequired) return;
+      setAuthMode(mode);
+      setLoginOpen(true);
+    },
+    [authRequired],
+  );
+
+  useEffect(() => {
+    if (!authRequired) setLoginOpen(false);
+  }, [authRequired]);
 
   const closeLogin = useCallback(() => setLoginOpen(false), []);
 
@@ -172,7 +189,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       token,
       ready,
-      loginOpen,
+      authRequired,
+      loginOpen: authRequired && loginOpen,
       openLogin,
       closeLogin,
       authMode,
@@ -191,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       token,
       ready,
+      authRequired,
       loginOpen,
       openLogin,
       closeLogin,
@@ -220,10 +239,12 @@ export function useAuth() {
 export function AuthTestProvider({
   user,
   token = 'test-token',
+  authRequired = true,
   children,
 }: {
   user: AuthUser;
   token?: string;
+  authRequired?: boolean;
   children: ReactNode;
 }) {
   const value = useMemo<AuthContextValue>(
@@ -231,6 +252,7 @@ export function AuthTestProvider({
       user,
       token,
       ready: true,
+      authRequired,
       loginOpen: false,
       openLogin: () => undefined,
       closeLogin: () => undefined,
@@ -254,7 +276,7 @@ export function AuthTestProvider({
       logout: () => undefined,
       updateProfile: async () => user,
     }),
-    [token, user],
+    [token, user, authRequired],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

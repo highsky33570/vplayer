@@ -17,7 +17,7 @@ import {
 } from './vipPageLogic';
 
 export function VipPage() {
-  const { user, ready, openLogin } = useAuth();
+  const { user, ready, openLogin, authRequired } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [total, setTotal] = useState(0);
@@ -58,7 +58,12 @@ export function VipPage() {
   const hero = pickVipHero(videos);
   const featured = vipFeaturedStrip(videos, 8);
   const catalog = vipCatalogGrid(videos, featured.length > 0 ? 1 : 0, 24);
-  const status = vipAccessStatus(Boolean(user));
+  const status = vipAccessStatus(Boolean(user), authRequired);
+  const featureCards = VIP_FEATURE_CARDS.map((card) =>
+    !authRequired && card.id === 'devices'
+      ? { ...card, body: '可在当前浏览器浏览与播放。片源本身不可播时仍会提示暂不可用。' }
+      : card,
+  );
 
   return (
     <div className="vip-dest">
@@ -116,7 +121,7 @@ export function VipPage() {
               <span className="banner-avatar vip-guest-avatar">客</span>
               <div>
                 <strong>访客</strong>
-                <p>登录后可完整观看</p>
+                <p>{authRequired ? '登录后可完整观看' : '可直接浏览本频道'}</p>
               </div>
             </div>
           )}
@@ -132,7 +137,7 @@ export function VipPage() {
               <dd>{loading ? '…' : `${total} 部`}</dd>
             </div>
           </dl>
-          {ready && !user ? (
+          {authRequired && ready && !user ? (
             <button type="button" className="vip-cta" onClick={() => openLogin('login')}>
               登录观看
             </button>
@@ -178,7 +183,7 @@ export function VipPage() {
         ) : null}
 
         <section className="vip-features" aria-label="功能说明">
-          {VIP_FEATURE_CARDS.map((card) => (
+          {featureCards.map((card) => (
             <article key={card.id} className={`vip-feature-card vip-feature-card--${card.id}`}>
               <h2>{card.title}</h2>
               <p>{card.body}</p>

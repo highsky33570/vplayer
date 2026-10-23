@@ -29,6 +29,16 @@ func (a *API) RequireUser(c *gin.Context) {
 	c.Next()
 }
 
+// RequireUserWhenAuthRequired applies RequireUser only while AUTH_REQUIRED is on.
+// Guest mode skips the check and continues to the same handler. Admin routes do not use this.
+func (a *API) RequireUserWhenAuthRequired(c *gin.Context) {
+	if !a.Cfg.AuthRequired {
+		c.Next()
+		return
+	}
+	a.RequireUser(c)
+}
+
 // RequireAdmin must run after RequireUser. It loads the current user from the
 // database and allows only users with is_admin=true (HTTP 403 otherwise).
 // Admin status is never taken from the client or token claims.

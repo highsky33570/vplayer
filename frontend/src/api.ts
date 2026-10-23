@@ -422,6 +422,8 @@ export function login(email: string, password: string) {
 
 export type RegistrationOptions = {
   email_verification_enabled: boolean;
+  /** Absent means auth stays required (fail closed). */
+  auth_required?: boolean;
 };
 
 export function fetchRegistrationOptions() {

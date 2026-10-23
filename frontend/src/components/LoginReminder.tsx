@@ -4,12 +4,12 @@ import { useAuth } from '../auth/AuthContext';
 const SESSION_KEY = 'vplayer_login_reminder_dismissed';
 
 export function LoginReminder() {
-  const { user, ready, openLogin } = useAuth();
+  const { user, ready, openLogin, authRequired } = useAuth();
   const [dismissed, setDismissed] = useState(
     () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SESSION_KEY) === '1',
   );
 
-  if (!ready || user || dismissed) return null;
+  if (!authRequired || !ready || user || dismissed) return null;
 
   return (
     <aside className="login-reminder" aria-label="登录提示">

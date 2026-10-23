@@ -50,7 +50,8 @@ export function Header() {
   const urlQ = params.get('q') ?? '';
   const [q, setQ] = useState(urlQ);
   const [qSource, setQSource] = useState(urlQ);
-  const { user, token, openLogin, logout } = useAuth();
+  const { user, token, ready, authRequired, openLogin, logout } = useAuth();
+  const showIdentity = Boolean(ready && authRequired && user);
   const { theme, toggleTheme } = useTheme();
   const desktopHover = useDesktopHover();
   const reducedMotion = usePrefersReducedMotion();
@@ -58,11 +59,11 @@ export function Header() {
   const [unread, setUnread] = useState(0);
   const [notice, setNotice] = useState('');
   const noticeTimer = useRef<number | null>(null);
-  const unreadBadge = user ? unreadBadgeLabel(unread) : '';
+  const unreadBadge = showIdentity ? unreadBadgeLabel(unread) : '';
 
   useEffect(() => {
-    if (!desktopHover || !user) setOpenFlyout(null);
-  }, [desktopHover, user]);
+    if (!desktopHover || !showIdentity) setOpenFlyout(null);
+  }, [desktopHover, showIdentity]);
 
   const refreshUnread = useCallback(() => {
     if (!token) return;
@@ -75,7 +76,7 @@ export function Header() {
 
   // Unread badge: fetch on login, poll while visible, refresh when the Messages page changes it.
   useEffect(() => {
-    if (!user || !token) {
+    if (!showIdentity || !token) {
       setUnread(0);
       return;
     }
@@ -88,7 +89,7 @@ export function Header() {
       window.clearInterval(timer);
       unsubscribe();
     };
-  }, [user, token, refreshUnread]);
+  }, [showIdentity, token, refreshUnread]);
 
   useEffect(() => {
     if (openFlyout === 'messages') refreshUnread();
@@ -108,7 +109,7 @@ export function Header() {
   }
 
   function showFlyout(id: HeaderFlyoutId) {
-    if (!canUseFlyout(desktopHover, Boolean(user), id)) return;
+    if (!canUseFlyout(desktopHover, showIdentity, id)) return;
     setOpenFlyout((current) => openHeaderFlyout(current, id));
   }
 
@@ -126,6 +127,11 @@ export function Header() {
   const goOrLogin = (href?: string, soon?: string, opts?: { public?: boolean }) => {
     setMenuOpen(false);
     setOpenFlyout(null);
+    if (!authRequired) {
+      if (href) navigate(href);
+      else if (soon) showNotice(soon);
+      return;
+    }
     if (href && opts?.public) {
       navigate(href);
       return;
@@ -164,10 +170,9 @@ export function Header() {
   /** Desktop top-right destinations: new tab; guests get login on this tab instead. */
   function onDestLinkClick(id: HeaderFlyoutId, event: { preventDefault: () => void }, opts?: { public?: boolean }) {
     hideFlyout(id);
-    if (!opts?.public && !user) {
-      event.preventDefault();
-      openLogin('login');
-    }
+    if (!authRequired || opts?.public || user) return;
+    event.preventDefault();
+    openLogin('login');
   }
 
   return (
@@ -220,7 +225,7 @@ export function Header() {
         </form>
 
         <div className="banner-actions">
-          {user ? (
+          {!ready ? null : showIdentity && user ? (
             <div className="banner-user-menu">
               <button type="button" className="banner-logout" onClick={logout}>
                 退出
@@ -253,7 +258,7 @@ export function Header() {
                 />
               </HeaderFlyout>
             </div>
-          ) : (
+          ) : authRequired ? (
             <button
               type="button"
               className="banner-user"
@@ -263,6 +268,11 @@ export function Header() {
               <span className="banner-avatar">登</span>
               <span>登录</span>
             </button>
+          ) : (
+            <Link to="/account" className="banner-user" title="浏览空间" onClick={() => setMenuOpen(false)}>
+              <span className="banner-avatar">览</span>
+              <span>空间</span>
+            </Link>
           )}
           <button
             type="button"
@@ -279,7 +289,7 @@ export function Header() {
           <HeaderFlyout
             id="vip"
             open={openFlyout === 'vip'}
-            enabled={canUseFlyout(desktopHover, Boolean(user), 'vip')}
+            enabled={canUseFlyout(desktopHover, showIdentity, 'vip')}
             label={`${VIP_PANEL.title} · ${VIP_PANEL.subtitle}`}
             onOpen={showFlyout}
             onClose={hideFlyout}
@@ -290,7 +300,7 @@ export function Header() {
                 icon={<VipIcon />}
                 className="hide-sm"
                 active={destActive === 'vip'}
-                popup={canUseFlyout(desktopHover, Boolean(user), 'vip')}
+                popup={canUseFlyout(desktopHover, showIdentity, 'vip')}
                 expanded={openFlyout === 'vip'}
                 onClick={(event) => onDestLinkClick('vip', event, { public: true })}
               />
@@ -301,7 +311,7 @@ export function Header() {
           <HeaderFlyout
             id="messages"
             open={openFlyout === 'messages'}
-            enabled={canUseFlyout(desktopHover, Boolean(user), 'messages')}
+            enabled={canUseFlyout(desktopHover, showIdentity, 'messages')}
             label="消息"
             onOpen={showFlyout}
             onClose={hideFlyout}
@@ -312,7 +322,7 @@ export function Header() {
                 icon={<MsgIcon />}
                 badge={unreadBadge}
                 active={destActive === 'messages'}
-                popup={canUseFlyout(desktopHover, Boolean(user), 'messages')}
+                popup={canUseFlyout(desktopHover, showIdentity, 'messages')}
                 expanded={openFlyout === 'messages'}
                 onClick={(event) => onDestLinkClick('messages', event)}
               />
@@ -323,7 +333,7 @@ export function Header() {
           <HeaderFlyout
             id="favorites"
             open={openFlyout === 'favorites'}
-            enabled={canUseFlyout(desktopHover, Boolean(user), 'favorites')}
+            enabled={canUseFlyout(desktopHover, showIdentity, 'favorites')}
             label="收藏"
             onOpen={showFlyout}
             onClose={hideFlyout}
@@ -333,7 +343,7 @@ export function Header() {
                 label="收藏"
                 icon={<StarIcon />}
                 active={destActive === 'favorites'}
-                popup={canUseFlyout(desktopHover, Boolean(user), 'favorites')}
+                popup={canUseFlyout(desktopHover, showIdentity, 'favorites')}
                 expanded={openFlyout === 'favorites'}
                 onClick={(event) => onDestLinkClick('favorites', event)}
               />
@@ -344,7 +354,7 @@ export function Header() {
           <HeaderFlyout
             id="history"
             open={openFlyout === 'history'}
-            enabled={canUseFlyout(desktopHover, Boolean(user), 'history')}
+            enabled={canUseFlyout(desktopHover, showIdentity, 'history')}
             label="历史"
             onOpen={showFlyout}
             onClose={hideFlyout}
@@ -354,7 +364,7 @@ export function Header() {
                 label="历史"
                 icon={<HistoryIcon />}
                 active={destActive === 'history'}
-                popup={canUseFlyout(desktopHover, Boolean(user), 'history')}
+                popup={canUseFlyout(desktopHover, showIdentity, 'history')}
                 expanded={openFlyout === 'history'}
                 onClick={(event) => onDestLinkClick('history', event)}
               />
@@ -390,7 +400,7 @@ export function Header() {
 
       <div className={`mobile-drawer${menuOpen ? ' is-open' : ''}`}>
         <div className="mobile-drawer-actions is-visible">
-          {user ? (
+          {!ready ? null : showIdentity && user ? (
             <>
               <Link to="/account" className="mobile-drawer-user" onClick={() => setMenuOpen(false)}>
                 <UserAvatar user={user} />
@@ -415,7 +425,7 @@ export function Header() {
                 退出登录
               </button>
             </>
-          ) : (
+          ) : authRequired ? (
             <button
               type="button"
               onClick={() => {
@@ -425,6 +435,10 @@ export function Header() {
             >
               登录
             </button>
+          ) : (
+            <Link to="/account" onClick={() => setMenuOpen(false)}>
+              浏览空间
+            </Link>
           )}
           <button
             type="button"
@@ -438,7 +452,7 @@ export function Header() {
           <button type="button" onClick={() => goOrLogin(VIP_PANEL.href, undefined, { public: true })}>
             大会员
           </button>
-          {!user && (
+          {!showIdentity && (
             <>
               <button type="button" onClick={() => goOrLogin('/messages')}>
                 消息

@@ -17,6 +17,7 @@ import { AVATAR_HUE_CHOICES, avatarHue, avatarStyle } from '../account/avatar';
 import { UserAvatar } from '../account/UserAvatar';
 import { useAuth } from '../auth/AuthContext';
 import { AuthGate } from '../auth/AuthGate';
+import { GuestAccountPage } from '../guest/GuestAccountPage';
 import {
   formatHistoryTime,
   formatProgress,
@@ -41,6 +42,15 @@ import {
 import { historyProgressRatio } from './historyPageLogic';
 
 export function AccountPage() {
+  const { authRequired, ready } = useAuth();
+  if (!ready) {
+    return (
+      <div className="page me-page">
+        <p className="me-status">正在验证登录状态…</p>
+      </div>
+    );
+  }
+  if (!authRequired) return <GuestAccountPage />;
   return <AuthGate>{({ token }) => <AccountSpace token={token} />}</AuthGate>;
 }
 

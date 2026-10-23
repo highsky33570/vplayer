@@ -86,6 +86,7 @@ func (a *API) RegistrationOptions(c *gin.Context) {
 		"ok": true,
 		"data": gin.H{
 			"email_verification_enabled": a.Cfg.EmailVerificationEnabled,
+			"auth_required":              a.Cfg.AuthRequired,
 		},
 	})
 }

@@ -48,7 +48,8 @@ export function isHlsPlayback(url: string, type?: string): boolean {
   return /\.m3u8(\?|$)/i.test(url);
 }
 
-/** Guests / missing token must not resolve play URLs. */
-export function canResolveHoverPreview(token: string | null | undefined): boolean {
+/** When auth is required, guests must not resolve play URLs. Guest mode may resolve without a token. */
+export function canResolveHoverPreview(token: string | null | undefined, authRequired = true): boolean {
+  if (!authRequired) return true;
   return Boolean(token && token.trim());
 }

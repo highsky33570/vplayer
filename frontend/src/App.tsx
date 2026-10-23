@@ -14,7 +14,7 @@ import { AdminUserDetail } from './admin/AdminUserDetail';
 import { AdminUsers } from './admin/AdminUsers';
 import { AdminVideoDetail } from './admin/AdminVideoDetail';
 import { AdminVideos } from './admin/AdminVideos';
-import { AuthProvider } from './auth/AuthContext';
+import { AuthProvider, useAuth } from './auth/AuthContext';
 import { Header } from './components/Header';
 import { stopAllHoverPreviews } from './components/HoverPreviewThumb';
 import { LoginModal } from './components/LoginModal';
@@ -32,6 +32,7 @@ import { ThemeProvider } from './theme/ThemeContext';
 
 function ConsumerShell() {
   const location = useLocation();
+  const { authRequired } = useAuth();
   useEffect(() => {
     stopAllHoverPreviews();
     clearHoverPreviewCache();
@@ -41,8 +42,8 @@ function ConsumerShell() {
     <div className="shell">
       <Header />
       <Outlet />
-      <LoginModal />
-      <LoginReminder />
+      {authRequired ? <LoginModal /> : null}
+      {authRequired ? <LoginReminder /> : null}
     </div>
   );
 }

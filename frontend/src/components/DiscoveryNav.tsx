@@ -32,7 +32,7 @@ type Props = {
 };
 
 export function DiscoveryNav({ categories, active, onSelect }: Props) {
-  const { user, openLogin } = useAuth();
+  const { user, openLogin, authRequired } = useAuth();
   const navigate = useNavigate();
   const mains = useMemo(() => resolveNavCategories(categories), [categories]);
   const subs = useMemo(() => desktopSubcategories(categories), [categories]);
@@ -247,10 +247,10 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
               aria-disabled={link.soon && user ? true : undefined}
               onClick={() => {
                 if (link.soon) {
-                  if (!user) openLogin('login');
+                  if (authRequired && !user) openLogin('login');
                   return;
                 }
-                if (link.auth && !user) {
+                if (authRequired && link.auth && !user) {
                   openLogin('login');
                   return;
                 }

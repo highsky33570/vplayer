@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthForm } from '../components/AuthForm';
 import { useAuth } from '../auth/AuthContext';
 import { resolvePostLoginPath } from '../auth/paths';
 
 export function LoginPage() {
-  const { user, ready } = useAuth();
+  const { user, ready, authRequired } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
 
@@ -13,6 +13,10 @@ export function LoginPage() {
     if (!ready || !user) return;
     navigate(resolvePostLoginPath(params.get('next')), { replace: true });
   }, [ready, user, params, navigate]);
+
+  if (ready && !authRequired) {
+    return <Navigate to="/" replace />;
+  }
 
   if (!ready) {
     return (

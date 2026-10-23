@@ -69,6 +69,20 @@ export const VIP_PANEL = {
   cta: '进入大会员页',
 } as const;
 
+/** Guest mode must not tell visitors that login is required to watch this channel. */
+export function vipPanelCopy(authRequired: boolean) {
+  if (authRequired) return VIP_PANEL;
+  return {
+    ...VIP_PANEL,
+    body: '天涯欧乐 没有付费会员或会员等级。VIP蓝光影院是站内的高质量片库频道，可直接浏览。能否播放取决于片源本身。',
+    bullets: [
+      '站内精选的 VIP蓝光 片库频道',
+      '按分类集中浏览，随时进入观看',
+      '无需开通或付费；片源限制不会因此解除',
+    ],
+  };
+}
+
 export const ACCOUNT_UPLOAD_NOTE = '投稿管理 · 即将推出';
 
 export type AccountAction =

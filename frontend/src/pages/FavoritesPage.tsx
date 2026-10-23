@@ -12,7 +12,9 @@ import {
   type MeSummary,
 } from '../api';
 import { appendUnique, removeById } from '../account/accountLogic';
+import { useAuth } from '../auth/AuthContext';
 import { AuthGate } from '../auth/AuthGate';
+import { GuestFavoritesPage } from '../guest/GuestFavoritesPage';
 import { formatHistoryTime, normalizeFolders, type FolderItem } from '../components/headerFlyoutData';
 import { HoverPreviewThumb } from '../components/HoverPreviewThumb';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
@@ -30,6 +32,15 @@ import {
 const PAGE_SIZE = 24;
 
 export function FavoritesPage() {
+  const { authRequired, ready } = useAuth();
+  if (!ready) {
+    return (
+      <div className="page me-page">
+        <p className="me-status">正在验证登录状态…</p>
+      </div>
+    );
+  }
+  if (!authRequired) return <GuestFavoritesPage />;
   return <AuthGate>{({ token }) => <FavoritesContent token={token} />}</AuthGate>;
 }
 

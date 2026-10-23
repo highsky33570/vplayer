@@ -11,7 +11,7 @@ import { useAuth } from '../auth/AuthContext';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
 import {
   ACCOUNT_UPLOAD_NOTE,
-  VIP_PANEL,
+  vipPanelCopy,
   accountActions,
   accountDisplayName,
   accountStatusLabel,
@@ -46,11 +46,11 @@ export function AccountPanel({
   onTheme: () => void;
   onLogout: () => void;
 }) {
-  const { token } = useAuth();
+  const { token, authRequired, ready } = useAuth();
   const [summary, setSummary] = useState<MeSummary | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!ready || !authRequired || !token) return;
     let cancelled = false;
     fetchMeSummary(token)
       .then((s) => {
@@ -62,7 +62,7 @@ export function AccountPanel({
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, authRequired, ready]);
 
   const stats = accountStats(summary);
   const actions = accountActions(isAdmin, theme);
@@ -115,20 +115,22 @@ export function AccountPanel({
 }
 
 export function VipPanel({ onNavigate }: NavProps) {
+  const { authRequired } = useAuth();
+  const panel = vipPanelCopy(authRequired);
   return (
     <div className="vip-panel">
       <div className="vip-panel-head">
-        <strong>{VIP_PANEL.title}</strong>
-        <span className="vip-panel-tag">{VIP_PANEL.subtitle}</span>
+        <strong>{panel.title}</strong>
+        <span className="vip-panel-tag">{panel.subtitle}</span>
       </div>
-      <p className="vip-panel-body">{VIP_PANEL.body}</p>
+      <p className="vip-panel-body">{panel.body}</p>
       <ul className="vip-benefits">
-        {VIP_PANEL.bullets.map((bullet) => (
+        {panel.bullets.map((bullet) => (
           <li key={bullet}>{bullet}</li>
         ))}
       </ul>
-      <Link className="vip-panel-cta" to={VIP_PANEL.href} onClick={onNavigate}>
-        {VIP_PANEL.cta}
+      <Link className="vip-panel-cta" to={panel.href} onClick={onNavigate}>
+        {panel.cta}
       </Link>
     </div>
   );
@@ -188,7 +190,7 @@ function PreviewList({
 }
 
 export function FavoritesPanel({ onNavigate }: NavProps) {
-  const { token } = useAuth();
+  const { token, authRequired, ready } = useAuth();
   const [folders, setFolders] = useState<FolderItem[]>(() => normalizeFolders([]));
   const [folderId, setFolderId] = useState(0);
   const [items, setItems] = useState<PreviewItem[]>([]);
@@ -196,7 +198,7 @@ export function FavoritesPanel({ onNavigate }: NavProps) {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!ready || !authRequired || !token) return;
     let cancelled = false;
     listFavoriteFolders(token)
       .then((rows) => {
@@ -208,10 +210,10 @@ export function FavoritesPanel({ onNavigate }: NavProps) {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, authRequired, ready]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!ready || !authRequired || !token) return;
     let cancelled = false;
     setLoading(true);
     setError(false);
@@ -231,7 +233,7 @@ export function FavoritesPanel({ onNavigate }: NavProps) {
     return () => {
       cancelled = true;
     };
-  }, [token, folderId]);
+  }, [token, folderId, authRequired, ready]);
 
   return (
     <div className="favorites-flyout">
@@ -279,13 +281,13 @@ export function FavoritesPanel({ onNavigate }: NavProps) {
 }
 
 export function HistoryPanel({ onNavigate }: NavProps) {
-  const { token } = useAuth();
+  const { token, authRequired, ready } = useAuth();
   const [items, setItems] = useState<PreviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!ready || !authRequired || !token) return;
     let cancelled = false;
     listHistoryPage(token, { limit: 8 })
       .then((page) => {
@@ -303,7 +305,7 @@ export function HistoryPanel({ onNavigate }: NavProps) {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, authRequired, ready]);
 
   return (
     <div className="history-flyout">

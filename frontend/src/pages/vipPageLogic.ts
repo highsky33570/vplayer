@@ -47,7 +47,13 @@ export function vipCatalogGrid(videos: Video[], offset = 1, limit = 24): Video[]
 }
 
 /** Status copy for the VIP page card — never invents paid membership. */
-export function vipAccessStatus(authenticated: boolean): { label: string; detail: string } {
+export function vipAccessStatus(authenticated: boolean, authRequired = true): { label: string; detail: string } {
+  if (!authRequired) {
+    return {
+      label: '可浏览 VIP蓝光影院',
+      detail: '天涯欧乐 没有付费会员等级。可浏览本频道片库。片源本身不可播放时仍不可用，并不表示会员限制已解除。',
+    };
+  }
   if (authenticated) {
     return {
       label: '可浏览 VIP蓝光影院',

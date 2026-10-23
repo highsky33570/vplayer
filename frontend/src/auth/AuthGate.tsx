@@ -14,14 +14,14 @@ type Props = {
  * user, sends the visitor to /login?next=<current path> (same as the Login page flow).
  */
 export function AuthGate({ children }: Props) {
-  const { user, token, ready } = useAuth();
+  const { user, token, ready, authRequired } = useAuth();
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const here = `${pathname}${search}`;
 
   useEffect(() => {
-    if (ready && !user) navigate(loginWithNext(here), { replace: true });
-  }, [ready, user, here, navigate]);
+    if (ready && authRequired && !user) navigate(loginWithNext(here), { replace: true });
+  }, [ready, authRequired, user, here, navigate]);
 
   if (!ready) {
     return (

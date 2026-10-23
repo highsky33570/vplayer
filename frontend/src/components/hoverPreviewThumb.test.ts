@@ -111,7 +111,7 @@ function installDom(hoverCapable = true) {
   });
 }
 
-function mountThumbs(ids: number[], token: string | null = 'tok-preview') {
+function mountThumbs(ids: number[], token: string | null = 'tok-preview', authRequired = true) {
   const mount = document.getElementById('root')!;
   root = createRoot(mount);
   act(() => {
@@ -124,6 +124,7 @@ function mountThumbs(ids: number[], token: string | null = 'tok-preview') {
           {
             user: TEST_USER,
             token: token ?? '',
+            authRequired,
             children: createElement(
               'div',
               null,
@@ -356,6 +357,21 @@ describe('HoverPreviewThumb', () => {
     });
     assert.equal(fetchUrls.filter((u) => u.includes('/play')).length, 0);
     assert.equal(thumb.getAttribute('data-preview-phase'), 'idle');
+  });
+
+  it('guest mode resolves preview without a token and does not record history', async () => {
+    mountThumbs([1], '', false);
+    const thumb = document.querySelector('[data-testid="thumb-1"]')!;
+    await act(async () => {
+      mouseEnter(thumb);
+      await new Promise((r) => setTimeout(r, HOVER_PREVIEW_DELAY_MS + 40));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 40));
+    });
+    assert.equal(fetchUrls.filter((u) => u.includes('/play')).length, 1);
+    assert.equal(historyPosts, 0);
+    assert.equal(fetchUrls.some((u) => u.includes('/me/history')), false);
   });
 
   it('unmount cleans up timer and active preview', async () => {

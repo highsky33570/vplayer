@@ -67,7 +67,10 @@ type Config struct {
 	CDNURLAuthMode string
 	CDNSignSecret  string
 	// AuthSecret signs user session Bearer tokens (separate from CDN URL/ticket signing).
-	AuthSecret    string
+	AuthSecret string
+	// AuthRequired gates consumer login. Default true. false is reversible guest mode:
+	// public playback and hidden consumer auth UI. Auth handlers and admin stay in place.
+	AuthRequired  bool
 	PlayTicketTTL int
 	HLSKeySecret  string
 
@@ -137,6 +140,7 @@ func Load() Config {
 		CDNURLAuthMode:   strings.ToLower(getenv("CDN_URL_AUTH_MODE", "none")),
 		CDNSignSecret:    getenv("CDN_SIGN_SECRET", "dev-cdn-secret"),
 		AuthSecret:       getenv("AUTH_SECRET", "dev-auth-secret"),
+		AuthRequired:     getenvBool("AUTH_REQUIRED", true),
 		PlayTicketTTL:    getenvInt("PLAY_TICKET_TTL_SEC", 300),
 		HLSKeySecret:     getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
 

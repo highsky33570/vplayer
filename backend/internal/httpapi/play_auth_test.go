@@ -98,6 +98,55 @@ func TestPlayRejectsWrongSecretToken(t *testing.T) {
 	}
 }
 
+func TestAdminRouteStillRequiresUserWhenAuthNotRequired(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	api := &API{Cfg: config.Config{AuthSecret: "test-auth-secret", AuthRequired: false}}
+	r := gin.New()
+	r.GET("/api/v1/admin/me", api.RequireUser, api.RequireAdmin, api.AdminMe)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/me", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestPlayGuestWhenAuthNotRequired(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	api := &API{
+		Cfg:      config.Config{AuthSecret: "test-auth-secret", AuthRequired: false},
+		Resolver: &play.Resolver{Cfg: config.Config{CDNSignSecret: "test-cdn-secret"}},
+	}
+	r := gin.New()
+	v1 := r.Group("/api/v1")
+	v1.GET("/videos/:id/play", api.RequireUserWhenAuthRequired, api.ResolvePlay)
+	v1.POST("/videos/:id/play", api.RequireUserWhenAuthRequired, api.CreatePlaySession)
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		req := httptest.NewRequest(method, "/api/v1/videos/1/play", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s status=%d body=%s", method, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestPlayStillRequiresUserWhenAuthRequired(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	api := &API{
+		Cfg:      config.Config{AuthSecret: "test-auth-secret", AuthRequired: true},
+		Resolver: &play.Resolver{Cfg: config.Config{CDNSignSecret: "test-cdn-secret"}},
+	}
+	r := gin.New()
+	r.GET("/api/v1/videos/:id/play", api.RequireUserWhenAuthRequired, api.ResolvePlay)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/videos/1/play", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestPlayAllowsValidToken(t *testing.T) {
 	const authSecret = "test-auth-secret"
 	r, _ := testPlayRouter(authSecret, "test-cdn-secret")

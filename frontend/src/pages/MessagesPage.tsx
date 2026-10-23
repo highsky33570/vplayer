@@ -8,7 +8,9 @@ import {
 } from '../api';
 import { appendUnique, countUnread, markRead } from '../account/accountLogic';
 import { publishUnreadCount } from '../account/unreadEvents';
+import { useAuth } from '../auth/AuthContext';
 import { AuthGate } from '../auth/AuthGate';
+import { GuestMessagesPage } from '../guest/GuestMessagesPage';
 import {
   MESSAGE_TABS,
   formatHistoryTime,
@@ -27,6 +29,15 @@ import {
 const PAGE_SIZE = 30;
 
 export function MessagesPage() {
+  const { authRequired, ready } = useAuth();
+  if (!ready) {
+    return (
+      <div className="page me-page">
+        <p className="me-status">正在验证登录状态…</p>
+      </div>
+    );
+  }
+  if (!authRequired) return <GuestMessagesPage />;
   return <AuthGate>{({ token }) => <MessagesContent token={token} />}</AuthGate>;
 }
 
