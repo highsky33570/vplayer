@@ -9,7 +9,7 @@ import (
 // relatedVideosSQL ranks public catalog rows. It does not apply homepage midnight exclusion.
 // Playback columns are scanned only so the shared video scanner stays aligned; handlers
 // return a card DTO and do not send playback URLs.
-const relatedVideosSQL = `
+var relatedVideosSQL = `
 		SELECT id, COALESCE(source_system,''), COALESCE(source_id,''), category_id, COALESCE(source_category_id,''),
 		       COALESCE(leaf_source_id,''),
 		       title, COALESCE(description,''), COALESCE(year,''), COALESCE(area,''), COALESCE(director,''),
@@ -18,7 +18,8 @@ const relatedVideosSQL = `
 		       COALESCE(playback_url,''), source_updated_at, last_synced_at, COALESCE(sync_status,'ok'),
 		       COALESCE(is_active,1), status, created_at
 		FROM videos
-		WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1 AND id<>?
+		WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1 AND id<>?` +
+	MembershipOnlyCatalogExclusionSQL("videos.id") + `
 		ORDER BY
 		  CASE
 		    WHEN ? <> '' AND category_id=? AND leaf_source_id=? THEN 0

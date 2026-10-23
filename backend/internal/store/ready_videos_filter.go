@@ -82,6 +82,9 @@ func AppendReadyVideosWhere(q string, args []any, browse CategoryBrowseFilter, q
 		q += ` AND category_id NOT IN (SELECT id FROM categories WHERE slug=?)`
 		args = append(args, slug)
 	}
+	// Membership-only exclusion is part of the shared WHERE, before the caller
+	// appends ORDER BY / LIMIT / OFFSET. Count and list use this same function.
+	q += MembershipOnlyCatalogExclusionSQL("videos.id")
 	return q, args
 }
 

@@ -88,6 +88,7 @@ func TestRelatedSQLShape(t *testing.T) {
 		"WHEN category_id=? THEN 1",
 		"created_at DESC, id DESC",
 		"LIMIT ?",
+		"restriction_reason = 'source_restricted'",
 	} {
 		if !strings.Contains(sqlText, needle) {
 			t.Fatalf("missing %s", needle)
@@ -95,6 +96,11 @@ func TestRelatedSQLShape(t *testing.T) {
 	}
 	if strings.Contains(sqlText, "exclude_category") || strings.Contains(strings.ToLower(sqlText), "midnight") {
 		t.Fatal("homepage exclusion leaked into related SQL")
+	}
+	excl := strings.Index(sqlText, "restriction_reason = 'source_restricted'")
+	order := strings.Index(sqlText, "ORDER BY")
+	if excl < 0 || order < 0 || excl > order {
+		t.Fatal("membership exclusion must be in WHERE before ORDER BY")
 	}
 }
 

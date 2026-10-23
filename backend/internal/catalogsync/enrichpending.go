@@ -29,7 +29,7 @@ const (
 type EnrichPendingStore interface {
 	AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error)
 	ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]store.PendingEnrichmentEpisode, error)
-	ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status string) (updated bool, err error)
+	ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status, restrictionReason string) (updated bool, err error)
 	StartOperationalRun(in store.StartOperationalRunInput) (uint64, error)
 	FinishOperationalRun(in store.FinishOperationalRunInput) error
 	RejectOperationalRun(in store.RejectOperationalRunInput) (uint64, error)
@@ -473,7 +473,7 @@ func (w *EnrichPendingWorker) processOne(ctx context.Context, ep store.PendingEn
 			r.action = act
 			return r
 		}
-		updated, uerr := w.Store.ApplyPlaybackEnrichment(ep.ID, "", ep.PlaybackSource, "unavailable")
+		updated, uerr := w.Store.ApplyPlaybackEnrichment(ep.ID, "", ep.PlaybackSource, "unavailable", store.RestrictionReasonMembership)
 		if uerr != nil {
 			r.fail = true
 			r.pend = true
@@ -523,7 +523,7 @@ func (w *EnrichPendingWorker) processOne(ctx context.Context, ep store.PendingEn
 			r.action = act
 			return r
 		}
-		updated, uerr := w.Store.ApplyPlaybackEnrichment(ep.ID, "", from, "unavailable")
+		updated, uerr := w.Store.ApplyPlaybackEnrichment(ep.ID, "", from, "unavailable", "")
 		if uerr != nil {
 			r.fail = true
 			r.pend = true
@@ -554,7 +554,7 @@ func (w *EnrichPendingWorker) processOne(ctx context.Context, ep store.PendingEn
 		return r
 	}
 
-	updated, uerr := w.Store.ApplyPlaybackEnrichment(ep.ID, url, from, "ok")
+	updated, uerr := w.Store.ApplyPlaybackEnrichment(ep.ID, url, from, "ok", "")
 	if uerr != nil {
 		r.fail = true
 		r.pend = true

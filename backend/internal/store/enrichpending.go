@@ -19,22 +19,23 @@ const (
 
 // PendingEnrichmentEpisode is a backlog row eligible for deferred play-page enrichment.
 type PendingEnrichmentEpisode struct {
-	ID              uint64
-	VideoID         uint64
-	SourceSystem    string
-	SourceVideoID   string
-	SID             int
-	NID             int
-	Title           string
-	PlaybackSource  string
-	PlaybackURL     string
-	PlayPageURL     string
-	PlaybackStatus  string
-	HlsObjectKey    string
-	StorageProvider string
-	MigrationStatus string
-	IsActive        bool
-	CreatedAt       time.Time
+	ID                uint64
+	VideoID           uint64
+	SourceSystem      string
+	SourceVideoID     string
+	SID               int
+	NID               int
+	Title             string
+	PlaybackSource    string
+	PlaybackURL       string
+	PlayPageURL       string
+	PlaybackStatus    string
+	RestrictionReason string
+	HlsObjectKey      string
+	StorageProvider   string
+	MigrationStatus   string
+	IsActive          bool
+	CreatedAt         time.Time
 	// OkEpisodeCount is how many episodes on the same video already have status=ok + URL.
 	OkEpisodeCount int
 }
@@ -140,12 +141,18 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]
 // Never touches hls_object_key, storage_provider, or migration_status.
 // When status is ok and playbackURL is non-empty, sets is_active=1 so Resolver can serve it.
 // Unavailable / empty-URL outcomes leave is_active unchanged (typically 0 for pending inserts).
+// restrictionReason is stored only for explicit membership (source_restricted); any other
+// value is cleared so parser failures and successful playback are not labeled membership.
+// playback_status itself stays "unavailable" for membership so watch playback is unchanged.
 // Returns true when a row was updated.
-func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status string) (bool, error) {
+func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status, restrictionReason string) (bool, error) {
 	playbackURL = strings.TrimSpace(playbackURL)
 	status = strings.TrimSpace(status)
 	if status == "" {
 		return false, fmt.Errorf("playback status required")
+	}
+	if restrictionReason != RestrictionReasonMembership {
+		restrictionReason = ""
 	}
 	activate := 0
 	if strings.EqualFold(status, "ok") && playbackURL != "" {
@@ -157,6 +164,7 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 		  playback_url = ?,
 		  playback_source = CASE WHEN ? <> '' THEN ? ELSE playback_source END,
 		  playback_status = ?,
+		  restriction_reason = ?,
 		  is_active = CASE WHEN ? = 1 THEN 1 ELSE is_active END,
 		  last_synced_at = ?,
 		  sync_status = 'ok'
@@ -166,6 +174,7 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 		playbackURL,
 		playbackSource, playbackSource,
 		status,
+		restrictionReason,
 		activate,
 		now,
 		id,

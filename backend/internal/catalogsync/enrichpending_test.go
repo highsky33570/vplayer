@@ -153,7 +153,7 @@ func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit
 	return out, nil
 }
 
-func (m *enrichMemStore) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status string) (bool, error) {
+func (m *enrichMemStore) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status, restrictionReason string) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	e := m.episodes[id]
@@ -168,6 +168,10 @@ func (m *enrichMemStore) ApplyPlaybackEnrichment(id uint64, playbackURL, playbac
 		e.PlaybackSource = playbackSource
 	}
 	e.PlaybackStatus = status
+	if restrictionReason != store.RestrictionReasonMembership {
+		restrictionReason = ""
+	}
+	e.RestrictionReason = restrictionReason
 	// Match store.ApplyPlaybackEnrichment: activate only on ok + non-empty URL.
 	if strings.EqualFold(status, "ok") && strings.TrimSpace(playbackURL) != "" {
 		e.IsActive = true
@@ -425,7 +429,8 @@ func TestEnrichPending_successActivatesPlayableEpisode(t *testing.T) {
 	st.episodes[1] = &store.PendingEnrichmentEpisode{
 		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "a",
 		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p1",
-		IsActive: false,
+		RestrictionReason: store.RestrictionReasonMembership,
+		IsActive:          false,
 	}
 	f := &mapFetcher{pages: map[string]string{"https://src/p1": playHTML("https://cdn.example/1.m3u8")}}
 	sum, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
@@ -440,6 +445,9 @@ func TestEnrichPending_successActivatesPlayableEpisode(t *testing.T) {
 	}
 	if st.episodes[1].PlaybackStatus != "ok" || st.episodes[1].PlaybackURL == "" {
 		t.Fatalf("playback fields not updated: %+v", st.episodes[1])
+	}
+	if st.episodes[1].RestrictionReason != "" {
+		t.Fatalf("successful playback must clear restriction_reason: %+v", st.episodes[1])
 	}
 }
 
@@ -462,6 +470,9 @@ func TestEnrichPending_sourceRestrictedBecomesUnavailable(t *testing.T) {
 	ep := st.episodes[1]
 	if ep.PlaybackStatus != "unavailable" || ep.PlaybackURL != "" || ep.IsActive {
 		t.Fatalf("restricted episode: %+v", ep)
+	}
+	if ep.RestrictionReason != store.RestrictionReasonMembership {
+		t.Fatalf("restriction reason: %+v", ep)
 	}
 	if len(sum.Actions) != 1 || sum.Actions[0].Detail != "source_restricted" {
 		t.Fatalf("actions=%+v", sum.Actions)
@@ -1029,14 +1040,14 @@ func TestEnrichPending_skipsRaceAlreadyFilled(t *testing.T) {
 
 type raceStore struct{ *enrichMemStore }
 
-func (r *raceStore) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status string) (bool, error) {
+func (r *raceStore) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status, restrictionReason string) (bool, error) {
 	r.mu.Lock()
 	if e := r.episodes[id]; e != nil {
 		e.PlaybackURL = "https://already/set.m3u8"
 		e.PlaybackStatus = "ok"
 	}
 	r.mu.Unlock()
-	return r.enrichMemStore.ApplyPlaybackEnrichment(id, playbackURL, playbackSource, status)
+	return r.enrichMemStore.ApplyPlaybackEnrichment(id, playbackURL, playbackSource, status, restrictionReason)
 }
 
 func TestEnrichPending_prioritizeZeroOkInRun(t *testing.T) {

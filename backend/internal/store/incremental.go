@@ -152,11 +152,12 @@ func (m *MySQL) UpdateEpisodeCatalog(id uint64, in EpisodeUpsert) error {
 		UPDATE video_episodes SET
 		  video_id=?, title=?, playback_source=?, playback_url=?,
 		  play_page_url=?, playback_status=?, is_active=?,
-		  last_synced_at=?, sync_status='ok'
+		  last_synced_at=?, sync_status='ok',
+		  restriction_reason = CASE WHEN ? <> '' THEN '' ELSE restriction_reason END
 		WHERE id=?`,
 		in.VideoID, in.Title, in.PlaybackSource, in.PlaybackURL,
 		in.PlayPageURL, status, boolToInt(in.IsActive),
-		now, id,
+		now, in.PlaybackURL, id,
 	)
 	return err
 }
