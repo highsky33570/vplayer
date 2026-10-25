@@ -239,21 +239,21 @@ describe('mobile and desktop category presentation', () => {
     assert.equal(src.includes('function toggleMainExpansion'), false);
   });
 
-  it('wraps phone categories without a horizontal scroller and keeps desktop inline children', () => {
+  it('scrolls phone categories in one row and keeps desktop inline children', () => {
     const css = readFileSync(join(here, '../styles.css'), 'utf8');
     const src = readFileSync(join(here, 'DiscoveryNav.tsx'), 'utf8');
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     const railBlock = phone.match(/\.category-rail\s*\{[^}]*\}/)?.[0] ?? '';
     const subBlock = phone.match(/\.category-subrow-scroll\s*\{[^}]*\}/)?.[0] ?? '';
-    assert.match(railBlock, /flex-wrap:\s*wrap/);
-    assert.equal(/overflow-x:\s*auto/.test(railBlock), false);
-    assert.match(railBlock, /overflow-x:\s*visible/);
-    assert.match(subBlock, /flex-wrap:\s*wrap/);
-    assert.equal(/overflow-x:\s*auto/.test(subBlock), false);
+    assert.match(railBlock, /flex-wrap:\s*nowrap/);
+    assert.match(railBlock, /overflow-x:\s*auto/);
+    assert.match(subBlock, /flex-wrap:\s*nowrap/);
+    assert.match(subBlock, /overflow-x:\s*auto/);
     assert.match(subBlock, /max-height:\s*var\(--subrow-cap\)/);
     assert.match(phone, /\.category-children\s*\{[^}]*display:\s*none/);
-    assert.match(phone, /\.category-subrow\s*\{[^}]*display:\s*grid/);
-    assert.match(phone, /\.category-btn--main\s*\{[^}]*height:\s*44px/);
+    assert.match(phone, /\.category-subrow\s*\{[^}]*display:\s*none/);
+    assert.match(phone, /\.category-subrow\.is-open\s*\{[^}]*display:\s*grid/);
+    assert.match(phone, /\.category-btn--main\s*\{[^}]*height:\s*36px/);
     assert.match(phone, /\.category-btn--main\s*\{[^}]*max-width:\s*none/);
     assert.match(phone, /\.brand-text\s*\{[^}]*display:\s*inline/);
     assert.match(phone, /repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
@@ -267,7 +267,7 @@ describe('mobile and desktop category presentation', () => {
     assert.match(tablet, /--banner-h:\s*76px/);
     assert.match(tablet, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
     assert.match(tablet, /\.category-rail\s*\{[^}]*overflow-x:\s*auto/);
-    assert.match(phone, /--banner-h:\s*96px/);
+    assert.match(phone, /--banner-h:\s*46px/);
     const desktop = css.slice(0, css.indexOf('/* bp:compact'));
     assert.match(desktop, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
     assert.match(desktop, /\.category-children\s*\{[^}]*display:\s*grid/);

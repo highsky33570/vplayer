@@ -16,6 +16,7 @@ import { AdminVideoDetail } from './admin/AdminVideoDetail';
 import { AdminVideos } from './admin/AdminVideos';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { Header } from './components/Header';
+import { MobileTabBar } from './components/MobileTabBar';
 import { stopAllHoverPreviews } from './components/HoverPreviewThumb';
 import { LoginModal } from './components/LoginModal';
 import { LoginReminder } from './components/LoginReminder';
@@ -42,6 +43,7 @@ function ConsumerShell() {
     <div className="shell">
       <Header />
       <Outlet />
+      <MobileTabBar />
       {authRequired ? <LoginModal /> : null}
       {authRequired ? <LoginReminder /> : null}
     </div>

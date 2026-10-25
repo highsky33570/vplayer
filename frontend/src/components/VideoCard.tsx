@@ -16,7 +16,9 @@ export function VideoCard({ video, compact, categoryName }: Props) {
   const navigate = useNavigate();
   const href = videoEntryHref(ready, Boolean(user), video.id) ?? `/watch/${video.id}`;
   const metaBits = [categoryName, video.year, video.area].filter(Boolean);
+  const secondary = metaBits.length ? metaBits.join(' · ') : (video.description || '').trim();
   const showDuration = video.duration_sec > 0;
+  const showViews = video.view_count > 0;
 
   function onClick(e: MouseEvent<HTMLAnchorElement>) {
     const target = videoEntryHref(ready, Boolean(user), video.id);
@@ -44,20 +46,22 @@ export function VideoCard({ video, compact, categoryName }: Props) {
         durationSec={video.duration_sec}
         className="thumb"
       >
-        <div className="thumb-stats">
-          <span>
-            <PlayIcon />
-            {formatViews(video.view_count || 0)}
-          </span>
-          {showDuration ? <span>{formatDuration(video.duration_sec)}</span> : null}
-        </div>
+        {showViews || showDuration ? (
+          <div className="thumb-stats">
+            {showViews ? (
+              <span>
+                <PlayIcon />
+                {formatViews(video.view_count)}
+              </span>
+            ) : (
+              <span />
+            )}
+            {showDuration ? <span>{formatDuration(video.duration_sec)}</span> : null}
+          </div>
+        ) : null}
       </HoverPreviewThumb>
       <div className="video-title">{video.title}</div>
-      {!compact && (
-        <div className="video-meta">
-          {metaBits.length ? metaBits.join(' · ') : video.description || '精彩内容'}
-        </div>
-      )}
+      {!compact && secondary ? <div className="video-meta">{secondary}</div> : null}
     </Link>
   );
 }

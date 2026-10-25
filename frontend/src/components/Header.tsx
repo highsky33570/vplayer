@@ -44,6 +44,7 @@ const BANNER_LINKS = [
 
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [params] = useSearchParams();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -64,6 +65,10 @@ export function Header() {
   useEffect(() => {
     if (!desktopHover || !showIdentity) setOpenFlyout(null);
   }, [desktopHover, showIdentity]);
+
+  useEffect(() => {
+    setSearchOpen(false);
+  }, [pathname, urlQ]);
 
   const refreshUnread = useCallback(() => {
     if (!token) return;
@@ -150,6 +155,7 @@ export function Header() {
     if (!keyword) return;
     navigate(`/?q=${encodeURIComponent(keyword)}`);
     setMenuOpen(false);
+    setSearchOpen(false);
   }
 
   function onSearchSubmit(e: FormEvent) {
@@ -176,7 +182,9 @@ export function Header() {
   }
 
   return (
-    <div className={`banner-shell${showCinematicBanner ? '' : ' banner-shell--app'}`}>
+    <div
+      className={`banner-shell${showCinematicBanner ? '' : ' banner-shell--app'}${searchOpen ? ' is-search-open' : ''}`}
+    >
       {/* Cinematic banner on home + most destinations; /messages uses compact chrome only. */}
       {showCinematicBanner ? <BannerCarousel /> : null}
 
@@ -222,9 +230,25 @@ export function Header() {
           <button type="submit" aria-label="搜索">
             <SearchIcon />
           </button>
+          <button
+            type="button"
+            className="mobile-search-cancel"
+            onClick={() => setSearchOpen(false)}
+          >
+            取消
+          </button>
         </form>
 
         <div className="banner-actions">
+          <button
+            type="button"
+            className="mobile-search-toggle"
+            aria-label={searchOpen ? '关闭搜索' : '打开搜索'}
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen((open) => !open)}
+          >
+            <SearchIcon />
+          </button>
           {!ready ? null : showIdentity && user ? (
             <div className="banner-user-menu">
               <button type="button" className="banner-logout" onClick={logout}>

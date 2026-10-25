@@ -47,6 +47,9 @@ export function FeaturedCarousel({ videos }: Props) {
     <div className="carousel" aria-roledescription="carousel">
       {slides.map((v, i) => {
         const href = videoEntryHref(ready, Boolean(user), v.id) ?? `/watch/${v.id}`;
+        const caption = [v.view_count > 0 ? `${formatViews(v.view_count)} 播放` : '', v.year ? String(v.year) : '', v.area || '']
+          .filter(Boolean)
+          .join(' · ');
         return (
           <Link
             key={v.id}
@@ -64,11 +67,7 @@ export function FeaturedCarousel({ videos }: Props) {
             />
             <div className="carousel-caption">
               <h3>{v.title}</h3>
-              <p>
-                {formatViews(v.view_count || 0)} 播放
-                {v.year ? ` · ${v.year}` : ''}
-                {v.area ? ` · ${v.area}` : ''}
-              </p>
+              {caption ? <p>{caption}</p> : null}
             </div>
           </Link>
         );

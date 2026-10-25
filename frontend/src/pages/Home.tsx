@@ -233,6 +233,7 @@ export function Home() {
             <ContentSection
               key={section.title}
               title={section.title}
+              mobileTitle={section.slug ? undefined : '最新热播推荐'}
               moreTo={moreTo}
               videos={items}
               emptyText={

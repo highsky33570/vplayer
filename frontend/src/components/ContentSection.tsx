@@ -4,22 +4,28 @@ import { VideoCard } from './VideoCard';
 
 type Props = {
   title: string;
+  /** Phone-only heading. Desktop keeps `title`. */
+  mobileTitle?: string;
   moreTo?: string;
   videos: Video[];
   emptyText?: string;
 };
 
-export function ContentSection({ title, moreTo, videos, emptyText }: Props) {
+export function ContentSection({ title, mobileTitle, moreTo, videos, emptyText }: Props) {
   return (
     <section className="content-section">
       <div className="section-head">
         <div className="section-title-row">
           <span className="section-accent" aria-hidden />
-          <h2>{title}</h2>
+          <h2>
+            <span className="section-title-long">{title}</span>
+            {mobileTitle ? <span className="section-title-short">{mobileTitle}</span> : null}
+          </h2>
         </div>
         {moreTo ? (
           <Link to={moreTo} className="section-more">
-            查看更多 ›
+            <span className="section-more-long">查看更多 ›</span>
+            <span className="section-more-short">更多 &gt;</span>
           </Link>
         ) : null}
       </div>

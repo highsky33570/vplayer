@@ -74,7 +74,7 @@ describe('desktop featured and catalog density', () => {
     assert.match(tablet, /\.video-grid\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.match(phone, /\.video-grid\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
-    assert.match(phone, /\.category-rail\s*\{[^}]*flex-wrap:\s*wrap/);
-    assert.match(phone, /\.category-rail\s*\{[^}]*overflow-x:\s*visible/);
+    assert.match(phone, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
+    assert.match(phone, /\.category-rail\s*\{[^}]*overflow-x:\s*auto/);
   });
 });
