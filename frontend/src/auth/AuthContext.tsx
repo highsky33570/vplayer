@@ -30,6 +30,8 @@ type AuthContextValue = {
   ready: boolean;
   /** Server AUTH_REQUIRED. True until the public config response says otherwise. */
   authRequired: boolean;
+  /** Server PLAYBACK_AUTH_REQUIRED. Independent of authRequired. True until the response says otherwise. */
+  playbackAuthRequired: boolean;
   loginOpen: boolean;
   openLogin: (mode?: 'login' | 'register') => void;
   closeLogin: () => void;
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionReady, setSessionReady] = useState(false);
   const [configReady, setConfigReady] = useState(false);
   const [authRequired, setAuthRequired] = useState(true);
+  const [playbackAuthRequired, setPlaybackAuthRequired] = useState(true);
   const ready = sessionReady && configReady;
   const [loginOpen, setLoginOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -70,12 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           registrationConfigAfterFetch({ ok: true, emailVerificationEnabled: opts.email_verification_enabled === true }),
         );
         setAuthRequired(opts.auth_required !== false);
+        setPlaybackAuthRequired(opts.playback_auth_required !== false);
         setConfigReady(true);
       })
       .catch(() => {
         if (registrationRequest.current !== request) return;
         setRegistrationConfig(registrationConfigAfterFetch({ ok: false }));
         setAuthRequired(true);
+        setPlaybackAuthRequired(true);
         setConfigReady(true);
       });
   }, []);
@@ -190,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       ready,
       authRequired,
+      playbackAuthRequired,
       loginOpen: authRequired && loginOpen,
       openLogin,
       closeLogin,
@@ -210,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       ready,
       authRequired,
+      playbackAuthRequired,
       loginOpen,
       openLogin,
       closeLogin,
@@ -240,11 +247,13 @@ export function AuthTestProvider({
   user,
   token = 'test-token',
   authRequired = true,
+  playbackAuthRequired = true,
   children,
 }: {
   user: AuthUser;
   token?: string;
   authRequired?: boolean;
+  playbackAuthRequired?: boolean;
   children: ReactNode;
 }) {
   const value = useMemo<AuthContextValue>(
@@ -253,6 +262,7 @@ export function AuthTestProvider({
       token,
       ready: true,
       authRequired,
+      playbackAuthRequired,
       loginOpen: false,
       openLogin: () => undefined,
       closeLogin: () => undefined,
@@ -276,7 +286,7 @@ export function AuthTestProvider({
       logout: () => undefined,
       updateProfile: async () => user,
     }),
-    [token, user, authRequired],
+    [token, user, authRequired, playbackAuthRequired],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -424,6 +424,8 @@ export type RegistrationOptions = {
   email_verification_enabled: boolean;
   /** Absent means auth stays required (fail closed). */
   auth_required?: boolean;
+  /** Absent means playback stays login-gated (fail closed). Independent of auth_required. */
+  playback_auth_required?: boolean;
 };
 
 export function fetchRegistrationOptions() {

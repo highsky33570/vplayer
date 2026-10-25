@@ -64,7 +64,8 @@ export function Watch() {
   const { id } = useParams();
   const videoId = Number(id);
   const navigate = useNavigate();
-  const { user, token, ready, authRequired, logout, openLogin } = useAuth();
+  const { user, token, ready, authRequired, playbackAuthRequired, logout, openLogin } = useAuth();
+  const playbackNeedsLogin = authRequired && playbackAuthRequired;
   const userId = user?.id ?? 0;
   const [favorited, setFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
@@ -143,7 +144,7 @@ export function Watch() {
 
   useEffect(() => {
     if (!videoId || !ready) return;
-    if (authRequired && (!user || !token)) return;
+    if (playbackNeedsLogin && (!user || !token)) return;
     const session = new WatchPlaybackSession();
     sessionRef.current = session;
 
@@ -182,7 +183,7 @@ export function Watch() {
       setPlayLoading(true);
       setPlayError('');
       try {
-        const playback = await getPlayback(videoId, sid, nid, authRequired ? token : null);
+        const playback = await getPlayback(videoId, sid, nid, playbackNeedsLogin ? token : null);
         if (session.debugState().cancelled || !rootRef.current) return;
         if (!playback.url) {
           throw new Error('无可用播放地址');
@@ -191,7 +192,7 @@ export function Watch() {
         startPlayer(playback.url, playback.type);
       } catch (e) {
         if (session.debugState().cancelled) return;
-        if (authRequired && e instanceof ApiError && e.status === 401) {
+        if (playbackNeedsLogin && e instanceof ApiError && e.status === 401) {
           logout();
           navigate(loginWithNext(`/watch/${videoId}`), { replace: true });
           return;
@@ -218,7 +219,7 @@ export function Watch() {
       session.cancel();
       destroyPlayer();
     };
-  }, [videoId, sid, nid, ready, authRequired, user, token, navigate, logout]);
+  }, [videoId, sid, nid, ready, playbackNeedsLogin, user, token, navigate, logout]);
 
   // Favorite status for the signed-in user.
   useEffect(() => {
@@ -344,7 +345,7 @@ export function Watch() {
       </header>
       <div className={`watch-main-grid${related.length > 0 ? ' has-recs' : ''}`}>
         <div className="player-panel">
-          {!authRequired || (user && token) ? (
+          {!playbackNeedsLogin || (user && token) ? (
             <>
               <div className="player-wrap" ref={rootRef} />
               {playLoading && <p style={{ padding: 12, color: 'var(--muted)' }}>加载中…</p>}
@@ -364,7 +365,7 @@ export function Watch() {
           activeSid={activeSid}
           activeNid={activeNid}
           onSelect={(episode) => {
-            if (authRequired && (!user || !token)) {
+            if (playbackNeedsLogin && (!user || !token)) {
               navigate(loginWithNext(`/watch/${videoId}`));
               return;
             }

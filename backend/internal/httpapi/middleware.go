@@ -29,10 +29,16 @@ func (a *API) RequireUser(c *gin.Context) {
 	c.Next()
 }
 
-// RequireUserWhenAuthRequired applies RequireUser only while AUTH_REQUIRED is on.
-// Guest mode skips the check and continues to the same handler. Admin routes do not use this.
-func (a *API) RequireUserWhenAuthRequired(c *gin.Context) {
-	if !a.Cfg.AuthRequired {
+// playbackRequiresUser is true only when account auth and playback auth are both on.
+// PLAYBACK_AUTH_REQUIRED=false opens play while favorites/history/account stay gated.
+// AUTH_REQUIRED=false (dormant guest mode) also leaves play public.
+func (a *API) playbackRequiresUser() bool {
+	return a.Cfg.AuthRequired && a.Cfg.PlaybackAuthRequired
+}
+
+// RequireUserWhenPlaybackAuthRequired guards play routes only. Admin routes do not use this.
+func (a *API) RequireUserWhenPlaybackAuthRequired(c *gin.Context) {
+	if !a.playbackRequiresUser() {
 		c.Next()
 		return
 	}

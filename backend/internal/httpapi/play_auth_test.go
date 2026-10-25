@@ -111,16 +111,25 @@ func TestAdminRouteStillRequiresUserWhenAuthNotRequired(t *testing.T) {
 	}
 }
 
-func TestPlayGuestWhenAuthNotRequired(t *testing.T) {
+func playRouter(authRequired, playbackAuthRequired bool) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	api := &API{
-		Cfg:      config.Config{AuthSecret: "test-auth-secret", AuthRequired: false},
+		Cfg: config.Config{
+			AuthSecret:           "test-auth-secret",
+			AuthRequired:         authRequired,
+			PlaybackAuthRequired: playbackAuthRequired,
+		},
 		Resolver: &play.Resolver{Cfg: config.Config{CDNSignSecret: "test-cdn-secret"}},
 	}
 	r := gin.New()
 	v1 := r.Group("/api/v1")
-	v1.GET("/videos/:id/play", api.RequireUserWhenAuthRequired, api.ResolvePlay)
-	v1.POST("/videos/:id/play", api.RequireUserWhenAuthRequired, api.CreatePlaySession)
+	v1.GET("/videos/:id/play", api.RequireUserWhenPlaybackAuthRequired, api.ResolvePlay)
+	v1.POST("/videos/:id/play", api.RequireUserWhenPlaybackAuthRequired, api.CreatePlaySession)
+	return r
+}
+
+func TestPlayPublicWhenPlaybackAuthOff(t *testing.T) {
+	r := playRouter(true, false)
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
 		req := httptest.NewRequest(method, "/api/v1/videos/1/play", nil)
 		w := httptest.NewRecorder()
@@ -131,18 +140,22 @@ func TestPlayGuestWhenAuthNotRequired(t *testing.T) {
 	}
 }
 
-func TestPlayStillRequiresUserWhenAuthRequired(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	api := &API{
-		Cfg:      config.Config{AuthSecret: "test-auth-secret", AuthRequired: true},
-		Resolver: &play.Resolver{Cfg: config.Config{CDNSignSecret: "test-cdn-secret"}},
-	}
-	r := gin.New()
-	r.GET("/api/v1/videos/:id/play", api.RequireUserWhenAuthRequired, api.ResolvePlay)
+func TestPlayStillRequiresUserWhenBothAuthFlagsOn(t *testing.T) {
+	r := playRouter(true, true)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/videos/1/play", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestPlayStaysPublicInDormantGuestMode(t *testing.T) {
+	r := playRouter(false, true)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/videos/1/play", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 	}
 }

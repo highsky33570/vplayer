@@ -111,7 +111,12 @@ function installDom(hoverCapable = true) {
   });
 }
 
-function mountThumbs(ids: number[], token: string | null = 'tok-preview', authRequired = true) {
+function mountThumbs(
+  ids: number[],
+  token: string | null = 'tok-preview',
+  authRequired = true,
+  playbackAuthRequired = true,
+) {
   const mount = document.getElementById('root')!;
   root = createRoot(mount);
   act(() => {
@@ -125,6 +130,7 @@ function mountThumbs(ids: number[], token: string | null = 'tok-preview', authRe
             user: TEST_USER,
             token: token ?? '',
             authRequired,
+            playbackAuthRequired,
             children: createElement(
               'div',
               null,
@@ -359,8 +365,8 @@ describe('HoverPreviewThumb', () => {
     assert.equal(thumb.getAttribute('data-preview-phase'), 'idle');
   });
 
-  it('guest mode resolves preview without a token and does not record history', async () => {
-    mountThumbs([1], '', false);
+  it('public playback resolves preview without a token while accounts stay gated', async () => {
+    mountThumbs([1], '', true, false);
     const thumb = document.querySelector('[data-testid="thumb-1"]')!;
     await act(async () => {
       mouseEnter(thumb);

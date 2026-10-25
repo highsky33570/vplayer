@@ -17,6 +17,9 @@ describe('guest mode keeps auth and hides it when AUTH_REQUIRED is false', () =>
     const auth = read('auth/AuthContext.tsx');
     assert.match(api, /auth_required\?: boolean/);
     assert.match(auth, /setAuthRequired\(opts\.auth_required !== false\)/);
+    assert.match(api, /playback_auth_required\?: boolean/);
+    assert.match(auth, /setPlaybackAuthRequired\(opts\.playback_auth_required !== false\)/);
+    assert.match(read('pages/Watch.tsx'), /playbackNeedsLogin = authRequired && playbackAuthRequired/);
     assert.match(auth, /authRequired/);
     assert.doesNotMatch(auth, /VITE_/);
   });

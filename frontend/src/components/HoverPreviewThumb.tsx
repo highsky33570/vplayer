@@ -49,7 +49,8 @@ export function HoverPreviewThumb({
   'data-testid': testId,
 }: Props) {
   const ownerId = useId();
-  const { token, authRequired } = useAuth();
+  const { token, authRequired, playbackAuthRequired } = useAuth();
+  const playbackNeedsLogin = authRequired && playbackAuthRequired;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const attachedRef = useRef<AttachedHoverPreview | null>(null);
   const releaseClaimRef = useRef<(() => void) | null>(null);
@@ -108,7 +109,7 @@ export function HoverPreviewThumb({
   async function activatePreview() {
     if (failedRef.current) return;
     if (!supportsHoverPreview()) return;
-    if (!canResolveHoverPreview(token, authRequired)) return;
+    if (!canResolveHoverPreview(token, playbackNeedsLogin)) return;
 
     const myGen = ++genRef.current;
     setPhaseBoth('loading');
@@ -122,7 +123,7 @@ export function HoverPreviewThumb({
       if (!failedRef.current) setPhaseBoth('idle');
     });
 
-    const media = await resolveHoverPreviewMedia(videoId, token, authRequired);
+    const media = await resolveHoverPreviewMedia(videoId, token, playbackNeedsLogin);
     if (myGen !== genRef.current) return;
     if (!media) {
       failedRef.current = true;
@@ -165,7 +166,7 @@ export function HoverPreviewThumb({
     // Touch/coarse pointers never match the hover media query.
     if (!supportsHoverPreview()) return;
     if (failedRef.current) return;
-    if (!canResolveHoverPreview(token, authRequired)) return;
+    if (!canResolveHoverPreview(token, playbackNeedsLogin)) return;
     const cur = phaseRef.current;
     if (cur === 'playing' || cur === 'loading' || cur === 'pending') return;
 

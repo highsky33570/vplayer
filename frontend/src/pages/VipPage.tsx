@@ -17,7 +17,8 @@ import {
 } from './vipPageLogic';
 
 export function VipPage() {
-  const { user, ready, openLogin, authRequired } = useAuth();
+  const { user, ready, openLogin, authRequired, playbackAuthRequired } = useAuth();
+  const playbackNeedsLogin = authRequired && playbackAuthRequired;
   const [categories, setCategories] = useState<Category[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [total, setTotal] = useState(0);
@@ -58,12 +59,25 @@ export function VipPage() {
   const hero = pickVipHero(videos);
   const featured = vipFeaturedStrip(videos, 8);
   const catalog = vipCatalogGrid(videos, featured.length > 0 ? 1 : 0, 24);
-  const status = vipAccessStatus(Boolean(user), authRequired);
-  const featureCards = VIP_FEATURE_CARDS.map((card) =>
-    !authRequired && card.id === 'devices'
-      ? { ...card, body: '可在当前浏览器浏览与播放。片源本身不可播时仍会提示暂不可用。' }
-      : card,
-  );
+  const baseStatus = vipAccessStatus(Boolean(user), authRequired);
+  const status =
+    !user && !playbackNeedsLogin
+      ? {
+          label: '可浏览 VIP蓝光影院',
+          detail:
+            '天涯欧乐 没有付费会员等级。视频可直接播放。片源本身不可用时仍不可播放，并不表示会员限制已解除。收藏、历史和账号仍需要登录。',
+        }
+      : baseStatus;
+  const featureCards = VIP_FEATURE_CARDS.map((card) => {
+    if (card.id !== 'devices') return card;
+    if (!authRequired) {
+      return { ...card, body: '可在当前浏览器浏览与播放。片源本身不可播时仍会提示暂不可用。' };
+    }
+    if (!playbackNeedsLogin) {
+      return { ...card, body: '视频可直接播放。登录后可在不同设备上同步收藏与观看记录。' };
+    }
+    return card;
+  });
 
   return (
     <div className="vip-dest">
@@ -121,7 +135,9 @@ export function VipPage() {
               <span className="banner-avatar vip-guest-avatar">客</span>
               <div>
                 <strong>访客</strong>
-                <p>{authRequired ? '登录后可完整观看' : '可直接浏览本频道'}</p>
+                <p>
+                  {playbackNeedsLogin ? '登录后可完整观看' : '可直接观看本频道'}
+                </p>
               </div>
             </div>
           )}
@@ -137,7 +153,7 @@ export function VipPage() {
               <dd>{loading ? '…' : `${total} 部`}</dd>
             </div>
           </dl>
-          {authRequired && ready && !user ? (
+          {playbackNeedsLogin && ready && !user ? (
             <button type="button" className="vip-cta" onClick={() => openLogin('login')}>
               登录观看
             </button>

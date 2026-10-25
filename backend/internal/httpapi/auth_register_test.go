@@ -145,8 +145,8 @@ func TestRegisterDirectWhenVerificationDisabled(t *testing.T) {
 	if opt.Code != http.StatusOK || !strings.Contains(opt.Body.String(), `"email_verification_enabled":false`) {
 		t.Fatalf("options status=%d body=%s", opt.Code, opt.Body.String())
 	}
-	if !strings.Contains(opt.Body.String(), `"auth_required"`) {
-		t.Fatalf("registration options must expose auth_required: %s", opt.Body.String())
+	if !strings.Contains(opt.Body.String(), `"auth_required"`) || !strings.Contains(opt.Body.String(), `"playback_auth_required"`) {
+		t.Fatalf("registration options must expose auth flags: %s", opt.Body.String())
 	}
 	if strings.Contains(strings.ToLower(opt.Body.String()), "smtp") || strings.Contains(opt.Body.String(), "pepper") {
 		t.Fatal("registration options must not expose mail config")

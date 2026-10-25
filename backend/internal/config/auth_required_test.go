@@ -16,3 +16,19 @@ func TestLoadAuthRequired(t *testing.T) {
 		t.Fatal("AUTH_REQUIRED=true")
 	}
 }
+
+func TestLoadPlaybackAuthRequired(t *testing.T) {
+	t.Setenv("PLAYBACK_AUTH_REQUIRED", "")
+	if !Load().PlaybackAuthRequired {
+		t.Fatal("PLAYBACK_AUTH_REQUIRED defaults to true")
+	}
+	t.Setenv("PLAYBACK_AUTH_REQUIRED", "false")
+	if Load().PlaybackAuthRequired {
+		t.Fatal("PLAYBACK_AUTH_REQUIRED=false")
+	}
+	t.Setenv("AUTH_REQUIRED", "true")
+	cfg := Load()
+	if !cfg.AuthRequired || cfg.PlaybackAuthRequired {
+		t.Fatalf("production target auth=%v playback=%v", cfg.AuthRequired, cfg.PlaybackAuthRequired)
+	}
+}
