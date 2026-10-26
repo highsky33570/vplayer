@@ -58,8 +58,9 @@ describe('创作中心 removed from global header', () => {
 });
 
 describe('favorites shell and workspace', () => {
-  it('4/5/6: /favorites keeps cinematic banner; messages/history stay compact', () => {
-    assert.equal(usesCinematicBanner('/favorites'), true);
+  it('4/5/6: /favorites uses the compact messages shell', () => {
+    assert.equal(usesCinematicBanner('/favorites'), false);
+    assert.equal(usesCinematicBanner('/vip'), false);
     assert.equal(usesCinematicBanner('/messages'), false);
     assert.equal(usesCinematicBanner('/history'), false);
     assert.equal(favorites.includes('BannerCarousel'), false); // banner lives in Header

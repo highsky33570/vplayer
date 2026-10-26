@@ -4,8 +4,8 @@ export const HEADER_FLYOUTS = ['account', 'vip', 'messages', 'favorites', 'histo
 export type HeaderFlyoutId = (typeof HEADER_FLYOUTS)[number];
 
 /**
- * Consumer destinations. Most share the homepage cinematic banner;
- * /messages and /history use compact app chrome (see usesCinematicBanner).
+ * Consumer destinations. Homepage and account keep the cinematic banner;
+ * /messages, /history, /vip, and /favorites use compact app chrome.
  */
 export const DESTINATION_PATHS = ['/account', '/vip', '/messages', '/favorites', '/history'] as const;
 
@@ -13,11 +13,11 @@ export function isDestinationPath(pathname: string): boolean {
   return DESTINATION_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-const COMPACT_SHELL_PATHS = ['/messages', '/history'] as const;
+const COMPACT_SHELL_PATHS = ['/messages', '/history', '/vip', '/favorites'] as const;
 
 /**
- * Homepage + account/vip/favorites keep BannerCarousel.
- * /messages and /history are workspace pages: compact global top bar only.
+ * Homepage and account keep BannerCarousel.
+ * Messages, history, VIP, and favorites use the compact top bar only.
  */
 export function usesCinematicBanner(pathname: string): boolean {
   return !COMPACT_SHELL_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

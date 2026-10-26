@@ -101,7 +101,7 @@ describe('who can open a flyout', () => {
 });
 
 describe('destination shell helpers', () => {
-  it('marks destination routes; cinematic banner everywhere except /messages and /history', () => {
+  it('marks destination routes; compact shell on messages, history, vip, and favorites', () => {
     assert.equal(headerDestinationActive('/favorites'), 'favorites');
     assert.equal(isDestinationPath('/messages'), true);
     assert.equal(isDestinationPath('/'), false);
@@ -109,6 +109,8 @@ describe('destination shell helpers', () => {
     assert.equal(usesCinematicBanner('/account'), true);
     assert.equal(usesCinematicBanner('/messages'), false);
     assert.equal(usesCinematicBanner('/history'), false);
+    assert.equal(usesCinematicBanner('/vip'), false);
+    assert.equal(usesCinematicBanner('/favorites'), false);
     assert.equal(HEADER_NEW_TAB_REL, 'noopener noreferrer');
     assert.deepEqual([...DESTINATION_PATHS], ['/account', '/vip', '/messages', '/favorites', '/history']);
   });

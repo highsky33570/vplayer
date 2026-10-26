@@ -62,8 +62,8 @@ describe('history shell — compact like /messages', () => {
     assert.equal(usesCinematicBanner('/messages'), false);
     assert.equal(usesCinematicBanner('/'), true);
     assert.equal(usesCinematicBanner('/account'), true);
-    assert.equal(usesCinematicBanner('/vip'), true);
-    assert.equal(usesCinematicBanner('/favorites'), true);
+    assert.equal(usesCinematicBanner('/vip'), false);
+    assert.equal(usesCinematicBanner('/favorites'), false);
     assert.match(flyoutLogic, /COMPACT_SHELL_PATHS|\/history/);
     assert.match(header, /usesCinematicBanner\(pathname\)/);
     assert.match(header, /<BannerCarousel /);
