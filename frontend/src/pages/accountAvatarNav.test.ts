@@ -188,7 +188,8 @@ describe('avatar opens /account in a new tab (current tab unchanged)', () => {
     assert.match(avatarSrc, /target="_blank"/);
     assert.match(avatarSrc, /rel="noopener noreferrer"/);
     assert.match(avatarSrc, /data-testid="header-account-avatar"/);
-    assert.equal(avatarSrc.includes("navigate('/account')"), false);
+    assert.match(avatarSrc, /matchMedia\('\(max-width: 767px\)'\)/);
+    assert.match(avatarSrc, /navigate\('\/account'\)/);
     assert.equal(avatarSrc.includes('to="/account"'), false);
   });
 

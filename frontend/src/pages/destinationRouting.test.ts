@@ -84,7 +84,8 @@ describe('desktop top-right destinations open in a new browser tab', () => {
     assert.match(avatar, /target="_blank"/);
     assert.match(avatar, /rel="noopener noreferrer"/);
     assert.match(avatar, /data-testid="header-account-avatar"/);
-    assert.equal(avatar.includes("navigate('/account')"), false);
+    assert.match(avatar, /matchMedia\('\(max-width: 767px\)'\)/);
+    assert.match(avatar, /navigate\('\/account'\)/);
     assert.equal(avatar.includes('to="/account"'), false);
 
     assert.match(header, /function DestNavLink/);

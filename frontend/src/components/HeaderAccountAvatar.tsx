@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { AuthUser } from '../api';
 
 type Props = {
@@ -8,11 +9,12 @@ type Props = {
 };
 
 /**
- * Logged-in account trigger: hover preview is owned by HeaderFlyout;
- * click opens /account in a new browser tab (current tab unchanged).
+ * Logged-in account trigger: hover preview is owned by HeaderFlyout.
+ * Desktop click opens /account in a new tab. Phone click opens /account here.
  * The mark is an icon only — the nickname initial is not shown.
  */
 export function HeaderAccountAvatar({ active, flyoutOpen, onNavigate }: Props) {
+  const navigate = useNavigate();
   return (
     <a
       href="/account"
@@ -20,13 +22,19 @@ export function HeaderAccountAvatar({ active, flyoutOpen, onNavigate }: Props) {
       rel="noopener noreferrer"
       className={`banner-user is-logged${active ? ' is-route-active' : ''}`}
       title="个人空间"
-      aria-label="个人空间（新标签页）"
+      aria-label="个人空间"
       aria-haspopup="dialog"
       aria-expanded={flyoutOpen}
       aria-current={active ? 'page' : undefined}
       data-testid="header-account-avatar"
-      onClick={() => {
+      onClick={(event) => {
         onNavigate();
+        const mobile =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(max-width: 767px)').matches;
+        if (!mobile) return;
+        event.preventDefault();
+        navigate('/account');
       }}
     >
       <span className="banner-action-icon" aria-hidden>
