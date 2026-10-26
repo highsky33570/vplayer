@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { listCategories, type Category } from '../api';
 import {
@@ -23,7 +24,7 @@ export {
   toggleMainExpansion,
 } from './discoveryNavLogic';
 
-export function DiscoveryNav() {
+export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement | null }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [params] = useSearchParams();
@@ -60,6 +61,9 @@ export function DiscoveryNav() {
   const [childrenOverflow, setChildrenOverflow] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogOverflow, setCatalogOverflow] = useState(false);
+  const [wide, setWide] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches,
+  );
   if (showAllParent !== expandedParentSlug) {
     setShowAllParent(expandedParentSlug);
     setShowAllChildren(false);
@@ -68,6 +72,14 @@ export function DiscoveryNav() {
   const discoveryRef = useRef<HTMLDivElement>(null);
   const subrowRef = useRef<HTMLDivElement>(null);
   const catalogRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const apply = () => setWide(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   useEffect(() => {
     setExpandedParentSlug((current) =>
@@ -143,9 +155,8 @@ export function DiscoveryNav() {
   const expandedMain = mains.find((main) => main.slug === expandedParentSlug) ?? null;
   const expandedChildren = expandedMain ? childrenOfParent(categories, expandedMain.id) : [];
 
-  return (
-    <div className="discovery" ref={discoveryRef}>
-      <nav className="category-rail" aria-label="分类导航">
+  const channelRail = (
+    <nav className="category-rail" aria-label="分类导航">
         <button
           type="button"
           className={`category-btn category-btn--main${active === 'home' ? ' is-active' : ''}`}
@@ -203,6 +214,11 @@ export function DiscoveryNav() {
           );
         })}
       </nav>
+  );
+
+  return (
+    <div className="discovery" ref={discoveryRef}>
+      {wide && channelHost ? createPortal(channelRail, channelHost) : channelRail}
 
       {subs.length > 0 ? (
         <div className="discovery-catalog-wrap">

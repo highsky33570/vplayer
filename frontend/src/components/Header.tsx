@@ -49,6 +49,7 @@ export function Header() {
   const [openFlyout, setOpenFlyout] = useState<HeaderFlyoutId | null>(null);
   const [unread, setUnread] = useState(0);
   const [notice, setNotice] = useState('');
+  const [channelHost, setChannelHost] = useState<HTMLDivElement | null>(null);
   const noticeTimer = useRef<number | null>(null);
   const unreadBadge = showIdentity ? unreadBadgeLabel(unread) : '';
 
@@ -171,6 +172,7 @@ export function Header() {
           <Link to="/" className="brand" onClick={() => setMenuOpen(false)}>
             <span className="brand-text">天涯欧乐</span>
           </Link>
+          <div className="banner-channels" ref={setChannelHost} />
         </div>
 
         <form className="search" role="search" onSubmit={onSearchSubmit}>
@@ -442,7 +444,7 @@ export function Header() {
           </button>
         </div>
       </div>
-      <DiscoveryNav />
+      <DiscoveryNav channelHost={channelHost} />
     </div>
   );
 }
