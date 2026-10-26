@@ -47,34 +47,23 @@ describe('desktop featured and catalog density', () => {
     assert.equal(grid.includes('slice(0, 4)'), false);
     assert.match(carousel, /videos\.slice\(0,\s*5\)/);
     assert.match(carousel, /setInterval/);
-    assert.match(home, /GRID_COLS_DESKTOP = 5/);
+    assert.match(home, /GRID_COLS_DESKTOP = 6/);
     assert.match(home, /latest\.slice\(0,\s*HOME_SECTION_LIMIT\)/);
     assert.match(home, /latest\.slice\(0,\s*FEATURED_POOL_LIMIT\)/);
   });
 
-  it('uses a 3×2 featured side and 5 catalog columns from 1280px up', () => {
+  it('uses an editorial lead row and six catalog columns from 1440px', () => {
     const css = readFileSync(join(here, '../styles.css'), 'utf8');
-    const desktop = css.slice(css.indexOf('/* ——— Featured grid'), css.indexOf('/* ——— Responsive'));
-    assert.match(
-      desktop,
-      /\.featured-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*5fr\)\s*minmax\(0,\s*7fr\)/,
-    );
-    assert.match(desktop, /\.featured-side\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
-    assert.match(desktop, /\.featured-side \.video-card \.thumb\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*9/);
-    assert.match(desktop, /\.video-grid\s*\{[^}]*repeat\(5,\s*minmax\(0,\s*1fr\)\)/);
-    assert.match(desktop, /\.carousel\s*\{[^}]*width:\s*100%/);
-    assert.match(desktop, /\.carousel\s*\{[^}]*min-width:\s*0/);
-    assert.match(desktop, /\.carousel\s*\{[^}]*max-height:\s*none/);
-    const mid = css.slice(css.indexOf('/* bp:desk-mid'), css.indexOf('/* bp:compact'));
-    assert.match(mid, /\.video-grid\s*\{[^}]*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
-    assert.match(mid, /\.featured-side\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
-    assert.match(mid, /\.carousel\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*10/);
-    assert.equal(/max-height:\s*\d+px/.test(mid.match(/\.carousel\s*\{[^}]*\}/)?.[0] ?? ''), false);
-    const tablet = css.slice(css.indexOf('/* bp:tablet'), css.indexOf('/* bp:phone'));
-    assert.match(tablet, /\.video-grid\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    const phase = css.slice(css.indexOf('/* ——— Phase 1'));
+    assert.match(phase, /\.featured-grid\s*\{[^}]*minmax\(0,\s*42%\)\s*minmax\(0,\s*1fr\)/);
+    assert.match(phase, /\.featured-side\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(phase, /\.thumb\s*\{[^}]*border-radius:\s*0/);
+    assert.match(phase, /@media \(min-width: 1440px\)[\s\S]*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(phase, /\.dock,\s*\n\.section-accent/);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.match(phone, /\.video-grid\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
     assert.match(phone, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
     assert.match(phone, /\.category-rail\s*\{[^}]*overflow-x:\s*auto/);
+    assert.match(phase, /@media \(max-width: 767px\)[\s\S]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   });
 });

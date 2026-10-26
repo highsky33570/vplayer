@@ -1,18 +1,25 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 const SESSION_KEY = 'vplayer_login_reminder_dismissed';
 
+/** Inline homepage note. Not a floating card. */
 export function LoginReminder() {
+  const { pathname } = useLocation();
   const { user, ready, openLogin, authRequired } = useAuth();
   const [dismissed, setDismissed] = useState(
     () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SESSION_KEY) === '1',
   );
 
-  if (!authRequired || !ready || user || dismissed) return null;
+  if (pathname !== '/' || !authRequired || !ready || user || dismissed) return null;
 
   return (
-    <aside className="login-reminder" aria-label="登录提示">
+    <p className="login-reminder" role="note">
+      <span>登录后可使用收藏、历史和消息。</span>
+      <button type="button" className="login-reminder-cta" onClick={() => openLogin('login')}>
+        登录
+      </button>
       <button
         type="button"
         className="login-reminder-close"
@@ -22,20 +29,8 @@ export function LoginReminder() {
           setDismissed(true);
         }}
       >
-        ×
+        关闭
       </button>
-      <div className="login-reminder-body">
-        <span className="login-reminder-mark" aria-hidden>
-          V
-        </span>
-        <div>
-          <p className="login-reminder-title">登录 天涯欧乐，畅享高清影视！</p>
-          <p className="login-reminder-sub">登录后可使用收藏、历史记录等功能</p>
-        </div>
-      </div>
-      <button type="button" className="login-reminder-cta" onClick={() => openLogin('login')}>
-        立即登录
-      </button>
-    </aside>
+    </p>
   );
 }

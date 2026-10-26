@@ -5,7 +5,7 @@ import { UserAvatar } from '../account/UserAvatar';
 import { subscribeUnreadCount } from '../account/unreadEvents';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
-import { BannerCarousel } from './BannerCarousel';
+import { DiscoveryNav } from './DiscoveryNav';
 import { HeaderAccountAvatar } from './HeaderAccountAvatar';
 import { HeaderFlyout } from './HeaderFlyout';
 import {
@@ -25,26 +25,14 @@ import {
   headerDestinationActive,
   openHeaderFlyout,
   shouldEnlargeAvatar,
-  usesCinematicBanner,
   type HeaderFlyoutId,
 } from './headerFlyoutLogic';
 
 const UNREAD_POLL_MS = 60_000;
 const NOTICE_MS = 2400;
 
-const BANNER_LINKS = [
-  { slug: 'home', label: '首页', to: '/' },
-  { slug: 'movie', label: '电影', to: '/?ch=movie' },
-  { slug: 'tv', label: '连续剧', to: '/?ch=tv' },
-  { slug: 'variety', label: '综艺', to: '/?ch=variety' },
-  { slug: 'anime', label: '动漫', to: '/?ch=anime' },
-  { slug: 'midnight', label: '午夜影院', to: '/?ch=midnight' },
-  { slug: 'vip-bluray', label: 'VIP蓝光影院', to: '/?ch=vip-bluray' },
-] as const;
-
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [params] = useSearchParams();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -65,10 +53,6 @@ export function Header() {
   useEffect(() => {
     if (!desktopHover || !showIdentity) setOpenFlyout(null);
   }, [desktopHover, showIdentity]);
-
-  useEffect(() => {
-    setSearchOpen(false);
-  }, [pathname, urlQ]);
 
   const refreshUnread = useCallback(() => {
     if (!token) return;
@@ -155,7 +139,6 @@ export function Header() {
     if (!keyword) return;
     navigate(`/?q=${encodeURIComponent(keyword)}`);
     setMenuOpen(false);
-    setSearchOpen(false);
   }
 
   function onSearchSubmit(e: FormEvent) {
@@ -163,15 +146,7 @@ export function Header() {
     runSearch();
   }
 
-  const channel = params.get('ch');
   const destActive = headerDestinationActive(pathname);
-  const showCinematicBanner = usesCinematicBanner(pathname);
-
-  function linkActive(slug: string) {
-    if (pathname !== '/') return false;
-    if (slug === 'home') return !channel;
-    return channel === slug;
-  }
 
   /** Desktop top-right destinations: new tab; guests get login on this tab instead. */
   function onDestLinkClick(id: HeaderFlyoutId, event: { preventDefault: () => void }, opts?: { public?: boolean }) {
@@ -182,41 +157,12 @@ export function Header() {
   }
 
   return (
-    <div
-      className={`banner-shell${showCinematicBanner ? '' : ' banner-shell--app'}${searchOpen ? ' is-search-open' : ''}`}
-    >
-      {/* Cinematic banner on home + most destinations; /messages uses compact chrome only. */}
-      {showCinematicBanner ? <BannerCarousel /> : null}
-
+    <div className="banner-shell banner-shell--app">
       <header className="banner-bar">
         <div className="banner-left">
-          <button
-            type="button"
-            className="menu-toggle"
-            aria-label="打开菜单"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            <MenuIcon />
-          </button>
-
           <Link to="/" className="brand" onClick={() => setMenuOpen(false)}>
-            <span className="brand-mark">天</span>
             <span className="brand-text">天涯欧乐</span>
           </Link>
-
-          <nav className="banner-nav" aria-label="频道">
-            {BANNER_LINKS.map((link) => (
-              <Link
-                key={link.slug}
-                to={link.to}
-                className={linkActive(link.slug) ? 'is-active' : undefined}
-                onClick={() => setMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
         </div>
 
         <form className="search" role="search" onSubmit={onSearchSubmit}>
@@ -230,24 +176,17 @@ export function Header() {
           <button type="submit" aria-label="搜索">
             <SearchIcon />
           </button>
-          <button
-            type="button"
-            className="mobile-search-cancel"
-            onClick={() => setSearchOpen(false)}
-          >
-            取消
-          </button>
         </form>
 
         <div className="banner-actions">
           <button
             type="button"
-            className="mobile-search-toggle"
-            aria-label={searchOpen ? '关闭搜索' : '打开搜索'}
-            aria-expanded={searchOpen}
-            onClick={() => setSearchOpen((open) => !open)}
+            className="menu-toggle"
+            aria-label="更多"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
           >
-            <SearchIcon />
+            更多
           </button>
           {!ready ? null : showIdentity && user ? (
             <div className="banner-user-menu">
@@ -494,6 +433,7 @@ export function Header() {
           </button>
         </div>
       </div>
+      <DiscoveryNav />
     </div>
   );
 }
@@ -533,15 +473,15 @@ function DestNavLink({
       data-dest-href={href}
       onClick={onClick}
     >
-      <span className="banner-action-icon">
+      <span className="banner-action-icon" aria-hidden>
         {icon}
-        {badge ? (
-          <span className="banner-badge" aria-label={`${badge} 条未读`}>
-            {badge}
-          </span>
-        ) : null}
       </span>
       <span>{label}</span>
+      {badge ? (
+        <span className="banner-badge" aria-label={`${badge} 条未读`}>
+          {badge}
+        </span>
+      ) : null}
     </a>
   );
 }
@@ -660,14 +600,6 @@ function UploadIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M12 16V5M7 9l5-5 5 5M5 19h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function MenuIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }

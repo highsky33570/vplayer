@@ -1,12 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import type { Category } from '../api';
-import { useAuth } from '../auth/AuthContext';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { listCategories, type Category } from '../api';
 import {
-  DESKTOP_TEXT_LINKS,
   activeCategoryScrollOptions,
   childrenOfParent,
-  desktopSubcategories,
   expandedParentSlugForActive,
   resolveNavCategories,
   subcategoryListOverflows,
@@ -25,25 +22,40 @@ export {
   toggleMainExpansion,
 } from './discoveryNavLogic';
 
-type Props = {
-  categories: Category[];
-  active: string;
-  onSelect: (slug: string) => void;
-};
-
-export function DiscoveryNav({ categories, active, onSelect }: Props) {
-  const { user, openLogin, authRequired } = useAuth();
+export function DiscoveryNav() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [params] = useSearchParams();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const routeChannel = params.get('ch') || 'home';
+  const active = pathname === '/' ? routeChannel : '';
+
+  function onSelect(slug: string) {
+    if (slug === 'home') navigate('/');
+    else navigate(`/?ch=${encodeURIComponent(slug)}`);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    listCategories()
+      .then((rows) => {
+        if (!cancelled) setCategories(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setCategories([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const mains = useMemo(() => resolveNavCategories(categories), [categories]);
-  const subs = useMemo(() => desktopSubcategories(categories), [categories]);
   const [expandedParentSlug, setExpandedParentSlug] = useState<string | null>(() =>
     expandedParentSlugForActive(categories, resolveNavCategories(categories), active),
   );
   const [showAllChildren, setShowAllChildren] = useState(false);
   const [showAllParent, setShowAllParent] = useState(expandedParentSlug);
   const [childrenOverflow, setChildrenOverflow] = useState(false);
-  const [desktopShowAll, setDesktopShowAll] = useState(false);
-  const [desktopOverflow, setDesktopOverflow] = useState(false);
   if (showAllParent !== expandedParentSlug) {
     setShowAllParent(expandedParentSlug);
     setShowAllChildren(false);
@@ -51,7 +63,6 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
 
   const discoveryRef = useRef<HTMLDivElement>(null);
   const subrowRef = useRef<HTMLDivElement>(null);
-  const desktopSubsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setExpandedParentSlug((current) =>
@@ -91,28 +102,6 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
       observer.disconnect();
     };
   }, [expandedParentSlug, expandedChildrenKey(categories, expandedParentSlug), showAllChildren]);
-
-  useLayoutEffect(() => {
-    const grid = desktopSubsRef.current;
-    if (!grid) return;
-
-    const measure = () => {
-      const cap = Number.parseFloat(getComputedStyle(grid).getPropertyValue('--desktop-sub-cap'));
-      const visible =
-        grid.classList.contains('is-all') && Number.isFinite(cap) ? cap : grid.clientHeight;
-      const next = subcategoryListOverflows(grid.scrollHeight, visible);
-      setDesktopOverflow((prev) => (prev === next ? prev : next));
-    };
-
-    measure();
-    window.addEventListener('resize', measure);
-    const observer = new ResizeObserver(measure);
-    observer.observe(grid);
-    return () => {
-      window.removeEventListener('resize', measure);
-      observer.disconnect();
-    };
-  }, [subs, desktopShowAll]);
 
   function handleHome() {
     setExpandedParentSlug(null);
@@ -193,77 +182,7 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
         })}
       </nav>
 
-      <nav className="desktop-rail" aria-label="子分类">
-        <div className="desktop-rail-primary">
-          <button
-            type="button"
-            className={`desktop-primary desktop-primary--hot${active === 'home' ? ' is-active' : ''}`}
-            onClick={handleHome}
-          >
-            <HotMark />
-            <span>热门</span>
-          </button>
-        </div>
-
-        <div className="desktop-rail-subs">
-          <div
-            ref={desktopSubsRef}
-            className={`desktop-sub-grid${desktopShowAll ? ' is-all' : ''}`}
-          >
-            {subs.map((child) => (
-              <button
-                key={`${child.id}-${child.slug}`}
-                type="button"
-                title={`${child.parentName} · ${child.name}`}
-                className={`desktop-sub-btn${active === child.slug ? ' is-active' : ''}`}
-                onClick={() => {
-                  const parent = mains.find((main) => main.id === child.parent_id);
-                  if (parent) handleChild(child, parent);
-                }}
-              >
-                {child.name}
-              </button>
-            ))}
-          </div>
-          {desktopOverflow && (
-            <button
-              type="button"
-              className="desktop-sub-more"
-              aria-expanded={desktopShowAll}
-              onClick={() => setDesktopShowAll((current) => toggleSubcategoryShowAll(current))}
-            >
-              {desktopShowAll ? '收起 ▴' : '更多 ▾'}
-            </button>
-          )}
-        </div>
-
-        <div className="desktop-rail-links">
-          {DESKTOP_TEXT_LINKS.map((link) => (
-            <button
-              key={link.label}
-              type="button"
-              className="desktop-text-link"
-              title={link.soon ? '即将推出' : undefined}
-              aria-disabled={link.soon && user ? true : undefined}
-              onClick={() => {
-                if (link.soon) {
-                  if (authRequired && !user) openLogin('login');
-                  return;
-                }
-                if (authRequired && link.auth && !user) {
-                  openLogin('login');
-                  return;
-                }
-                if (link.href) navigate(link.href);
-              }}
-            >
-              {link.label}
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {/* Phone-only wrapped children. Desktop keeps inline .category-children beside the parent. */}
+      {/* Second text row. Shown only while a channel with children is open. */}
       <div
         className={`category-subrow${expandedChildren.length > 0 ? ' is-open' : ''}`}
         aria-hidden={expandedChildren.length === 0}
@@ -301,19 +220,6 @@ export function DiscoveryNav({ categories, active, onSelect }: Props) {
         </div>
       </div>
     </div>
-  );
-}
-
-function HotMark() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3s1 3 1 5a3 3 0 0 1-3 3c0 4 2 6 4 7 4 0 7-3.5 7-8 0-5-5-8-9-7z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
 

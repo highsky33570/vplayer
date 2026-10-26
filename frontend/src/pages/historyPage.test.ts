@@ -65,7 +65,8 @@ describe('history shell — compact like /messages', () => {
     assert.equal(usesCinematicBanner('/vip'), true);
     assert.equal(usesCinematicBanner('/favorites'), true);
     assert.match(flyoutLogic, /COMPACT_SHELL_PATHS|\/history/);
-    assert.match(header, /usesCinematicBanner\(pathname\)/);
+    assert.equal(header.includes('BannerCarousel'), false);
+    assert.match(header, /banner-shell banner-shell--app/);
     assert.equal(history.includes('BannerCarousel'), false);
     assert.equal(history.includes('DiscoveryNav'), false);
     assert.match(history, /data-testid="history-workspace"/);

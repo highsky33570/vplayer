@@ -30,8 +30,8 @@ describe('messages shell — no cinematic banner', () => {
     assert.equal(usesCinematicBanner('/vip'), true);
     assert.equal(usesCinematicBanner('/favorites'), true);
     assert.equal(usesCinematicBanner('/history'), false);
-    assert.match(header, /usesCinematicBanner\(pathname\)/);
-    assert.match(header, /showCinematicBanner \? <BannerCarousel \/> : null/);
+    assert.equal(header.includes('BannerCarousel'), false);
+    assert.match(header, /banner-shell banner-shell--app/);
     assert.match(header, /banner-shell--app/);
     assert.equal(messages.includes('BannerCarousel'), false);
     assert.equal(messages.includes('DiscoveryNav'), false);

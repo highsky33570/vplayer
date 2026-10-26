@@ -164,7 +164,8 @@ describe('wired flyouts', () => {
     assert.match(css, /\.banner-shell--app/);
     assert.match(css, /\.msg-center-grid/);
     assert.match(css, /\.hist-grid/);
-    assert.match(header, /showCinematicBanner \? <BannerCarousel \/> : null/);
+    assert.equal(header.includes('BannerCarousel'), false);
+    assert.match(header, /banner-shell banner-shell--app/);
     assert.equal(header.includes('isHomeShell'), false);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.equal(/header-flyout-anchor/.test(phone), false);
@@ -219,13 +220,14 @@ describe('preview and badge helpers', () => {
 });
 
 describe('desktop homepage gutter', () => {
-  it('keeps mid-desktop breathing room and widens large-desktop gutters to ~56px/side', () => {
-    const desk = css.slice(css.indexOf('/* Desktop subcategory rail'), css.indexOf('/* bp:compact'));
-    assert.match(desk, /width:\s*min\(2200px,\s*calc\(100% - 64px\)\)/);
-    assert.match(desk, /@media \(min-width: 1280px\)/);
-    assert.match(desk, /width:\s*min\(2200px,\s*calc\(100% - 112px\)\)/);
-    assert.match(desk, /\.page:not\(\.watch\):not\(\.auth-page\)/);
-    assert.match(desk, /\.desktop-rail/);
-    assert.match(desk, /\.category-rail/);
+  it('uses 24px / 32px / 40px portal gutters instead of the cinematic inset', () => {
+    const phase = css.slice(css.indexOf('/* ——— Phase 1'));
+    assert.match(phase, /width:\s*min\(1840px,\s*calc\(100% - 48px\)\)/);
+    assert.match(phase, /@media \(min-width: 1440px\)/);
+    assert.match(phase, /width:\s*min\(1840px,\s*calc\(100% - 64px\)\)/);
+    assert.match(phase, /@media \(min-width: 1920px\)/);
+    assert.match(phase, /width:\s*min\(1840px,\s*calc\(100% - 80px\)\)/);
+    assert.match(phase, /\.page:not\(\.watch\):not\(\.auth-page\)/);
+    assert.match(phase, /\.category-rail/);
   });
 });

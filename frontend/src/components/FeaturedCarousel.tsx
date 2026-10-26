@@ -25,10 +25,6 @@ export function FeaturedCarousel({ videos }: Props) {
 
   if (!slides.length) return null;
 
-  const go = (dir: -1 | 1) => {
-    setIndex((i) => (i + dir + slides.length) % slides.length);
-  };
-
   const current = slides[index];
 
   function onVideoClick(e: MouseEvent<HTMLAnchorElement>, videoId: number) {
@@ -72,29 +68,6 @@ export function FeaturedCarousel({ videos }: Props) {
           </Link>
         );
       })}
-
-      <div className="carousel-dots">
-        {slides.map((v, i) => (
-          <button
-            key={v.id}
-            type="button"
-            className={i === index ? 'is-active' : undefined}
-            aria-label={`切换到 ${v.title}`}
-            onClick={() => setIndex(i)}
-          />
-        ))}
-      </div>
-
-      {slides.length > 1 && (
-        <div className="carousel-nav">
-          <button type="button" aria-label="上一张" onClick={() => go(-1)}>
-            ‹
-          </button>
-          <button type="button" aria-label="下一张" onClick={() => go(1)}>
-            ›
-          </button>
-        </div>
-      )}
 
       <span className="sr-only">当前：{current?.title}</span>
     </div>

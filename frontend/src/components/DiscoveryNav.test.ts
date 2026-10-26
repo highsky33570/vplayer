@@ -264,13 +264,13 @@ describe('mobile and desktop category presentation', () => {
     assert.match(src, /mains\.map\(\(main\)/);
     const tablet = css.slice(css.indexOf('/* bp:tablet'), css.indexOf('/* bp:phone'));
     assert.match(tablet, /repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
-    assert.match(tablet, /--banner-h:\s*76px/);
+    assert.match(tablet, /--banner-h:\s*58px/);
     assert.match(tablet, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
     assert.match(tablet, /\.category-rail\s*\{[^}]*overflow-x:\s*auto/);
-    assert.match(phone, /--banner-h:\s*46px/);
+    assert.match(phone, /--banner-h:\s*44px/);
     const desktop = css.slice(0, css.indexOf('/* bp:compact'));
     assert.match(desktop, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
-    assert.match(desktop, /\.category-children\s*\{[^}]*display:\s*grid/);
+    assert.match(desktop, /\.category-children\s*\{[^}]*display:\s*none/);
     assert.equal(src.includes('上一组分类'), false);
     assert.equal(src.includes('下一组分类'), false);
     assert.equal(src.includes('scrollBy'), false);

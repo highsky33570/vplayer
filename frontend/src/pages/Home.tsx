@@ -2,15 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { listCategories, listVideosPage, type Category, type Video } from '../api';
 import { ContentSection } from '../components/ContentSection';
-import { DiscoveryNav, resolveNavCategories } from '../components/DiscoveryNav';
+import { resolveNavCategories } from '../components/DiscoveryNav';
 import { FeaturedGrid } from '../components/FeaturedGrid';
 import { FEATURED_POOL_LIMIT } from '../components/featuredLayout';
 import { VideoCard } from '../components/VideoCard';
 
 const PAGE_SIZE = 30;
 
-/** Large-desktop `.video-grid` is 5 columns → two rows = 10 cards per section. */
-const GRID_COLS_DESKTOP = 5;
+/** Large-desktop `.video-grid` is 6 columns → two rows = 12 cards per section. */
+const GRID_COLS_DESKTOP = 6;
 const HOME_SECTION_ROWS = 2;
 const HOME_SECTION_LIMIT = GRID_COLS_DESKTOP * HOME_SECTION_ROWS;
 
@@ -30,7 +30,7 @@ type HomeSectionsData = {
 };
 
 export function Home() {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const [cats, setCats] = useState<Category[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [homeSections, setHomeSections] = useState<HomeSectionsData | null>(null);
@@ -173,11 +173,6 @@ export function Home() {
     }
   }
 
-  function selectChannel(slug: string) {
-    if (slug === 'home') setParams({});
-    else setParams({ ch: slug });
-  }
-
   const isSearch = Boolean(searchQ);
   const featured =
     isHomeLanding && homeSections ? homeSections.latest.slice(0, FEATURED_POOL_LIMIT) : [];
@@ -228,14 +223,15 @@ export function Home() {
             ? (homeSections?.bySlug[section.slug] ?? [])
             : latest.slice(0, HOME_SECTION_LIMIT);
           const moreTo = section.slug ? `/?ch=${section.slug}` : undefined;
+          const layout = section.slug === 'movie' ? 'lead' : section.slug === 'variety' ? 'compact' : 'plain';
 
           return (
             <ContentSection
               key={section.title}
               title={section.title}
-              mobileTitle={section.slug ? undefined : '最新热播推荐'}
               moreTo={moreTo}
-              videos={items}
+              layout={layout}
+              videos={section.slug === 'movie' ? items.slice(0, 11) : items}
               emptyText={
                 section.slug
                   ? `${section.title}暂无内容`
@@ -250,8 +246,6 @@ export function Home() {
 
   return (
     <>
-      <DiscoveryNav categories={cats} active={active} onSelect={selectChannel} />
-
       <div className="page">
         {loading ? (
           isHomeLanding ? (
@@ -276,7 +270,6 @@ export function Home() {
           <>
             <div className="section-head">
               <div className="section-title-row">
-                <span className="section-accent" aria-hidden />
                 <h2>{listTitle}</h2>
               </div>
               <p className="section-count">
@@ -321,16 +314,6 @@ export function Home() {
             )}
           </>
         )}
-      </div>
-
-      <div className="dock">
-        <button
-          type="button"
-          aria-label="回到顶部"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        >
-          ↑
-        </button>
       </div>
     </>
   );

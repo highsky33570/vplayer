@@ -32,9 +32,9 @@ const NEW_TAB_LINKS = [
 ] as const;
 
 describe('shared homepage banner on destinations', () => {
-  it('mounts BannerCarousel for home and non-compact destinations; compact shell on /messages and /history', () => {
-    assert.match(header, /usesCinematicBanner\(pathname\)/);
-    assert.match(header, /showCinematicBanner \? <BannerCarousel \/> : null/);
+  it('uses one flat header on every public page', () => {
+    assert.equal(header.includes('BannerCarousel'), false);
+    assert.match(header, /banner-shell banner-shell--app/);
     assert.match(header, /banner-shell--app/);
     assert.match(css, /\.banner-shell--app/);
     assert.equal(header.includes('headerShellMode'), false);
@@ -121,8 +121,9 @@ describe('desktop top-right destinations open in a new browser tab', () => {
 });
 
 describe('homepage DiscoveryNav stays on Home only', () => {
-  it('keeps DiscoveryNav on Home only', () => {
-    assert.match(home, /<DiscoveryNav/);
+  it('keeps the channel bar in the global header, not inside destination pages', () => {
+    assert.match(header, /<DiscoveryNav/);
+    assert.equal(/<DiscoveryNav/.test(home), false);
     assert.equal(vip.includes('DiscoveryNav'), false);
     assert.equal(messages.includes('DiscoveryNav'), false);
     assert.equal(favorites.includes('DiscoveryNav'), false);

@@ -9,14 +9,15 @@ type Props = {
   moreTo?: string;
   videos: Video[];
   emptyText?: string;
+  /** Restrained editorial variation. Uses the same real videos. */
+  layout?: 'plain' | 'lead' | 'compact';
 };
 
-export function ContentSection({ title, mobileTitle, moreTo, videos, emptyText }: Props) {
+export function ContentSection({ title, mobileTitle, moreTo, videos, emptyText, layout = 'plain' }: Props) {
   return (
-    <section className="content-section">
+    <section className={`content-section content-section--${layout}`}>
       <div className="section-head">
         <div className="section-title-row">
-          <span className="section-accent" aria-hidden />
           <h2>
             <span className="section-title-long">{title}</span>
             {mobileTitle ? <span className="section-title-short">{mobileTitle}</span> : null}
@@ -24,15 +25,14 @@ export function ContentSection({ title, mobileTitle, moreTo, videos, emptyText }
         </div>
         {moreTo ? (
           <Link to={moreTo} className="section-more">
-            <span className="section-more-long">查看更多 ›</span>
-            <span className="section-more-short">更多 &gt;</span>
+            更多 &gt;
           </Link>
         ) : null}
       </div>
       {videos.length === 0 ? (
         <p className="section-empty">{emptyText || '该分区暂无内容'}</p>
       ) : (
-        <div className="video-grid">
+        <div className={`video-grid${layout === 'plain' ? '' : ` video-grid--${layout}`}`}>
           {videos.map((v) => (
             <VideoCard key={`${title}-${v.id}`} video={v} />
           ))}
