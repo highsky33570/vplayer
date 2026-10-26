@@ -25,6 +25,9 @@ type Server struct {
 }
 
 func New(cfg config.Config) (*Server, error) {
+	if err := cfg.CheckMediaSigning(); err != nil {
+		return nil, err
+	}
 	if cfg.AppEnv == "local" {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -115,6 +118,7 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/videos/:id", api.GetVideo)
 		v1.GET("/videos/:id/play", api.RequireUserWhenPlaybackAuthRequired, api.ResolvePlay)
 		v1.POST("/videos/:id/play", api.RequireUserWhenPlaybackAuthRequired, api.CreatePlaySession)
+		v1.GET("/media/*path", api.ServeSignedMedia)
 		v1.GET("/videos/:id/related", api.ListRelated)
 		v1.GET("/videos/:id/episodes", api.ListEpisodes)
 		v1.GET("/videos/:id/comments", api.ListComments)
@@ -189,7 +193,8 @@ func cors(origins []string) gin.HandlerFunc {
 		if allow[origin] || allow["*"] {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Vary", "Origin")
-			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Admin-Token")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Range, X-Admin-Token")
+			c.Header("Access-Control-Expose-Headers", "Accept-Ranges, Content-Length, Content-Range, Content-Type")
 			c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
 		}
 		if c.Request.Method == "OPTIONS" {

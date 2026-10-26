@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -79,6 +80,16 @@ type Config struct {
 	PlaybackAuthRequired bool
 	PlayTicketTTL        int
 	HLSKeySecret         string
+	// MediaSigningEnabled serves R2 playback through short-lived HMAC URLs.
+	// Default false so existing CDN URLs stay until production turns it on.
+	MediaSigningEnabled bool
+	// MediaSigningSecret is HMAC key material. Never sent to clients. Required when signing is enabled.
+	MediaSigningSecret string
+	// MediaURLTTLSeconds is clamped to 30–3600. Default 600.
+	MediaURLTTLSeconds int
+	// MediaPublicBase is the browser-facing origin for signed media URLs (no trailing slash).
+	// Example: https://example.com. Empty uses the incoming request host.
+	MediaPublicBase string
 
 	// Email verification / SMTP (registration only; login does not require these).
 	// EmailVerificationEnabled defaults false so registration works without SMTP.
@@ -150,6 +161,10 @@ func Load() Config {
 		PlaybackAuthRequired: getenvBool("PLAYBACK_AUTH_REQUIRED", true),
 		PlayTicketTTL:        getenvInt("PLAY_TICKET_TTL_SEC", 300),
 		HLSKeySecret:         getenv("HLS_KEY_SECRET", "dev-hls-key-secret"),
+		MediaSigningEnabled:  getenvBool("MEDIA_SIGNING_ENABLED", false),
+		MediaSigningSecret:   os.Getenv("MEDIA_SIGNING_SECRET"),
+		MediaURLTTLSeconds:   clampMediaTTL(getenvInt("MEDIA_URL_TTL_SECONDS", 600)),
+		MediaPublicBase:      strings.TrimRight(getenv("MEDIA_PUBLIC_BASE", ""), "/"),
 
 		EmailVerificationEnabled: getenvBool("EMAIL_VERIFICATION_ENABLED", false),
 		SMTPHost:                 getenv("SMTP_HOST", ""),
@@ -178,6 +193,35 @@ func Load() Config {
 		OleHdTvMaxConcurrency:    getenvInt("OLEHDTV_MAX_CONCURRENCY", 2),
 		OleHdTvMaxRetries:        getenvInt("OLEHDTV_MAX_RETRIES", 3),
 	}
+}
+
+const (
+	mediaURLTTLMin = 30
+	mediaURLTTLMax = 3600
+)
+
+func clampMediaTTL(n int) int {
+	if n < mediaURLTTLMin {
+		return mediaURLTTLMin
+	}
+	if n > mediaURLTTLMax {
+		return mediaURLTTLMax
+	}
+	return n
+}
+
+// CheckMediaSigning fails closed when signed delivery is on without a usable secret.
+func (c Config) CheckMediaSigning() error {
+	if !c.MediaSigningEnabled {
+		return nil
+	}
+	if len(strings.TrimSpace(c.MediaSigningSecret)) < 16 {
+		return fmt.Errorf("media signing enabled but MEDIA_SIGNING_SECRET is missing or too short")
+	}
+	if c.MediaURLTTLSeconds < mediaURLTTLMin || c.MediaURLTTLSeconds > mediaURLTTLMax {
+		return fmt.Errorf("media signing enabled but MEDIA_URL_TTL_SECONDS is outside %d-%d", mediaURLTTLMin, mediaURLTTLMax)
+	}
+	return nil
 }
 
 func getenv(k, def string) string {

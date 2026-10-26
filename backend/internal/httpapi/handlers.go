@@ -28,6 +28,8 @@ type API struct {
 	Resolver    *play.Resolver
 	SyncRunner  *scheduler.OleHdTvRunner
 	MediaBase   string
+	// MediaOpener overrides private object reads (tests). Nil uses R2 or the local object dir.
+	MediaOpener MediaOpener
 	// PublicVideos optionally overrides Store for public video list/count (tests).
 	PublicVideos publicVideoRepo
 	// AdminVideos optionally overrides Store for admin video reads (tests).
@@ -210,6 +212,9 @@ func (a *API) ResolvePlay(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": err.Error()})
+		return
+	}
+	if !a.protectPlaybackURL(c, info) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": info})
