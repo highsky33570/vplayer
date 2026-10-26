@@ -58,7 +58,7 @@ describe('admin media UI boundaries', () => {
     assert.match(app, /path="media\/episodes\/:id"\s+element=\{<AdminMediaEpisodeDetail\s*\/>\}/);
 
     const layout = readFileSync(join(here, 'AdminLayout.tsx'), 'utf8');
-    assert.match(layout, /to:\s*'\/admin\/media',\s*label:\s*'Media',\s*enabled:\s*true/);
+    assert.match(layout, /to:\s*'\/admin\/media',\s*label:\s*'媒体管理',\s*enabled:\s*true/);
     assert.match(layout, /to:\s*'\/admin\/videos'/);
     assert.match(layout, /to:\s*'\/admin\/sync'/);
   });
@@ -94,10 +94,10 @@ describe('admin media UI boundaries', () => {
       assert.equal(combined.includes(needle), false, `must not contain ${needle}`);
     }
 
-    assert.match(list, /Eligible for Migration/);
-    assert.match(list, /Currently eligible under migration rules/);
-    assert.match(list, /Media migration run history is not tracked/);
-    assert.match(detail, /HLS object available/);
+    assert.match(list, /可迁移/);
+    assert.match(list, /按当前迁移规则符合条件/);
+    assert.match(list, /应用尚未记录媒体迁移的运行历史/);
+    assert.match(detail, /HLS 对象/);
     assert.equal(/Play\s*URL|>\s*Play\s*</.test(detail), false);
     assert.equal(detail.includes('migratemedia'), false);
   });

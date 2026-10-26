@@ -7,64 +7,19 @@ import {
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
+import {
+  formatDuration,
+  formatNullableCount,
+  jobLabel,
+  runStatusLabel,
+  triggerLabel,
+} from './adminLabels';
 
 function formatTime(value?: string | null) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
-}
-
-function formatNullableCount(value?: number | null) {
-  if (value === null || value === undefined) return '—';
-  return String(value);
-}
-
-function formatDuration(seconds?: number | null) {
-  if (seconds === null || seconds === undefined) return '—';
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return s ? `${m}m ${s}s` : `${m}m`;
-}
-
-function jobLabel(jobType: string) {
-  switch (jobType) {
-    case 'incremental_sync':
-      return 'Incremental Sync';
-    case 'enrichment':
-      return 'Pending Enrichment';
-    case 'media_migration':
-      return 'Media Migration';
-    default:
-      return jobType || '—';
-  }
-}
-
-function triggerLabel(triggerType: string) {
-  switch (triggerType) {
-    case 'cli':
-      return 'CLI';
-    case 'timer':
-      return 'Timer';
-    default:
-      return triggerType || '—';
-  }
-}
-
-function statusLabel(status: string) {
-  switch (status) {
-    case 'running':
-      return 'Running';
-    case 'succeeded':
-      return 'Succeeded';
-    case 'failed':
-      return 'Failed';
-    case 'rejected':
-      return 'Rejected';
-    default:
-      return status || '—';
-  }
 }
 
 export function AdminOperationalRunDetail() {
@@ -126,15 +81,15 @@ export function AdminOperationalRunDetail() {
     <section className="admin-page">
       <div className="admin-page-head">
         <p className="admin-breadcrumb">
-          <Link to="/admin/sync">Sync / Crawler</Link> / Operational Run
+          <Link to="/admin/sync">同步 / 采集</Link> / 运行记录
         </p>
-        <h1>{data ? `Operational Run #${data.id}` : 'Operational Run Detail'}</h1>
-        <p className="admin-muted">只读 worker 审计记录 · 不含错误原文与内部诊断</p>
+        <h1>{data ? `运行记录 #${data.id}` : '运行记录详情'}</h1>
+        <p className="admin-muted">只读工作进程审计记录 · 不含错误原文与内部诊断</p>
       </div>
 
       <div className="admin-alert is-info" role="note">
-        Live systemd/timer status is not queried. This page shows a recorded{' '}
-        <span className="admin-mono">operational_runs</span> row only.
+        这里不查询 systemd 或定时器的实时状态。本页只展示{' '}
+        <span className="admin-mono">operational_runs</span> 中已记录的一行。
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}
@@ -156,21 +111,21 @@ export function AdminOperationalRunDetail() {
             <dd>{data.id}</dd>
           </div>
           <div>
-            <dt>Job</dt>
+            <dt>任务</dt>
             <dd>
               {jobLabel(data.job_type)}{' '}
               <span className="admin-mono admin-muted">({data.job_type})</span>
             </dd>
           </div>
           <div>
-            <dt>Trigger</dt>
+            <dt>触发方式</dt>
             <dd>
               {triggerLabel(data.trigger_type)}{' '}
               <span className="admin-mono admin-muted">({data.trigger_type})</span>
             </dd>
           </div>
           <div>
-            <dt>Status</dt>
+            <dt>状态</dt>
             <dd>
               <span
                 className={
@@ -181,82 +136,82 @@ export function AdminOperationalRunDetail() {
                       : 'admin-badge'
                 }
               >
-                {statusLabel(data.status)}
+                {runStatusLabel(data.status)}
               </span>
               {data.stale ? (
                 <span className="admin-badge is-off" style={{ marginLeft: 6 }}>
-                  stale
+                  超时
                 </span>
               ) : null}
             </dd>
           </div>
           <div>
-            <dt>Requested</dt>
+            <dt>请求时间</dt>
             <dd>{formatTime(data.requested_at)}</dd>
           </div>
           <div>
-            <dt>Started</dt>
+            <dt>开始时间</dt>
             <dd>{formatTime(data.started_at)}</dd>
           </div>
           <div>
-            <dt>Finished</dt>
+            <dt>结束时间</dt>
             <dd>{formatTime(data.finished_at)}</dd>
           </div>
           <div>
-            <dt>Duration</dt>
+            <dt>耗时</dt>
             <dd>{formatDuration(data.duration_seconds)}</dd>
           </div>
           {useSelectedCounters ? (
             <>
               <div>
-                <dt>Selected</dt>
+                <dt>已选</dt>
                 <dd>{formatNullableCount(data.selected_count)}</dd>
               </div>
               <div>
-                <dt>Succeeded</dt>
+                <dt>成功</dt>
                 <dd>{formatNullableCount(data.succeeded_count)}</dd>
               </div>
               <div>
-                <dt>Skipped</dt>
+                <dt>跳过</dt>
                 <dd>{formatNullableCount(data.skipped_count)}</dd>
               </div>
               {isEnrichment ? (
                 <div>
-                  <dt>Unavailable</dt>
+                  <dt>不可用</dt>
                   <dd>{formatNullableCount(data.unavailable_count)}</dd>
                 </div>
               ) : null}
               <div>
-                <dt>Failed</dt>
+                <dt>失败</dt>
                 <dd>{formatNullableCount(data.failed_count)}</dd>
               </div>
             </>
           ) : (
             <>
               <div>
-                <dt>Scanned</dt>
+                <dt>扫描数</dt>
                 <dd>{formatNullableCount(data.scanned)}</dd>
               </div>
               <div>
-                <dt>Created</dt>
+                <dt>新增</dt>
                 <dd>{formatNullableCount(data.created_count)}</dd>
               </div>
               <div>
-                <dt>Updated</dt>
+                <dt>更新</dt>
                 <dd>{formatNullableCount(data.updated_count)}</dd>
               </div>
               <div>
-                <dt>Unchanged</dt>
+                <dt>未变化</dt>
                 <dd>{formatNullableCount(data.unchanged_count)}</dd>
               </div>
               <div>
-                <dt>Failed</dt>
+                <dt>失败</dt>
                 <dd>{formatNullableCount(data.failed_count)}</dd>
               </div>
             </>
           )}
           <div>
-            <dt>Error</dt>
+            <dt>错误</dt>
             <dd>
               {data.has_error ? (
                 <span className="admin-mono">{data.error_code || '—'}</span>
@@ -266,7 +221,7 @@ export function AdminOperationalRunDetail() {
             </dd>
           </div>
           <div>
-            <dt>Requested by user ID</dt>
+            <dt>发起用户 ID</dt>
             <dd>
               {data.requested_by_user_id === null || data.requested_by_user_id === undefined
                 ? '—'

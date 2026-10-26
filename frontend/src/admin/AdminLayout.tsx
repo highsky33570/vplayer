@@ -7,17 +7,17 @@ type AdminNavItem =
   | { to: string; label: string; enabled: false };
 
 const NAV: AdminNavItem[] = [
-  { to: '/admin', label: 'Dashboard', enabled: true, end: true },
-  { to: '/admin/videos', label: 'Videos', enabled: true },
-  { to: '/admin/categories', label: 'Categories', enabled: true },
-  { to: '/admin/users', label: 'Users', enabled: true },
-  { to: '/admin/sync', label: 'Sync / Crawler', enabled: true },
-  { to: '/admin/media', label: 'Media', enabled: true },
+  { to: '/admin', label: '控制台', enabled: true, end: true },
+  { to: '/admin/videos', label: '视频管理', enabled: true },
+  { to: '/admin/categories', label: '分类管理', enabled: true },
+  { to: '/admin/users', label: '用户管理', enabled: true },
+  { to: '/admin/sync', label: '同步 / 采集', enabled: true },
+  { to: '/admin/media', label: '媒体管理', enabled: true },
 ];
 
 export function AdminLayout() {
   const { user, logout } = useAuth();
-  const display = user?.nickname || user?.email || 'Admin';
+  const display = user?.nickname || user?.email || '管理员';
 
   return (
     <div className="admin-shell">
@@ -25,7 +25,7 @@ export function AdminLayout() {
         <div className="admin-brand">
           <span className="admin-brand-mark">天</span>
           <div>
-            <strong>天涯欧乐 Admin</strong>
+            <strong>天涯欧乐 管理后台</strong>
             <span>运营控制台</span>
           </div>
         </div>

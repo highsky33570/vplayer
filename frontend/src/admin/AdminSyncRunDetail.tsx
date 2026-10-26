@@ -7,6 +7,7 @@ import {
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
+import { catalogSyncResult, triggerLabel } from './adminLabels';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -70,14 +71,14 @@ export function AdminSyncRunDetail() {
     <section className="admin-page">
       <div className="admin-page-head">
         <p className="admin-breadcrumb">
-          <Link to="/admin/sync">Sync / Crawler</Link> / 记录详情
+          <Link to="/admin/sync">同步 / 采集</Link> / 记录详情
         </p>
-        <h1>{data ? `Sync Run #${data.id}` : 'Sync Run Detail'}</h1>
-        <p className="admin-muted">只读记录 · 不含错误原文与 summary_json</p>
+        <h1>{data ? `同步记录 #${data.id}` : '同步记录详情'}</h1>
+        <p className="admin-muted">只读记录 · 不含错误原文与内部摘要</p>
       </div>
 
       <div className="admin-alert is-info" role="note">
-        Worker/timer live status is not tracked by the application yet.
+        应用尚未跟踪工作进程或定时器的实时状态。
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}
@@ -99,58 +100,54 @@ export function AdminSyncRunDetail() {
             <dd>{data.id}</dd>
           </div>
           <div>
-            <dt>Source</dt>
+            <dt>来源</dt>
             <dd>{data.source_system}</dd>
           </div>
           <div>
-            <dt>Trigger</dt>
-            <dd>{data.trigger_type}</dd>
+            <dt>触发方式</dt>
+            <dd>{triggerLabel(data.trigger_type)}</dd>
           </div>
           <div>
-            <dt>Started</dt>
+            <dt>开始时间</dt>
             <dd>{formatTime(data.started_at)}</dd>
           </div>
           <div>
-            <dt>Finished</dt>
+            <dt>结束时间</dt>
             <dd>{formatTime(data.finished_at)}</dd>
           </div>
           <div>
-            <dt>Scanned</dt>
+            <dt>扫描数</dt>
             <dd>{data.scanned}</dd>
           </div>
           <div>
-            <dt>Created</dt>
+            <dt>新增</dt>
             <dd>{data.created_count}</dd>
           </div>
           <div>
-            <dt>Updated</dt>
+            <dt>更新</dt>
             <dd>{data.updated_count}</dd>
           </div>
           <div>
-            <dt>Unchanged</dt>
+            <dt>未变化</dt>
             <dd>{data.unchanged_count}</dd>
           </div>
           <div>
-            <dt>Failed</dt>
+            <dt>失败</dt>
             <dd>{data.failed_count}</dd>
           </div>
           <div>
-            <dt>Deactivated</dt>
+            <dt>停用</dt>
             <dd>{data.deactivated_count}</dd>
           </div>
           <div>
-            <dt>Status</dt>
+            <dt>状态</dt>
             <dd>
               <span
                 className={
                   data.has_error || data.failed_count > 0 ? 'admin-badge is-off' : 'admin-badge is-ok'
                 }
               >
-                {data.has_error
-                  ? 'recorded error'
-                  : data.failed_count > 0
-                    ? 'partial failures'
-                    : 'recorded ok'}
+                {catalogSyncResult(data)}
               </span>
             </dd>
           </div>

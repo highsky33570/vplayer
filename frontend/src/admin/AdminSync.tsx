@@ -20,22 +20,30 @@ import {
   type AdminOpsStatusFilter,
   type AdminOpsTriggerFilter,
 } from './adminSyncQuery';
+import {
+  catalogSyncResult,
+  formatDuration,
+  formatNullableCount,
+  jobLabel,
+  runStatusLabel,
+  triggerLabel,
+} from './adminLabels';
 
 /** Delayed Operational Runs refresh after Admin action acceptance (seconds). */
 export const ADMIN_OPS_REFRESH_DELAYS_MS = [2500, 9000] as const;
 
 function actionStatusMessage(status: number, errorCode?: string): string {
-  if (status === 202) return 'Run request accepted.';
+  if (status === 202) return '运行请求已接受。';
   if (status === 409 || errorCode === 'operation_busy') {
-    return 'A worker is already recorded as running.';
+    return '已有任务正在运行。';
   }
   if (status === 429 || errorCode === 'operation_cooldown') {
-    return 'A recent Admin request already exists; wait briefly before trying again.';
+    return '刚刚已有管理操作，请稍后再试。';
   }
   if (status === 503 || errorCode === 'worker_unavailable') {
-    return 'Worker could not be launched.';
+    return '无法启动工作进程。';
   }
-  return 'Request failed.';
+  return '请求失败。';
 }
 
 function formatTime(value?: string | null) {
@@ -43,65 +51,6 @@ function formatTime(value?: string | null) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
-}
-
-function formatNullableCount(value?: number | null) {
-  if (value === null || value === undefined) return '—';
-  return String(value);
-}
-
-function formatDuration(seconds?: number | null) {
-  if (seconds === null || seconds === undefined) return '—';
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return s ? `${m}m ${s}s` : `${m}m`;
-}
-
-function runStatus(run: AdminSyncRunSummary | null | undefined) {
-  if (!run) return '—';
-  if (run.has_error) return 'recorded error';
-  if (run.failed_count > 0) return 'partial failures';
-  return 'recorded ok';
-}
-
-function jobLabel(jobType: string) {
-  switch (jobType) {
-    case 'incremental_sync':
-      return 'Incremental Sync';
-    case 'enrichment':
-      return 'Pending Enrichment';
-    case 'media_migration':
-      return 'Media Migration';
-    default:
-      return jobType || '—';
-  }
-}
-
-function triggerLabel(triggerType: string) {
-  switch (triggerType) {
-    case 'cli':
-      return 'CLI';
-    case 'timer':
-      return 'Timer';
-    default:
-      return triggerType || '—';
-  }
-}
-
-function statusLabel(status: string) {
-  switch (status) {
-    case 'running':
-      return 'Running';
-    case 'succeeded':
-      return 'Succeeded';
-    case 'failed':
-      return 'Failed';
-    case 'rejected':
-      return 'Rejected';
-    default:
-      return status || '—';
-  }
 }
 
 function opStatusClass(row: AdminOperationalRun) {
@@ -126,23 +75,23 @@ function RunCard({
         <>
           <strong>{formatTime(run.started_at)}</strong>
           <p className="admin-muted">
-            scanned {run.scanned} · created {run.created_count} · updated {run.updated_count} ·
-            failed {run.failed_count}
+            扫描 {run.scanned} · 新增 {run.created_count} · 更新 {run.updated_count} · 失败{' '}
+            {run.failed_count}
           </p>
           <p>
             <span className={run.has_error || run.failed_count > 0 ? 'admin-badge is-off' : 'admin-badge is-ok'}>
-              {runStatus(run)}
+              {catalogSyncResult(run)}
             </span>{' '}
             <span className="admin-mono">{run.trigger_type}</span>
           </p>
           <p>
             <Link className="admin-title-link" to={`/admin/sync/runs/${run.id}`}>
-              Run #{run.id}
+              记录 #{run.id}
             </Link>
           </p>
         </>
       ) : (
-        <strong className="admin-muted">No recorded sync</strong>
+        <strong className="admin-muted">暂无同步记录</strong>
       )}
     </article>
   );
@@ -152,9 +101,9 @@ function OperationalCounters({ row }: { row: AdminOperationalRun }) {
   if (row.job_type === 'enrichment') {
     return (
       <>
-        selected {formatNullableCount(row.selected_count)} · succeeded{' '}
-        {formatNullableCount(row.succeeded_count)} · skipped {formatNullableCount(row.skipped_count)} ·
-        unavailable {formatNullableCount(row.unavailable_count)} · failed{' '}
+        已选 {formatNullableCount(row.selected_count)} · 成功{' '}
+        {formatNullableCount(row.succeeded_count)} · 跳过 {formatNullableCount(row.skipped_count)} ·
+        不可用 {formatNullableCount(row.unavailable_count)} · 失败{' '}
         {formatNullableCount(row.failed_count)}
       </>
     );
@@ -162,17 +111,17 @@ function OperationalCounters({ row }: { row: AdminOperationalRun }) {
   if (row.job_type === 'media_migration') {
     return (
       <>
-        selected {formatNullableCount(row.selected_count)} · succeeded{' '}
-        {formatNullableCount(row.succeeded_count)} · skipped {formatNullableCount(row.skipped_count)} ·
-        failed {formatNullableCount(row.failed_count)}
+        已选 {formatNullableCount(row.selected_count)} · 成功{' '}
+        {formatNullableCount(row.succeeded_count)} · 跳过 {formatNullableCount(row.skipped_count)} ·
+        失败 {formatNullableCount(row.failed_count)}
       </>
     );
   }
   return (
     <>
-      scanned {formatNullableCount(row.scanned)} · created {formatNullableCount(row.created_count)} ·
-      updated {formatNullableCount(row.updated_count)} · unchanged{' '}
-      {formatNullableCount(row.unchanged_count)} · failed {formatNullableCount(row.failed_count)}
+      扫描 {formatNullableCount(row.scanned)} · 新增 {formatNullableCount(row.created_count)} ·
+      更新 {formatNullableCount(row.updated_count)} · 未变化{' '}
+      {formatNullableCount(row.unchanged_count)} · 失败 {formatNullableCount(row.failed_count)}
     </>
   );
 }
@@ -287,7 +236,7 @@ export function AdminSync() {
 
   async function runIncremental() {
     const ok = window.confirm(
-      'Run Incremental Sync with fixed server settings (limit 5)? This launches a bounded worker; it does not wait for completion.',
+      '确定要以服务器固定设置运行增量同步（上限 5 条）吗？这将启动一个有界工作进程，不会等待其完成。',
     );
     if (!ok) return;
     setIncSubmitting(true);
@@ -305,7 +254,7 @@ export function AdminSync() {
       if (res.status === 202) scheduleOperationalRefresh();
     } catch (e) {
       setActionTone('danger');
-      setActionMessage(e instanceof Error ? e.message : 'Request failed.');
+      setActionMessage(e instanceof Error ? e.message : '请求失败。');
     } finally {
       setIncSubmitting(false);
     }
@@ -313,7 +262,7 @@ export function AdminSync() {
 
   async function runEnrichment() {
     const ok = window.confirm(
-      'Run Pending Enrichment with fixed server settings (limit 15, concurrency 1)? This launches a bounded worker; it does not wait for completion.',
+      '确定要以服务器固定设置运行待补全（上限 15 条，并发 1）吗？这将启动一个有界工作进程，不会等待其完成。',
     );
     if (!ok) return;
     setEnSubmitting(true);
@@ -331,7 +280,7 @@ export function AdminSync() {
       if (res.status === 202) scheduleOperationalRefresh();
     } catch (e) {
       setActionTone('danger');
-      setActionMessage(e instanceof Error ? e.message : 'Request failed.');
+      setActionMessage(e instanceof Error ? e.message : '请求失败。');
     } finally {
       setEnSubmitting(false);
     }
@@ -372,17 +321,15 @@ export function AdminSync() {
   return (
     <section className="admin-page">
       <div className="admin-page-head">
-        <h1>Sync / Crawler</h1>
-        <p className="admin-muted">同步观测与有界 Admin 触发 · 基于已记录的数据库状态</p>
+        <h1>同步 / 采集</h1>
+        <p className="admin-muted">同步观测与有界管理操作 · 基于已记录的数据库状态</p>
       </div>
 
       <div className="admin-alert is-info" role="note">
-        Live systemd/timer status is not queried. Recorded Sync History comes from catalog{' '}
-        <span className="admin-mono">sync_runs</span>. Operational Runs come from worker audit rows in{' '}
-        <span className="admin-mono">operational_runs</span>. A running row means the worker recorded a
-        running operation — not that systemd was polled. Enrichment appears only under Operational
-        Runs. Admin actions launch fixed bounded worker binaries; API restart can still interrupt an
-        Admin-launched child process.
+        这里不查询 systemd 或定时器的实时状态。同步历史来自片库表{' '}
+        <span className="admin-mono">sync_runs</span>。运行记录来自工作进程审计表{' '}
+        <span className="admin-mono">operational_runs</span>
+        。“运行中”只表示工作进程曾写入一条运行记录，并不代表已经查询过 systemd。待补全只出现在运行记录中。管理操作会启动固定上限的工作进程；重启 API 仍可能中断由后台拉起的子进程。
       </div>
 
       {!loading && !forbidden ? (
@@ -393,7 +340,7 @@ export function AdminSync() {
             disabled={incSubmitting || enSubmitting}
             onClick={() => void runIncremental()}
           >
-            {incSubmitting ? 'Submitting…' : 'Run Incremental Sync'}
+            {incSubmitting ? '提交中…' : '运行增量同步'}
           </button>
           <button
             type="button"
@@ -401,7 +348,7 @@ export function AdminSync() {
             disabled={incSubmitting || enSubmitting}
             onClick={() => void runEnrichment()}
           >
-            {enSubmitting ? 'Submitting…' : 'Run Pending Enrichment'}
+            {enSubmitting ? '提交中…' : '运行待补全'}
           </button>
         </div>
       ) : null}
@@ -430,60 +377,59 @@ export function AdminSync() {
       {!loading && !forbidden && !error && overview ? (
         <>
           <div className="admin-stat-grid">
-            <RunCard title="Latest Incremental Sync" run={overview.latest_incremental} />
-            <RunCard title="Latest Full / Manual Sync" run={overview.latest_full} />
+            <RunCard title="最近增量同步" run={overview.latest_incremental} />
+            <RunCard title="最近全量 / 手动同步" run={overview.latest_full} />
             <article className="admin-stat-card">
-              <span>Pending Enrichment</span>
+              <span>待补全</span>
               <strong>{overview.pending_enrichment_count}</strong>
-              <p className="admin-muted">Current pending enrichment backlog</p>
+              <p className="admin-muted">当前待补全积压数量</p>
             </article>
             <article className="admin-stat-card">
-              <span>Sync Errors</span>
+              <span>同步错误</span>
               <strong>
                 {overview.videos_sync_error_count} / {overview.categories_sync_error_count}
               </strong>
-              <p className="admin-muted">Videos / categories with sync_status error</p>
+              <p className="admin-muted">同步状态为错误的视频 / 分类</p>
             </article>
             <article className="admin-stat-card">
-              <span>Catalog State</span>
+              <span>片库状态</span>
               <strong>
                 {overview.videos_active} / {overview.videos_inactive}
               </strong>
-              <p className="admin-muted">Active / inactive videos</p>
+              <p className="admin-muted">启用 / 停用视频</p>
             </article>
             <article className="admin-stat-card">
-              <span>Latest Recorded Sync</span>
+              <span>最近同步记录</span>
               <strong>
                 {overview.latest_sync
-                  ? `#${overview.latest_sync.id} · ${overview.latest_sync.trigger_type}`
+                  ? `#${overview.latest_sync.id} · ${triggerLabel(overview.latest_sync.trigger_type)}`
                   : '—'}
               </strong>
               <p className="admin-muted">
-                {overview.latest_sync ? formatTime(overview.latest_sync.started_at) : 'None'}
+                {overview.latest_sync ? formatTime(overview.latest_sync.started_at) : '无'}
               </p>
             </article>
           </div>
 
           <div className="admin-page-head" style={{ marginTop: 28 }}>
-            <h2>Recorded Sync History</h2>
+            <h2>同步历史</h2>
             <p className="admin-muted">
-              Catalog synchronization history from <span className="admin-mono">sync_runs</span> ·
-              newest first
+              来自 <span className="admin-mono">sync_runs</span> 的片库同步历史 · 按时间倒序
             </p>
           </div>
 
           <div className="admin-filters">
             <label className="admin-filter-field">
-              <span>Trigger</span>
+              <span>触发方式</span>
               <select
                 value={parsed.triggerType}
                 onChange={(e) => applySyncFilters({ triggerType: e.target.value, page: 1 })}
               >
-                <option value="">All</option>
-                <option value="incremental">incremental</option>
-                <option value="manual">manual</option>
-                <option value="schedule">schedule</option>
-                <option value="cli">cli</option>
+                <option value="">全部</option>
+                <option value="incremental">增量</option>
+                <option value="manual">手动</option>
+                <option value="schedule">定时计划</option>
+                <option value="cli">CLI</option>
               </select>
             </label>
           </div>
@@ -497,14 +443,14 @@ export function AdminSync() {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Trigger</th>
-                      <th>Source</th>
-                      <th>Started</th>
-                      <th>Scanned</th>
-                      <th>Created</th>
-                      <th>Updated</th>
-                      <th>Failed</th>
-                      <th>Status</th>
+                      <th>触发方式</th>
+                      <th>来源</th>
+                      <th>开始时间</th>
+                      <th>扫描数</th>
+                      <th>新增</th>
+                      <th>更新</th>
+                      <th>失败</th>
+                      <th>状态</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -515,7 +461,7 @@ export function AdminSync() {
                             {row.id}
                           </Link>
                         </td>
-                        <td>{row.trigger_type}</td>
+                        <td>{triggerLabel(row.trigger_type)}</td>
                         <td>
                           <span className="admin-mono">{row.source_system}</span>
                         </td>
@@ -532,7 +478,7 @@ export function AdminSync() {
                                 : 'admin-badge is-ok'
                             }
                           >
-                            {runStatus(row)}
+                            {catalogSyncResult(row)}
                           </span>
                         </td>
                       </tr>
@@ -549,8 +495,8 @@ export function AdminSync() {
                         #{row.id} {row.trigger_type}
                       </strong>
                       <p>
-                        {row.source_system} · scanned {row.scanned} · failed {row.failed_count} ·{' '}
-                        {runStatus(row)}
+                        {row.source_system} · 扫描 {row.scanned} · 失败 {row.failed_count} ·{' '}
+                        {catalogSyncResult(row)}
                       </p>
                       <p className="admin-muted">{formatTime(row.started_at)}</p>
                     </div>
@@ -585,16 +531,16 @@ export function AdminSync() {
           )}
 
           <div className="admin-page-head" style={{ marginTop: 36 }}>
-            <h2>Operational Runs</h2>
+            <h2>运行记录</h2>
             <p className="admin-muted">
-              Incremental / enrichment / media migration worker execution history from{' '}
-              <span className="admin-mono">operational_runs</span> · newest first
+              增量同步、待补全与媒体迁移的工作进程执行历史，来自{' '}
+              <span className="admin-mono">operational_runs</span> · 按时间倒序
             </p>
           </div>
 
           <div className="admin-filters">
             <label className="admin-filter-field">
-              <span>Job</span>
+              <span>任务</span>
               <select
                 value={parsed.opJob}
                 onChange={(e) =>
@@ -604,14 +550,14 @@ export function AdminSync() {
                   })
                 }
               >
-                <option value="">All</option>
-                <option value="incremental_sync">Incremental Sync</option>
-                <option value="enrichment">Pending Enrichment</option>
-                <option value="media_migration">Media Migration</option>
+                <option value="">全部</option>
+                <option value="incremental_sync">增量同步</option>
+                <option value="enrichment">待补全</option>
+                <option value="media_migration">媒体迁移</option>
               </select>
             </label>
             <label className="admin-filter-field">
-              <span>Trigger</span>
+              <span>触发方式</span>
               <select
                 value={parsed.opTrigger}
                 onChange={(e) =>
@@ -621,13 +567,13 @@ export function AdminSync() {
                   })
                 }
               >
-                <option value="">All</option>
+                <option value="">全部</option>
                 <option value="cli">CLI</option>
-                <option value="timer">Timer</option>
+                <option value="timer">定时</option>
               </select>
             </label>
             <label className="admin-filter-field">
-              <span>Status</span>
+              <span>状态</span>
               <select
                 value={parsed.opStatus}
                 onChange={(e) =>
@@ -637,17 +583,17 @@ export function AdminSync() {
                   })
                 }
               >
-                <option value="">All</option>
-                <option value="running">Running</option>
-                <option value="succeeded">Succeeded</option>
-                <option value="failed">Failed</option>
-                <option value="rejected">Rejected</option>
+                <option value="">全部</option>
+                <option value="running">运行中</option>
+                <option value="succeeded">成功</option>
+                <option value="failed">失败</option>
+                <option value="rejected">已拒绝</option>
               </select>
             </label>
           </div>
 
           {opRows.length === 0 ? (
-            <p className="admin-empty">No operational runs recorded yet.</p>
+            <p className="admin-empty">暂无运行记录。</p>
           ) : (
             <>
               <div className="admin-table-wrap">
@@ -655,14 +601,14 @@ export function AdminSync() {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Job</th>
-                      <th>Trigger</th>
-                      <th>Status</th>
-                      <th>Started</th>
-                      <th>Finished</th>
-                      <th>Duration</th>
-                      <th>Counters</th>
-                      <th>Error</th>
+                      <th>任务</th>
+                      <th>触发方式</th>
+                      <th>状态</th>
+                      <th>开始时间</th>
+                      <th>结束时间</th>
+                      <th>耗时</th>
+                      <th>计数</th>
+                      <th>错误</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -679,10 +625,10 @@ export function AdminSync() {
                         <td>{jobLabel(row.job_type)}</td>
                         <td>{triggerLabel(row.trigger_type)}</td>
                         <td>
-                          <span className={opStatusClass(row)}>{statusLabel(row.status)}</span>
+                          <span className={opStatusClass(row)}>{runStatusLabel(row.status)}</span>
                           {row.stale ? (
                             <span className="admin-badge is-off" style={{ marginLeft: 6 }}>
-                              stale
+                              超时
                             </span>
                           ) : null}
                         </td>
@@ -719,8 +665,8 @@ export function AdminSync() {
                         #{row.id} {jobLabel(row.job_type)} · {triggerLabel(row.trigger_type)}
                       </strong>
                       <p>
-                        <span className={opStatusClass(row)}>{statusLabel(row.status)}</span>
-                        {row.stale ? ' · stale' : ''}
+                        <span className={opStatusClass(row)}>{runStatusLabel(row.status)}</span>
+                        {row.stale ? ' · 超时' : ''}
                         {row.has_error && row.error_code ? ` · ${row.error_code}` : ''}
                       </p>
                       <p className="admin-muted">

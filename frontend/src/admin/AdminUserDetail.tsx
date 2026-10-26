@@ -7,6 +7,7 @@ import {
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
+import { roleLabel } from './adminLabels';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -70,9 +71,9 @@ export function AdminUserDetail() {
     <section className="admin-page">
       <div className="admin-page-head">
         <p className="admin-breadcrumb">
-          <Link to="/admin/users">Users</Link> / 详情
+          <Link to="/admin/users">用户管理</Link> / 详情
         </p>
-        <h1>{data?.email ?? 'User Detail'}</h1>
+        <h1>{data?.email ?? '用户详情'}</h1>
         <p className="admin-muted">只读详情 · 不含密码、会话与凭证</p>
       </div>
 
@@ -95,25 +96,23 @@ export function AdminUserDetail() {
             <dd>{data.id}</dd>
           </div>
           <div>
-            <dt>Email</dt>
+            <dt>邮箱</dt>
             <dd>{data.email}</dd>
           </div>
           <div>
-            <dt>Nickname</dt>
+            <dt>昵称</dt>
             <dd>{data.nickname || '—'}</dd>
           </div>
           <div>
-            <dt>Role</dt>
+            <dt>角色</dt>
             <dd>
-              {data.is_admin ? (
-                <span className="admin-badge is-ok">Administrator</span>
-              ) : (
-                <span className="admin-badge is-off">User</span>
-              )}
+              <span className={data.is_admin ? 'admin-badge is-ok' : 'admin-badge is-off'}>
+                {roleLabel(data.is_admin)}
+              </span>
             </dd>
           </div>
           <div>
-            <dt>Created</dt>
+            <dt>创建时间</dt>
             <dd>{formatTime(data.created_at)}</dd>
           </div>
         </dl>

@@ -14,6 +14,7 @@ import {
   parseAdminVideosSearch,
   type AdminVideosActiveFilter,
 } from './adminVideosQuery';
+import { activeLabel, syncStatusLabel, videoStatusLabel } from './adminLabels';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -129,7 +130,7 @@ export function AdminVideos() {
   return (
     <section className="admin-page">
       <div className="admin-page-head">
-        <h1>Videos</h1>
+        <h1>视频管理</h1>
         <p className="admin-muted">只读片库列表 · 分页加载，不一次拉取全部数据</p>
       </div>
 
@@ -173,8 +174,8 @@ export function AdminVideos() {
             }
           >
             <option value="all">全部</option>
-            <option value="1">Active</option>
-            <option value="0">Inactive</option>
+            <option value="1">启用</option>
+            <option value="0">停用</option>
           </select>
         </label>
         <button type="submit" className="admin-btn-primary">
@@ -208,9 +209,9 @@ export function AdminVideos() {
                   <th>标题</th>
                   <th>分类</th>
                   <th>来源</th>
-                  <th>Status</th>
-                  <th>Active</th>
-                  <th>Sync</th>
+                  <th>状态</th>
+                  <th>启用状态</th>
+                  <th>同步</th>
                   <th>创建</th>
                 </tr>
               </thead>
@@ -237,13 +238,13 @@ export function AdminVideos() {
                         {row.source_id ? ` / ${row.source_id}` : ''}
                       </span>
                     </td>
-                    <td>{row.status}</td>
+                    <td>{videoStatusLabel(row.status)}</td>
                     <td>
                       <span className={row.is_active ? 'admin-badge is-ok' : 'admin-badge is-off'}>
-                        {row.is_active ? 'active' : 'inactive'}
+                        {activeLabel(row.is_active)}
                       </span>
                     </td>
-                    <td>{row.sync_status || '—'}</td>
+                    <td>{syncStatusLabel(row.sync_status)}</td>
                     <td>{formatTime(row.created_at)}</td>
                   </tr>
                 ))}
@@ -264,8 +265,8 @@ export function AdminVideos() {
                     #{row.id} {row.title}
                   </strong>
                   <p>
-                    {categoryName(row.category_id)} · {row.status} ·{' '}
-                    {row.is_active ? 'active' : 'inactive'}
+                    {categoryName(row.category_id)} · {videoStatusLabel(row.status)} ·{' '}
+                    {activeLabel(row.is_active)}
                   </p>
                   <p className="admin-muted">{formatTime(row.created_at)}</p>
                 </div>

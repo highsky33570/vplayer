@@ -108,19 +108,19 @@ describe('admin sync operational history UI boundaries', () => {
     );
     const combined = `${list}\n${detail}\n${opsApiSlice}`;
 
-    assert.match(list, /Operational Runs/);
-    assert.match(list, /No operational runs recorded yet\./);
-    assert.match(list, /Recorded Sync History/);
-    assert.match(list, /Incremental Sync/);
-    assert.match(list, /Pending Enrichment/);
+    assert.match(list, /运行记录/);
+    assert.match(list, /暂无运行记录。/);
+    assert.match(list, /同步历史/);
+    assert.match(list, /增量同步/);
+    assert.match(list, /待补全/);
     assert.match(list, />CLI</);
-    assert.match(list, />Timer</);
+    assert.match(list, />定时</);
     assert.match(list, /stale/);
     assert.match(list, /applyOpsFilters/);
     assert.match(list, /applySyncFilters/);
     assert.match(list, /formatNullableCount/);
     assert.match(list, /error_code/);
-    assert.match(detail, /Operational Run/);
+    assert.match(detail, /运行记录/);
     assert.match(detail, /stale/);
 
     const queryHelper = readFileSync(join(here, 'adminSyncQuery.ts'), 'utf8');
@@ -154,17 +154,17 @@ describe('admin sync operational history UI boundaries', () => {
     const list = readFileSync(join(here, 'AdminSync.tsx'), 'utf8');
     const api = readFileSync(join(here, '../api.ts'), 'utf8');
 
-    assert.match(list, /Run Incremental Sync/);
-    assert.match(list, /Run Pending Enrichment/);
+    assert.match(list, /运行增量同步/);
+    assert.match(list, /运行待补全/);
     assert.match(list, /window\.confirm/);
     assert.match(list, /incSubmitting/);
     assert.match(list, /enSubmitting/);
     assert.match(list, /ADMIN_OPS_REFRESH_DELAYS_MS/);
     assert.match(list, /scheduleOperationalRefresh/);
-    assert.match(list, /A worker is already recorded as running/);
-    assert.match(list, /A recent Admin request already exists/);
-    assert.match(list, /Worker could not be launched/);
-    assert.match(list, /Run request accepted/);
+    assert.match(list, /已有任务正在运行/);
+    assert.match(list, /刚刚已有管理操作/);
+    assert.match(list, /无法启动工作进程/);
+    assert.match(list, /运行请求已接受/);
     assert.equal(list.includes('Full Sync'), false);
     assert.equal(/limit\s*=|concurrency\s*=|<input[^>]+limit/i.test(list), false);
 

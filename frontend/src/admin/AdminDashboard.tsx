@@ -7,6 +7,7 @@ import {
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
+import { apiStatusLabel, triggerLabel } from './adminLabels';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -62,7 +63,7 @@ export function AdminDashboard() {
   if (loading) {
     return (
       <section className="admin-page">
-        <h1>Dashboard</h1>
+        <h1>控制台</h1>
         <p className="admin-muted">正在加载运营数据…</p>
       </section>
     );
@@ -71,9 +72,9 @@ export function AdminDashboard() {
   if (forbidden) {
     return (
       <section className="admin-page">
-        <h1>Dashboard</h1>
+        <h1>控制台</h1>
         <div className="admin-alert is-danger" role="alert">
-          无权访问仪表盘（403）。后端已拒绝本次请求。
+          无权访问控制台（403）。后端已拒绝本次请求。
         </div>
       </section>
     );
@@ -82,9 +83,9 @@ export function AdminDashboard() {
   if (error || !data) {
     return (
       <section className="admin-page">
-        <h1>Dashboard</h1>
+        <h1>控制台</h1>
         <div className="admin-alert is-danger" role="alert">
-          {error ?? '无法加载仪表盘'}
+          {error ?? '无法加载控制台'}
         </div>
       </section>
     );
@@ -95,77 +96,77 @@ export function AdminDashboard() {
   return (
     <section className="admin-page">
       <div className="admin-page-head">
-        <h1>Dashboard</h1>
-        <p className="admin-muted">只读运营概览 · API {data.status === 'ok' ? '正常' : data.status}</p>
+        <h1>控制台</h1>
+        <p className="admin-muted">只读运营概览 · API {apiStatusLabel(data.status)}</p>
       </div>
 
       <div className="admin-stat-grid">
         <article className="admin-stat-card">
-          <span>Users</span>
+          <span>用户</span>
           <strong>{data.users_total}</strong>
         </article>
         <article className="admin-stat-card">
-          <span>Videos</span>
+          <span>视频</span>
           <strong>{data.videos_total}</strong>
         </article>
         <article className="admin-stat-card">
-          <span>Active Videos</span>
+          <span>启用视频</span>
           <strong>{data.videos_active}</strong>
         </article>
         <article className="admin-stat-card">
-          <span>Categories</span>
+          <span>分类</span>
           <strong>{data.categories_total}</strong>
         </article>
         <article className="admin-stat-card">
-          <span>API Status</span>
+          <span>API 状态</span>
           <strong className={data.status === 'ok' ? 'is-ok' : ''}>
-            {data.status === 'ok' ? 'OK' : data.status}
+            {apiStatusLabel(data.status)}
           </strong>
         </article>
       </div>
 
       <article className="admin-panel">
         <div className="admin-panel-head">
-          <h2>Sync Status</h2>
+          <h2>同步状态</h2>
         </div>
         {!sync ? (
           <p className="admin-empty">暂无同步记录。尚未从后台触发同步。</p>
         ) : (
           <div className="admin-sync-grid">
             <div>
-              <span>Source</span>
+              <span>来源</span>
               <strong>{sync.source_system}</strong>
             </div>
             <div>
-              <span>Trigger</span>
-              <strong>{sync.trigger_type}</strong>
+              <span>触发方式</span>
+              <strong>{triggerLabel(sync.trigger_type)}</strong>
             </div>
             <div>
-              <span>Started</span>
+              <span>开始时间</span>
               <strong>{formatTime(sync.started_at)}</strong>
             </div>
             <div>
-              <span>Finished</span>
+              <span>结束时间</span>
               <strong>{formatTime(sync.finished_at)}</strong>
             </div>
             <div>
-              <span>Scanned</span>
+              <span>扫描数</span>
               <strong>{sync.scanned}</strong>
             </div>
             <div>
-              <span>Created / Updated</span>
+              <span>新增 / 更新</span>
               <strong>
                 {sync.created_count} / {sync.updated_count}
               </strong>
             </div>
             <div>
-              <span>Failed / Deactivated</span>
+              <span>失败 / 停用</span>
               <strong>
                 {sync.failed_count} / {sync.deactivated_count}
               </strong>
             </div>
             <div>
-              <span>Result</span>
+              <span>结果</span>
               <strong className={sync.has_error ? 'is-bad' : 'is-ok'}>
                 {sync.has_error ? '有错误' : '完成'}
               </strong>

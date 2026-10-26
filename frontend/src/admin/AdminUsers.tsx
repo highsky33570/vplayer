@@ -12,16 +12,13 @@ import {
   parseAdminUsersSearch,
   type AdminUsersRoleFilter,
 } from './adminUsersQuery';
+import { roleLabel } from './adminLabels';
 
 function formatTime(value?: string) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
-}
-
-function roleLabel(isAdmin: boolean) {
-  return isAdmin ? 'Administrator' : 'User';
 }
 
 export function AdminUsers() {
@@ -108,7 +105,7 @@ export function AdminUsers() {
   return (
     <section className="admin-page">
       <div className="admin-page-head">
-        <h1>Users</h1>
+        <h1>用户管理</h1>
         <p className="admin-muted">只读用户列表 · 分页加载，不含密码与凭证</p>
       </div>
 
@@ -132,9 +129,9 @@ export function AdminUsers() {
               })
             }
           >
-            <option value="all">All</option>
-            <option value="1">Administrators</option>
-            <option value="0">Users</option>
+            <option value="all">全部</option>
+            <option value="1">管理员</option>
+            <option value="0">普通用户</option>
           </select>
         </label>
         <button type="submit" className="admin-btn-primary">
@@ -164,10 +161,10 @@ export function AdminUsers() {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Email</th>
-                  <th>Nickname</th>
-                  <th>Role</th>
-                  <th>Created</th>
+                  <th>邮箱</th>
+                  <th>昵称</th>
+                  <th>角色</th>
+                  <th>创建时间</th>
                 </tr>
               </thead>
               <tbody>

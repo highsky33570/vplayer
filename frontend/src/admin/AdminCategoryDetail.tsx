@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
 import { categoryOwnership } from './categoryOwnership';
+import { activeLabel, ownershipLabel, syncStatusLabel } from './adminLabels';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -73,9 +74,9 @@ export function AdminCategoryDetail() {
     <section className="admin-page">
       <div className="admin-page-head">
         <p className="admin-breadcrumb">
-          <Link to="/admin/categories">Categories</Link> / 详情
+          <Link to="/admin/categories">分类管理</Link> / 详情
         </p>
-        <h1>{data?.name ?? 'Category Detail'}</h1>
+        <h1>{data?.name ?? '分类详情'}</h1>
         <p className="admin-muted">只读详情 · 不含同步错误原文</p>
       </div>
 
@@ -95,7 +96,7 @@ export function AdminCategoryDetail() {
         <>
           {ownership === 'Synced' ? (
             <div className="admin-alert is-info" role="status">
-              This category is managed by source synchronization.
+              该分类由源同步维护，请勿在此手工改写来源字段。
             </div>
           ) : null}
           <dl className="admin-detail-fields admin-detail-panel">
@@ -104,31 +105,31 @@ export function AdminCategoryDetail() {
               <dd>{data.id}</dd>
             </div>
             <div>
-              <dt>Name</dt>
+              <dt>名称</dt>
               <dd>{data.name}</dd>
             </div>
             <div>
-              <dt>Slug</dt>
+              <dt>别名</dt>
               <dd>{data.slug}</dd>
             </div>
             <div>
-              <dt>Videos</dt>
+              <dt>视频数</dt>
               <dd>{data.video_count}</dd>
             </div>
             <div>
-              <dt>Sort</dt>
+              <dt>排序</dt>
               <dd>{data.sort}</dd>
             </div>
             <div>
-              <dt>Active</dt>
-              <dd>{data.is_active ? 'active' : 'inactive'}</dd>
+              <dt>启用状态</dt>
+              <dd>{activeLabel(data.is_active)}</dd>
             </div>
             <div>
-              <dt>Ownership</dt>
-              <dd>{ownership}</dd>
+              <dt>归属</dt>
+              <dd>{ownership ? ownershipLabel(ownership) : '—'}</dd>
             </div>
             <div>
-              <dt>Source</dt>
+              <dt>来源</dt>
               <dd>
                 {ownership === 'Synced'
                   ? `${data.source_system} / ${data.source_id}`
@@ -136,18 +137,18 @@ export function AdminCategoryDetail() {
               </dd>
             </div>
             <div>
-              <dt>Sync status</dt>
+              <dt>同步状态</dt>
               <dd>
-                {data.sync_status || '—'}
-                {data.has_error ? ' (has error)' : ''}
+                {syncStatusLabel(data.sync_status)}
+                {data.has_error ? '（有错误）' : ''}
               </dd>
             </div>
             <div>
-              <dt>Last synced</dt>
+              <dt>最近同步</dt>
               <dd>{formatTime(data.last_synced_at)}</dd>
             </div>
             <div>
-              <dt>Created</dt>
+              <dt>创建时间</dt>
               <dd>{formatTime(data.created_at)}</dd>
             </div>
           </dl>

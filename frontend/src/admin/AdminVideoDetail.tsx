@@ -9,6 +9,7 @@ import {
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
+import { activeLabel, syncStatusLabel, videoStatusLabel } from './adminLabels';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -91,9 +92,9 @@ export function AdminVideoDetail() {
     <section className="admin-page">
       <div className="admin-page-head">
         <p className="admin-breadcrumb">
-          <Link to="/admin/videos">Videos</Link> / 详情
+          <Link to="/admin/videos">视频管理</Link> / 详情
         </p>
-        <h1>{data?.title ?? 'Video Detail'}</h1>
+        <h1>{data?.title ?? '视频详情'}</h1>
         <p className="admin-muted">只读详情 · 不含播放地址与密钥</p>
       </div>
 
@@ -124,78 +125,78 @@ export function AdminVideoDetail() {
               <dd>{data.id}</dd>
             </div>
             <div>
-              <dt>Title</dt>
+              <dt>标题</dt>
               <dd>{data.title}</dd>
             </div>
             <div>
-              <dt>Category</dt>
+              <dt>分类</dt>
               <dd>{categoryName}</dd>
             </div>
             <div>
-              <dt>Status</dt>
-              <dd>{data.status}</dd>
+              <dt>状态</dt>
+              <dd>{videoStatusLabel(data.status)}</dd>
             </div>
             <div>
-              <dt>Active</dt>
-              <dd>{data.is_active ? 'active' : 'inactive'}</dd>
+              <dt>启用状态</dt>
+              <dd>{activeLabel(data.is_active)}</dd>
             </div>
             <div>
-              <dt>Source</dt>
+              <dt>来源</dt>
               <dd>
                 {data.source_system || '—'}
                 {data.source_id ? ` / ${data.source_id}` : ''}
               </dd>
             </div>
             <div>
-              <dt>Source category</dt>
+              <dt>来源分类</dt>
               <dd>{data.source_category_id || '—'}</dd>
             </div>
             <div>
-              <dt>Year</dt>
+              <dt>年份</dt>
               <dd>{data.year || '—'}</dd>
             </div>
             <div>
-              <dt>Director</dt>
+              <dt>导演</dt>
               <dd>{data.director || '—'}</dd>
             </div>
             <div>
-              <dt>Actors</dt>
+              <dt>演员</dt>
               <dd>{data.actors || '—'}</dd>
             </div>
             <div>
-              <dt>Rating</dt>
+              <dt>评分</dt>
               <dd>{data.rating || '—'}</dd>
             </div>
             <div>
-              <dt>Sync</dt>
-              <dd>{data.sync_status || '—'}</dd>
+              <dt>同步</dt>
+              <dd>{syncStatusLabel(data.sync_status)}</dd>
             </div>
             <div>
-              <dt>Playback source</dt>
+              <dt>播放来源</dt>
               <dd>
-                {data.playback_source || '—'} (sid={data.play_sid}, nid={data.play_nid})
+                {data.playback_source || '—'}（SID {data.play_sid}，NID {data.play_nid}）
               </dd>
             </div>
             <div>
-              <dt>Views / Duration</dt>
+              <dt>播放量 / 时长</dt>
               <dd>
-                {data.view_count} / {data.duration_sec}s
+                {data.view_count} / {data.duration_sec} 秒
               </dd>
             </div>
             <div>
-              <dt>Created</dt>
+              <dt>创建时间</dt>
               <dd>{formatTime(data.created_at)}</dd>
             </div>
             <div>
-              <dt>Last synced</dt>
+              <dt>最近同步</dt>
               <dd>{formatTime(data.last_synced_at)}</dd>
             </div>
             <div>
-              <dt>Source updated</dt>
+              <dt>来源更新时间</dt>
               <dd>{formatTime(data.source_updated_at)}</dd>
             </div>
             <div className="admin-detail-wide">
-              <dt>Description</dt>
+              <dt>简介</dt>
               <dd>{data.description || '—'}</dd>
             </div>
           </dl>

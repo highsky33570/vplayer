@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
 import { categoryOwnership } from './categoryOwnership';
+import { activeLabel, ownershipLabel, syncStatusLabel } from './adminLabels';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -63,8 +64,8 @@ export function AdminCategories() {
   return (
     <section className="admin-page">
       <div className="admin-page-head">
-        <h1>Categories</h1>
-        <p className="admin-muted">只读分类列表 · 含 inactive 与视频数量</p>
+        <h1>分类管理</h1>
+        <p className="admin-muted">只读分类列表 · 含停用分类与视频数量</p>
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}
@@ -89,14 +90,14 @@ export function AdminCategories() {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Name</th>
-                  <th>Slug</th>
-                  <th>Videos</th>
-                  <th>Sort</th>
-                  <th>Active</th>
-                  <th>Source</th>
-                  <th>Sync</th>
-                  <th>Created</th>
+                  <th>名称</th>
+                  <th>别名</th>
+                  <th>视频数</th>
+                  <th>排序</th>
+                  <th>启用状态</th>
+                  <th>来源</th>
+                  <th>同步</th>
+                  <th>创建时间</th>
                 </tr>
               </thead>
               <tbody>
@@ -117,21 +118,21 @@ export function AdminCategories() {
                       <td>{row.sort}</td>
                       <td>
                         <span className={row.is_active ? 'admin-badge is-ok' : 'admin-badge is-off'}>
-                          {row.is_active ? 'active' : 'inactive'}
+                          {activeLabel(row.is_active)}
                         </span>
                       </td>
                       <td>
                         <span className="admin-mono">
                           {ownership === 'Synced'
                             ? `${row.source_system} / ${row.source_id}`
-                            : 'Local'}
+                            : ownershipLabel(ownership)}
                         </span>
                       </td>
                       <td>
-                        {row.sync_status || '—'}
+                        {syncStatusLabel(row.sync_status)}
                         {row.has_error ? (
                           <span className="admin-badge is-off" style={{ marginLeft: 6 }}>
-                            error
+                            错误
                           </span>
                         ) : null}
                       </td>
@@ -153,8 +154,8 @@ export function AdminCategories() {
                       #{row.id} {row.name}
                     </strong>
                     <p>
-                      {row.slug} · {row.video_count} videos ·{' '}
-                      {row.is_active ? 'active' : 'inactive'} · {ownership}
+                      {row.slug} · {row.video_count} 个视频 ·{' '}
+                      {activeLabel(row.is_active)} · {ownershipLabel(ownership)}
                     </p>
                     <p className="admin-muted">{formatTime(row.created_at)}</p>
                   </div>

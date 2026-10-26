@@ -15,6 +15,7 @@ import {
   type AdminMediaMigrationFilter,
   type AdminMediaProviderFilter,
 } from './adminMediaQuery';
+import { migrationStatusLabel, playbackStatusLabel, yesNo } from './adminLabels';
 
 function formatTime(value?: string | null) {
   if (!value) return '—';
@@ -26,7 +27,7 @@ function formatTime(value?: string | null) {
 function episodeLabel(row: AdminMediaEpisode) {
   const title = row.episode_title?.trim();
   if (title) return title;
-  return `s${row.sid}-n${row.nid}`;
+  return `SID ${row.sid} / NID ${row.nid}`;
 }
 
 export function AdminMedia() {
@@ -121,13 +122,12 @@ export function AdminMedia() {
   return (
     <section className="admin-page">
       <div className="admin-page-head">
-        <h1>Media</h1>
+        <h1>媒体管理</h1>
         <p className="admin-muted">只读媒体迁移观测 · 不含播放地址与对象密钥</p>
       </div>
 
       <div className="admin-alert is-info" role="note">
-        Media migration run history is not tracked by the application yet. Eligible for Migration
-        reflects the current database eligibility rules.
+        应用尚未记录媒体迁移的运行历史。可迁移数量反映的是当前数据库中的迁移资格规则。
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}
@@ -146,37 +146,37 @@ export function AdminMedia() {
         <>
           <div className="admin-stat-grid">
             <article className="admin-stat-card">
-              <span>Total Episodes</span>
+              <span>分集总数</span>
               <strong>{overview.episodes_total}</strong>
             </article>
             <article className="admin-stat-card">
-              <span>Migrated</span>
+              <span>已迁移</span>
               <strong>{overview.migrated_count}</strong>
             </article>
             <article className="admin-stat-card">
-              <span>Failed</span>
+              <span>失败</span>
               <strong>{overview.failed_count}</strong>
             </article>
             <article className="admin-stat-card">
-              <span>Not Migrated</span>
+              <span>未迁移</span>
               <strong>{overview.not_migrated_count}</strong>
             </article>
             <article className="admin-stat-card">
-              <span>Eligible for Migration</span>
+              <span>可迁移</span>
               <strong>{overview.eligible_count}</strong>
-              <p className="admin-muted">Currently eligible under migration rules</p>
+              <p className="admin-muted">按当前迁移规则符合条件</p>
             </article>
             <article className="admin-stat-card">
-              <span>R2 Storage</span>
+              <span>R2 存储</span>
               <strong>{overview.storage_r2_count}</strong>
               <p className="admin-muted">
-                Latest migrated: {formatTime(overview.latest_migrated_at)}
+                最近迁移：{formatTime(overview.latest_migrated_at)}
               </p>
             </article>
           </div>
 
           <div className="admin-page-head" style={{ marginTop: 28 }}>
-            <h2>Episodes</h2>
+            <h2>分集</h2>
             <p className="admin-muted">分页列表 · 不含源地址与 R2 对象路径</p>
           </div>
 
@@ -190,7 +190,7 @@ export function AdminMedia() {
               />
             </label>
             <label className="admin-filter-field">
-              <span>Migration</span>
+              <span>迁移状态</span>
               <select
                 value={parsed.migrationStatus}
                 onChange={(e) =>
@@ -200,14 +200,14 @@ export function AdminMedia() {
                   })
                 }
               >
-                <option value="all">All</option>
-                <option value="done">Migrated</option>
-                <option value="failed">Failed</option>
-                <option value="pending">Pending</option>
+                <option value="all">全部</option>
+                <option value="done">已迁移</option>
+                <option value="failed">失败</option>
+                <option value="pending">待处理</option>
               </select>
             </label>
             <label className="admin-filter-field">
-              <span>Provider</span>
+              <span>存储</span>
               <select
                 value={parsed.storageProvider}
                 onChange={(e) =>
@@ -217,7 +217,7 @@ export function AdminMedia() {
                   })
                 }
               >
-                <option value="all">All</option>
+                <option value="all">全部</option>
                 <option value="r2">R2</option>
               </select>
             </label>
@@ -234,14 +234,14 @@ export function AdminMedia() {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>Episode ID</th>
-                      <th>Video</th>
-                      <th>Episode</th>
-                      <th>Provider</th>
-                      <th>Migration Status</th>
-                      <th>Playback Status</th>
-                      <th>Migrated At</th>
-                      <th>Error</th>
+                      <th>分集 ID</th>
+                      <th>视频</th>
+                      <th>分集</th>
+                      <th>存储</th>
+                      <th>迁移状态</th>
+                      <th>播放状态</th>
+                      <th>迁移时间</th>
+                      <th>错误</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -260,12 +260,12 @@ export function AdminMedia() {
                         </td>
                         <td>{episodeLabel(row)}</td>
                         <td>{row.storage_provider || '—'}</td>
-                        <td>{row.migration_status || 'pending'}</td>
-                        <td>{row.playback_status || '—'}</td>
+                        <td>{migrationStatusLabel(row.migration_status)}</td>
+                        <td>{playbackStatusLabel(row.playback_status)}</td>
                         <td>{formatTime(row.migrated_at)}</td>
                         <td>
                           <span className={row.has_error ? 'admin-badge is-off' : 'admin-badge is-ok'}>
-                            {row.has_error ? 'Yes' : 'No'}
+                            {yesNo(row.has_error)}
                           </span>
                         </td>
                       </tr>
@@ -286,7 +286,7 @@ export function AdminMedia() {
                         #{row.episode_id} {row.video_title}
                       </strong>
                       <p>
-                        {episodeLabel(row)} · {row.migration_status || 'pending'} ·{' '}
+                        {episodeLabel(row)} · {migrationStatusLabel(row.migration_status)} ·{' '}
                         {row.storage_provider || '—'}
                       </p>
                       <p className="admin-muted">{formatTime(row.migrated_at)}</p>
