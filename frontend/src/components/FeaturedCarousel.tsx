@@ -1,6 +1,6 @@
 import { type MouseEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { formatViews, type Video } from '../api';
+import { type Video } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { videoEntryHref } from '../auth/paths';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
@@ -47,9 +47,6 @@ export function FeaturedCarousel({ videos }: Props) {
     <div className="carousel" aria-roledescription="carousel">
       {slides.map((v, i) => {
         const href = videoEntryHref(ready, Boolean(user), v.id) ?? `/watch/${v.id}`;
-        const caption = [v.view_count > 0 ? `${formatViews(v.view_count)} 播放` : '', v.year ? String(v.year) : '', v.area || '']
-          .filter(Boolean)
-          .join(' · ');
         return (
           <Link
             key={v.id}
@@ -67,27 +64,51 @@ export function FeaturedCarousel({ videos }: Props) {
             />
             <div className="carousel-caption">
               <h3>{v.title}</h3>
-              {caption ? <p>{caption}</p> : null}
             </div>
           </Link>
         );
       })}
 
       {slides.length > 1 ? (
-        <div className="feature-switch">
-          <button type="button" aria-label="上一张" onClick={() => go(-1)}>
-            上一张
-          </button>
-          <span>
-            {index + 1}/{slides.length}
-          </span>
-          <button type="button" aria-label="下一张" onClick={() => go(1)}>
-            下一张
-          </button>
-        </div>
+        <>
+          <div className="carousel-dots">
+            {slides.map((v, i) => (
+              <button
+                key={v.id}
+                type="button"
+                className={i === index ? 'is-active' : ''}
+                aria-label={`第 ${i + 1} 张`}
+                aria-current={i === index ? 'true' : undefined}
+                onClick={() => setIndex(i)}
+              />
+            ))}
+          </div>
+          <div className="carousel-nav">
+            <button type="button" aria-label="上一张" onClick={() => go(-1)}>
+              <Chevron dir="left" />
+            </button>
+            <button type="button" aria-label="下一张" onClick={() => go(1)}>
+              <Chevron dir="right" />
+            </button>
+          </div>
+        </>
       ) : null}
 
       <span className="sr-only">当前：{current?.title}</span>
     </div>
+  );
+}
+
+function Chevron({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d={dir === 'left' ? 'M14.5 6.5 9 12l5.5 5.5' : 'M9.5 6.5 15 12l-5.5 5.5'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

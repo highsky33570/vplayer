@@ -20,7 +20,7 @@ export function FeaturedGrid({ videos }: Props) {
       {side.length > 0 && (
         <div className="featured-side">
           {side.map((v) => (
-            <VideoCard key={`feat-${v.id}`} video={v} compact />
+            <VideoCard key={`feat-${v.id}`} video={v} />
           ))}
         </div>
       )}

@@ -47,6 +47,9 @@ describe('desktop featured and catalog density', () => {
     assert.equal(grid.includes('slice(0, 4)'), false);
     assert.match(carousel, /videos\.slice\(0,\s*5\)/);
     assert.match(carousel, /setInterval/);
+    assert.match(carousel, /carousel-dots/);
+    assert.match(carousel, /carousel-nav/);
+    assert.equal(grid.includes('compact'), false);
     assert.match(home, /GRID_COLS_DESKTOP = 6/);
     assert.match(home, /latest\.slice\(0,\s*HOME_SECTION_LIMIT\)/);
     assert.match(home, /latest\.slice\(0,\s*FEATURED_POOL_LIMIT\)/);
