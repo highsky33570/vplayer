@@ -7746,11 +7746,13 @@ html.dark .login-reminder-cta,
   }
 
   .discovery-catalog {
-    display: flex;
+    display: grid;
     flex: 1;
-    flex-wrap: wrap;
-    gap: 10px 14px;
-    max-height: 96px;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    align-content: start;
+    gap: 10px 12px;
+    max-height: 74px;
     overflow: hidden;
   }
 
@@ -7760,39 +7762,58 @@ html.dark .login-reminder-cta,
 
   .discovery-cell,
   .discovery-catalog-more {
-    height: 26px;
-    padding: 0 8px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: transparent;
-    color: var(--text-2);
-    font-size: 12px;
-    line-height: 24px;
+    box-sizing: border-box;
+    height: 32px;
+    margin: 0;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 4px;
+    background: #f4f4f5;
+    color: #333;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 32px;
+    text-align: center;
+    white-space: nowrap;
     cursor: pointer;
+  }
+
+  .discovery-cell {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .discovery-cell:hover,
   .discovery-catalog-more:hover {
-    background: #f3f3f3;
+    background: #e8e8ea;
+    color: #222;
+  }
+
+  html.dark .discovery-cell,
+  html.dark .discovery-catalog-more {
+    background: #2a2a2a;
     color: var(--text);
   }
 
   html.dark .discovery-cell:hover,
   html.dark .discovery-catalog-more:hover {
-    background: #2a2a2a;
-    color: var(--text);
+    background: #333;
+    color: #fff;
   }
 
   .discovery-cell.is-active {
     color: var(--brand);
-    border-color: var(--brand);
-    background: rgba(196, 48, 43, 0.08);
+    background: rgba(196, 48, 43, 0.1);
   }
 
   .discovery-catalog-more {
     flex: 0 0 auto;
-    color: var(--text);
-    font-weight: 600;
+    min-width: 88px;
+    color: #333;
+    font-weight: 500;
   }
 
   .featured-grid:not(.is-hero-only) {
