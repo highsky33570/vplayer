@@ -53,6 +53,17 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
 
   const mains = useMemo(() => resolveNavCategories(categories), [categories]);
   const subs = useMemo(() => desktopSubcategories(categories), [categories]);
+  const selectedMain = useMemo(() => {
+    return (
+      mains.find((main) => main.slug === active) ??
+      mains.find((main) => childrenOfParent(categories, main.id).some((child) => child.slug === active)) ??
+      null
+    );
+  }, [mains, categories, active]);
+  const catalogSubs = useMemo(
+    () => (selectedMain ? subs.filter((child) => child.parent_id === selectedMain.id) : subs),
+    [subs, selectedMain],
+  );
   const [expandedParentSlug, setExpandedParentSlug] = useState<string | null>(() =>
     expandedParentSlugForActive(categories, resolveNavCategories(categories), active),
   );
@@ -135,7 +146,7 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
       window.removeEventListener('resize', measure);
       observer.disconnect();
     };
-  }, [subs, catalogOpen]);
+  }, [subs, catalogOpen, selectedMain]);
 
   function handleHome() {
     setExpandedParentSlug(null);
@@ -220,14 +231,14 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
     <div className="discovery" ref={discoveryRef}>
       {wide && channelHost ? createPortal(channelRail, channelHost) : channelRail}
 
-      {subs.length > 0 ? (
+      {catalogSubs.length > 0 ? (
         <div className="discovery-catalog-wrap">
           <nav
             ref={catalogRef}
             className={`discovery-catalog${catalogOpen ? ' is-all' : ''}`}
-            aria-label="子分类目录"
+            aria-label={selectedMain ? `${selectedMain.name}子分类` : '子分类目录'}
           >
-            {subs.map((child) => (
+            {catalogSubs.map((child) => (
               <button
                 key={`catalog-${child.id}-${child.slug}`}
                 type="button"

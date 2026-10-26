@@ -7528,7 +7528,7 @@ html.dark .login-reminder-cta,
   left: 0;
   right: 0;
   top: 0;
-  height: 116px;
+  height: 140px;
   overflow: hidden;
   z-index: 0;
   background: #141414;
@@ -7677,7 +7677,7 @@ html.dark .login-reminder-cta,
 .banner-shell:not(.banner-shell--app) .discovery {
   position: relative;
   z-index: 1;
-  margin-top: 44px;
+  margin-top: 68px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
@@ -7747,8 +7747,8 @@ html.dark .login-reminder-cta,
     display: flex;
     flex: 1;
     flex-wrap: wrap;
-    gap: 6px;
-    max-height: 90px;
+    gap: 10px 14px;
+    max-height: 96px;
     overflow: hidden;
   }
 
@@ -7793,8 +7793,19 @@ html.dark .login-reminder-cta,
     font-weight: 600;
   }
 
+  .featured-grid:not(.is-hero-only) {
+    align-items: stretch;
+  }
+
+  .featured-grid:not(.is-hero-only) .carousel {
+    aspect-ratio: auto;
+    height: auto;
+    align-self: stretch;
+  }
+
   .featured-side {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-content: start;
   }
 
   .carousel {
@@ -7969,16 +7980,25 @@ html.dark .login-reminder-cta,
   }
 
   .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main,
-  html.dark .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main:not(.is-active) {
-    color: rgba(255, 255, 255, 0.9);
+  .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main:hover,
+  .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main.is-active,
+  .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main.is-parent-of-active,
+  .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main.is-expanded,
+  html.dark .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main,
+  html.dark .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main:not(.is-active),
+  html.dark .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main:not(.is-active):hover {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0;
+    box-shadow: none;
+    color: rgba(255, 255, 255, 0.92);
   }
 
   .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main:hover,
   .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main.is-active,
-  .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main.is-parent-of-active,
-  .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main.is-expanded {
+  .banner-shell:not(.banner-shell--app) .banner-channels .category-btn--main.is-parent-of-active {
     color: #fff;
-    background: transparent;
+    background: transparent !important;
     box-shadow: inset 0 -2px 0 #fff;
   }
 
@@ -8002,11 +8022,49 @@ html.dark .login-reminder-cta,
     box-shadow: inset 0 -2px 0 var(--brand);
   }
 
+  .banner-shell:not(.banner-shell--app) .banner-action,
+  .banner-shell:not(.banner-shell--app) .theme-toggle,
+  .banner-shell:not(.banner-shell--app) .btn-upload,
+  .banner-shell:not(.banner-shell--app) .banner-user,
+  .banner-shell--app .banner-action,
+  .banner-shell--app .theme-toggle,
+  .banner-shell--app .btn-upload,
+  .banner-shell--app .banner-user {
+    display: inline-flex !important;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    height: auto;
+    line-height: 1.2;
+    padding: 0 6px;
+    background: transparent !important;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .banner-shell .banner-action-icon,
+  .banner-shell .theme-toggle .banner-action-icon,
+  .banner-shell .btn-upload svg {
+    display: inline-block !important;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    color: inherit;
+  }
+
   .banner-actions,
   .header-flyout-anchor {
     position: relative;
     z-index: 21;
     overflow: visible;
+  }
+}
+
+@media (max-width: 767px) {
+  .banner-user.is-logged .banner-action-icon {
+    display: inline-block !important;
+    width: 18px;
+    height: 18px;
   }
 }
 
