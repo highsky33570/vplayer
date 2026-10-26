@@ -7819,14 +7819,14 @@ html.dark .login-reminder-cta,
     height: 32px;
     margin: 0;
     padding: 0 10px;
-    border: 1px solid #d8d8d8;
+    border: 0;
     border-radius: 4px;
     background: #fff;
     color: #333;
     font-family: inherit;
     font-size: 13px;
     font-weight: 400;
-    line-height: 30px;
+    line-height: 32px;
     text-align: center;
     white-space: nowrap;
     cursor: pointer;
@@ -7842,14 +7842,13 @@ html.dark .login-reminder-cta,
   .discovery-cell:hover,
   .discovery-catalog-more:hover {
     background: #f3f3f3;
-    border-color: #c8c8c8;
     color: #222;
   }
 
   html.dark .discovery-cell,
   html.dark .discovery-catalog-more {
     background: #2a2a2a;
-    border-color: #3a3a3a;
+    border: 1px solid #3a3a3a;
     color: var(--text);
   }
 
@@ -7862,7 +7861,6 @@ html.dark .login-reminder-cta,
 
   .discovery-cell.is-active {
     color: var(--brand);
-    border-color: var(--brand);
     background: rgba(196, 48, 43, 0.1);
   }
 
