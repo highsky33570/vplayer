@@ -17,13 +17,13 @@ function videos(count: number) {
 }
 
 describe('splitFeaturedVideos', () => {
-  it('keeps five hero slides and six distinct side cards', () => {
+  it('keeps five hero slides and eight distinct side cards', () => {
     assert.equal(FEATURED_CAROUSEL_LIMIT, 5);
-    assert.equal(FEATURED_SIDE_LIMIT, 6);
-    assert.equal(FEATURED_POOL_LIMIT, 11);
-    const { carousel, side } = splitFeaturedVideos(videos(11));
+    assert.equal(FEATURED_SIDE_LIMIT, 8);
+    assert.equal(FEATURED_POOL_LIMIT, 13);
+    const { carousel, side } = splitFeaturedVideos(videos(13));
     assert.deepEqual(carousel.map((v) => v.id), [1, 2, 3, 4, 5]);
-    assert.deepEqual(side.map((v) => v.id), [6, 7, 8, 9, 10, 11]);
+    assert.deepEqual(side.map((v) => v.id), [6, 7, 8, 9, 10, 11, 12, 13]);
     const overlap = carousel.filter((v) => side.some((s) => s.id === v.id));
     assert.equal(overlap.length, 0);
   });
@@ -39,7 +39,7 @@ describe('splitFeaturedVideos', () => {
 });
 
 describe('desktop featured and catalog density', () => {
-  it('wires six secondary cards without changing the hero carousel cap', () => {
+  it('wires eight secondary cards without changing the hero carousel cap', () => {
     const grid = readFileSync(join(here, 'FeaturedGrid.tsx'), 'utf8');
     const carousel = readFileSync(join(here, 'FeaturedCarousel.tsx'), 'utf8');
     const home = readFileSync(join(here, '../pages/Home.tsx'), 'utf8');
@@ -52,11 +52,14 @@ describe('desktop featured and catalog density', () => {
     assert.match(home, /latest\.slice\(0,\s*FEATURED_POOL_LIMIT\)/);
   });
 
-  it('uses an editorial lead row and six catalog columns from 1440px', () => {
+  it('uses a lead-and-matrix feature and six catalog columns from 1440px', () => {
     const css = readFileSync(join(here, '../styles.css'), 'utf8');
     const phase = css.slice(css.indexOf('/* ——— Phase 1'));
+    const structure = css.slice(css.indexOf('/* ——— Structure'));
     assert.match(phase, /\.featured-grid\s*\{[^}]*minmax\(0,\s*42%\)\s*minmax\(0,\s*1fr\)/);
-    assert.match(phase, /\.featured-side\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(structure, /\.featured-side\s*\{[^}]*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(structure, /\.banner-stage/);
+    assert.match(structure, /\.discovery-catalog/);
     assert.match(phase, /\.thumb\s*\{[^}]*border-radius:\s*0/);
     assert.match(phase, /@media \(min-width: 1440px\)[\s\S]*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
     assert.match(phase, /\.dock,\s*\n\.section-accent/);

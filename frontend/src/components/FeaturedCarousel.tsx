@@ -27,6 +27,10 @@ export function FeaturedCarousel({ videos }: Props) {
 
   const current = slides[index];
 
+  const go = (dir: -1 | 1) => {
+    setIndex((i) => (i + dir + slides.length) % slides.length);
+  };
+
   function onVideoClick(e: MouseEvent<HTMLAnchorElement>, videoId: number) {
     const target = videoEntryHref(ready, Boolean(user), videoId);
     if (target == null) {
@@ -68,6 +72,20 @@ export function FeaturedCarousel({ videos }: Props) {
           </Link>
         );
       })}
+
+      {slides.length > 1 ? (
+        <div className="feature-switch">
+          <button type="button" aria-label="上一张" onClick={() => go(-1)}>
+            上一张
+          </button>
+          <span>
+            {index + 1}/{slides.length}
+          </span>
+          <button type="button" aria-label="下一张" onClick={() => go(1)}>
+            下一张
+          </button>
+        </div>
+      ) : null}
 
       <span className="sr-only">当前：{current?.title}</span>
     </div>

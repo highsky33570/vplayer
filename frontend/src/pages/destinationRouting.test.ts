@@ -32,9 +32,10 @@ const NEW_TAB_LINKS = [
 ] as const;
 
 describe('shared homepage banner on destinations', () => {
-  it('uses one flat header on every public page', () => {
-    assert.equal(header.includes('BannerCarousel'), false);
-    assert.match(header, /banner-shell banner-shell--app/);
+  it('uses the shared banner shell, compact on messages and history', () => {
+    assert.match(header, /usesCinematicBanner\(pathname\)/);
+    assert.match(header, /<BannerCarousel /);
+    assert.match(header, /banner-shell\$\{cinematic \? '' : ' banner-shell--app'\}/);
     assert.match(header, /banner-shell--app/);
     assert.match(css, /\.banner-shell--app/);
     assert.equal(header.includes('headerShellMode'), false);

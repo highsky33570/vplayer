@@ -164,8 +164,9 @@ describe('wired flyouts', () => {
     assert.match(css, /\.banner-shell--app/);
     assert.match(css, /\.msg-center-grid/);
     assert.match(css, /\.hist-grid/);
-    assert.equal(header.includes('BannerCarousel'), false);
-    assert.match(header, /banner-shell banner-shell--app/);
+    assert.match(header, /usesCinematicBanner\(pathname\)/);
+    assert.match(header, /<BannerCarousel /);
+    assert.match(header, /banner-shell\$\{cinematic \? '' : ' banner-shell--app'\}/);
     assert.equal(header.includes('isHomeShell'), false);
     const phone = css.slice(css.indexOf('/* bp:phone'), css.indexOf('/* bp:phone-narrow'));
     assert.equal(/header-flyout-anchor/.test(phone), false);

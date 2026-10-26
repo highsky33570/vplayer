@@ -7505,3 +7505,393 @@ html.dark .login-reminder-cta,
     background: transparent;
   }
 }
+
+/* ——— Structure: banner, discovery band, feature matrix ——— */
+
+.discovery-catalog-wrap,
+.discovery-catalog {
+  display: none;
+}
+
+.search button span {
+  display: none;
+}
+
+.banner-shell:not(.banner-shell--app) {
+  position: relative;
+  background: #141414;
+}
+
+.banner-stage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 232px;
+  overflow: hidden;
+  z-index: 0;
+  background: #141414;
+  pointer-events: none;
+}
+
+.banner-stage .banner-carousel,
+.banner-stage .banner-shade {
+  display: block !important;
+  pointer-events: none;
+}
+
+.banner-stage .banner-dots {
+  display: flex !important;
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  z-index: 3;
+  justify-content: center;
+  gap: 5px;
+  transform: none;
+}
+
+.banner-stage .banner-carousel {
+  position: absolute;
+  inset: 0;
+  background: #141414;
+}
+
+.banner-stage .banner-shade {
+  background: linear-gradient(180deg, rgba(8, 8, 8, 0.78) 0%, rgba(8, 8, 8, 0.16) 46%, rgba(8, 8, 8, 0.5) 100%);
+}
+
+.banner-stage .banner-dots button,
+.banner-stage .banner-dots button.is-active {
+  height: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  transition: none;
+}
+
+.banner-stage .banner-dots button {
+  width: 10px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.banner-stage .banner-dots button.is-active {
+  width: 18px;
+  background: #fff;
+}
+
+.banner-shell:not(.banner-shell--app) .banner-bar {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  height: 72px;
+  min-height: 72px;
+  background: transparent;
+  color: #f4f4f4;
+}
+
+.banner-shell:not(.banner-shell--app) .banner-left {
+  justify-self: start;
+}
+
+.banner-shell:not(.banner-shell--app) .banner-actions {
+  justify-self: end;
+}
+
+.banner-shell:not(.banner-shell--app) .brand-text {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.banner-shell:not(.banner-shell--app) .banner-user,
+.banner-shell:not(.banner-shell--app) .banner-action,
+.banner-shell:not(.banner-shell--app) .theme-toggle,
+.banner-shell:not(.banner-shell--app) .btn-upload,
+.banner-shell:not(.banner-shell--app) .menu-toggle {
+  color: #f4f4f4;
+  line-height: 72px;
+}
+
+.banner-shell:not(.banner-shell--app) .search {
+  justify-self: center;
+  width: min(520px, 100%);
+  max-width: 520px;
+  height: 36px;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.banner-shell:not(.banner-shell--app) .search input {
+  color: #222;
+  height: 36px;
+}
+
+.banner-shell:not(.banner-shell--app) .search input::placeholder {
+  color: #888;
+}
+
+.banner-shell:not(.banner-shell--app) .search button {
+  width: auto;
+  min-width: 56px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 0;
+  background: var(--brand);
+  color: #fff;
+}
+
+.banner-shell:not(.banner-shell--app) .search button span {
+  display: inline;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.banner-shell:not(.banner-shell--app) .search button svg {
+  display: none;
+}
+
+.banner-shell:not(.banner-shell--app) .search button:hover {
+  color: #fff;
+  background: var(--brand-deep);
+}
+
+.banner-shell:not(.banner-shell--app) .discovery {
+  position: relative;
+  z-index: 2;
+  margin-top: 160px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+@media (min-width: 768px) {
+  .category-rail {
+    height: auto;
+    min-height: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 0 8px;
+    overflow: visible;
+  }
+
+  .category-btn--main,
+  .category-btn--main:hover,
+  .category-btn--main.is-active,
+  .category-btn--main.is-parent-of-active,
+  .category-btn--main.is-expanded,
+  html.dark .category-btn--main:not(.is-active),
+  html.dark .category-btn--main:not(.is-active):hover {
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: none;
+    font-weight: 500;
+  }
+
+  .category-btn--main:hover,
+  .category-btn--main.is-expanded,
+  html.dark .category-btn--main:not(.is-active):hover {
+    background: #f3f3f3;
+    color: var(--text);
+  }
+
+  html.dark .category-btn--main:hover,
+  html.dark .category-btn--main.is-expanded {
+    background: #2a2a2a;
+    color: var(--text);
+  }
+
+  .category-btn--main.is-active,
+  .category-btn--main.is-parent-of-active {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #fff;
+  }
+
+  .category-subrow {
+    display: none !important;
+  }
+
+  .discovery-catalog-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: min(1840px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 0 0 10px;
+  }
+
+  .discovery-catalog {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 90px;
+    overflow: hidden;
+  }
+
+  .discovery-catalog.is-all {
+    max-height: none;
+  }
+
+  .discovery-cell,
+  .discovery-catalog-more {
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 24px;
+    cursor: pointer;
+  }
+
+  .discovery-cell:hover,
+  .discovery-catalog-more:hover {
+    background: #f3f3f3;
+    color: var(--text);
+  }
+
+  html.dark .discovery-cell:hover,
+  html.dark .discovery-catalog-more:hover {
+    background: #2a2a2a;
+    color: var(--text);
+  }
+
+  .discovery-cell.is-active {
+    color: var(--brand);
+    border-color: var(--brand);
+    background: rgba(196, 48, 43, 0.08);
+  }
+
+  .discovery-catalog-more {
+    flex: 0 0 auto;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .featured-side {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .carousel {
+    border-radius: 3px;
+  }
+
+  .carousel-caption {
+    padding-right: 148px;
+  }
+
+  .feature-switch {
+    position: absolute;
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 12px;
+  }
+
+  .feature-switch button {
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .featured-side {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1440px) {
+  .discovery-catalog-wrap {
+    width: min(1840px, calc(100% - 64px));
+  }
+}
+
+@media (min-width: 1920px) {
+  .discovery-catalog-wrap {
+    width: min(1840px, calc(100% - 80px));
+  }
+}
+
+@media (max-width: 767px) {
+  .banner-stage,
+  .discovery-catalog-wrap,
+  .feature-switch {
+    display: none !important;
+  }
+
+  .banner-shell:not(.banner-shell--app) {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+  }
+
+  .banner-shell:not(.banner-shell--app) .banner-bar {
+    display: flex;
+    grid-template-columns: none;
+    height: 44px;
+    min-height: 44px;
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .banner-shell:not(.banner-shell--app) .brand-text {
+    color: var(--brand);
+    font-size: 16px;
+    letter-spacing: 0;
+    text-shadow: none;
+  }
+
+  .banner-shell:not(.banner-shell--app) .banner-user,
+  .banner-shell:not(.banner-shell--app) .menu-toggle {
+    color: var(--text);
+    line-height: 44px;
+  }
+
+  .banner-shell:not(.banner-shell--app) .search {
+    height: 32px;
+    max-width: none;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--surface);
+  }
+
+  .banner-shell:not(.banner-shell--app) .search button {
+    min-width: 44px;
+    height: 32px;
+    padding: 0 8px;
+  }
+
+  .banner-shell:not(.banner-shell--app) .discovery {
+    margin-top: 0;
+    background: var(--surface);
+  }
+}

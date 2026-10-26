@@ -4,6 +4,7 @@ import { listCategories, type Category } from '../api';
 import {
   activeCategoryScrollOptions,
   childrenOfParent,
+  desktopSubcategories,
   expandedParentSlugForActive,
   resolveNavCategories,
   subcategoryListOverflows,
@@ -50,12 +51,15 @@ export function DiscoveryNav() {
   }, []);
 
   const mains = useMemo(() => resolveNavCategories(categories), [categories]);
+  const subs = useMemo(() => desktopSubcategories(categories), [categories]);
   const [expandedParentSlug, setExpandedParentSlug] = useState<string | null>(() =>
     expandedParentSlugForActive(categories, resolveNavCategories(categories), active),
   );
   const [showAllChildren, setShowAllChildren] = useState(false);
   const [showAllParent, setShowAllParent] = useState(expandedParentSlug);
   const [childrenOverflow, setChildrenOverflow] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogOverflow, setCatalogOverflow] = useState(false);
   if (showAllParent !== expandedParentSlug) {
     setShowAllParent(expandedParentSlug);
     setShowAllChildren(false);
@@ -63,6 +67,7 @@ export function DiscoveryNav() {
 
   const discoveryRef = useRef<HTMLDivElement>(null);
   const subrowRef = useRef<HTMLDivElement>(null);
+  const catalogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     setExpandedParentSlug((current) =>
@@ -102,6 +107,23 @@ export function DiscoveryNav() {
       observer.disconnect();
     };
   }, [expandedParentSlug, expandedChildrenKey(categories, expandedParentSlug), showAllChildren]);
+
+  useLayoutEffect(() => {
+    const row = catalogRef.current;
+    if (!row) return;
+    const measure = () => {
+      const next = subcategoryListOverflows(row.scrollHeight, row.clientHeight);
+      setCatalogOverflow((prev) => (prev === next ? prev : next));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer.disconnect();
+    };
+  }, [subs, catalogOpen]);
 
   function handleHome() {
     setExpandedParentSlug(null);
@@ -181,6 +203,41 @@ export function DiscoveryNav() {
           );
         })}
       </nav>
+
+      {subs.length > 0 ? (
+        <div className="discovery-catalog-wrap">
+          <nav
+            ref={catalogRef}
+            className={`discovery-catalog${catalogOpen ? ' is-all' : ''}`}
+            aria-label="子分类目录"
+          >
+            {subs.map((child) => (
+              <button
+                key={`catalog-${child.id}-${child.slug}`}
+                type="button"
+                className={`discovery-cell${active === child.slug ? ' is-active' : ''}`}
+                title={`${child.parentName} · ${child.name}`}
+                onClick={() => {
+                  const parent = mains.find((main) => main.id === child.parent_id);
+                  if (parent) handleChild(child, parent);
+                }}
+              >
+                {child.name}
+              </button>
+            ))}
+          </nav>
+          {catalogOpen || catalogOverflow ? (
+            <button
+              type="button"
+              className="discovery-catalog-more"
+              aria-expanded={catalogOpen}
+              onClick={() => setCatalogOpen((current) => toggleSubcategoryShowAll(current))}
+            >
+              {catalogOpen ? '收起' : '更多'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Second text row. Shown only while a channel with children is open. */}
       <div
