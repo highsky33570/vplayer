@@ -7677,8 +7677,9 @@ html.dark .login-reminder-cta,
 .banner-shell:not(.banner-shell--app) .discovery {
   position: relative;
   z-index: 1;
-  margin-top: 68px;
-  background: var(--surface);
+  margin-top: 88px;
+  padding-top: 12px;
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 
@@ -7921,6 +7922,7 @@ html.dark .login-reminder-cta,
 
   .banner-shell:not(.banner-shell--app) .discovery {
     margin-top: 0;
+    padding-top: 0;
     background: var(--surface);
   }
 }
