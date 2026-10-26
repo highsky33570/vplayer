@@ -88,6 +88,14 @@ func AppendReadyVideosWhere(q string, args []any, browse CategoryBrowseFilter, q
 	return q, args
 }
 
+// ReadyVideoOrderSQL is the catalog list order. "hot" is most played; anything else stays newest-added.
+func ReadyVideoOrderSQL(sort string) string {
+	if strings.TrimSpace(sort) == "hot" {
+		return ` ORDER BY view_count DESC, id DESC`
+	}
+	return ` ORDER BY created_at DESC, id DESC`
+}
+
 // VideoMatchesBrowse mirrors AppendReadyVideosWhere category predicates for unit tests.
 func VideoMatchesBrowse(v model.Video, browse CategoryBrowseFilter) bool {
 	if browse.FailClosed {

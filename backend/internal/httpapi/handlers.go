@@ -67,7 +67,7 @@ type API struct {
 // publicVideoRepo is the store surface used by GET /api/v1/videos.
 type publicVideoRepo interface {
 	CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string) (int, error)
-	ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string, limit, offset int) ([]model.Video, error)
+	ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug, sort string, limit, offset int) ([]model.Video, error)
 }
 
 func (a *API) publicVideoRepo() publicVideoRepo {
@@ -107,6 +107,10 @@ func (a *API) ListVideos(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
 	// Optional homepage-only filter; absent/empty => no exclusion (search/browse/category unchanged).
 	excludeSlug := store.NormalizeExcludeCategorySlug(c.Query("exclude_category_slug"))
+	sortKey := strings.TrimSpace(c.Query("sort"))
+	if sortKey != "hot" {
+		sortKey = ""
+	}
 	if limit <= 0 {
 		limit = 24
 	}
@@ -137,7 +141,7 @@ func (a *API) ListVideos(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
-	rows, err := repo.ListReadyVideosFiltered(catID, q, excludeSlug, limit, offset)
+	rows, err := repo.ListReadyVideosFiltered(catID, q, excludeSlug, sortKey, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return

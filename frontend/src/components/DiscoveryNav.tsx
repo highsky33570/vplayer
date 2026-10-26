@@ -31,6 +31,8 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
   const [categories, setCategories] = useState<Category[]>([]);
   const routeChannel = params.get('ch') || 'home';
   const active = pathname === '/' ? routeChannel : '';
+  const rankHot = pathname === '/' && !params.get('q')?.trim() && routeChannel === 'home' && params.get('rank') === 'hot';
+  const latestOn = pathname === '/' && !params.get('q')?.trim() && routeChannel === 'home' && !rankHot;
 
   function onSelect(slug: string) {
     if (slug === 'home') navigate('/');
@@ -233,6 +235,30 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
 
       {catalogSubs.length > 0 ? (
         <div className="discovery-catalog-wrap">
+          <div className="discovery-shortcuts">
+            <button
+              type="button"
+              className={`discovery-shortcut${latestOn ? ' is-active' : ''}`}
+              aria-pressed={latestOn}
+              onClick={() => navigate('/')}
+            >
+              <span className="discovery-shortcut-mark is-new" aria-hidden>
+                <NewIcon />
+              </span>
+              <span>最新</span>
+            </button>
+            <button
+              type="button"
+              className={`discovery-shortcut${rankHot ? ' is-active' : ''}`}
+              aria-pressed={rankHot}
+              onClick={() => navigate('/?rank=hot')}
+            >
+              <span className="discovery-shortcut-mark is-hot" aria-hidden>
+                <FlameIcon />
+              </span>
+              <span>热门</span>
+            </button>
+          </div>
           <nav
             ref={catalogRef}
             className={`discovery-catalog${catalogOpen ? ' is-all' : ''}`}
@@ -314,4 +340,25 @@ function expandedChildrenKey(categories: Category[], parentSlug: string | null):
   return childrenOfParent(categories, parent.id)
     .map((child) => child.slug)
     .join(',');
+}
+
+function NewIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 4v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8 8.5 12 4.5l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 14.5h12M7 18h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3.5c.4 2.6-1.2 4-1.2 4S13.8 8.2 14.6 11c.7 2.4-.6 4.6-2.6 5.4 1.6-.2 3.2-1.5 3.6-3.4.2 2.8-1.6 5.6-4.8 6.2-3.6.7-6.6-1.8-6.6-5.3 0-3.2 2.4-5.2 3.4-7.6.4 1.5 1.3 2.4 1.3 2.4S11.4 6.2 12 3.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }

@@ -7739,10 +7739,63 @@ html.dark .login-reminder-cta,
   .discovery-catalog-wrap {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
+    gap: 14px;
     width: min(1840px, calc(100% - 48px));
     margin: 0 auto;
     padding: 0 0 10px;
+  }
+
+  .discovery-shortcuts {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .discovery-shortcut {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 58px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+
+  .discovery-shortcut-mark {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    color: #fff;
+  }
+
+  .discovery-shortcut-mark.is-new {
+    background: #f08a24;
+  }
+
+  .discovery-shortcut-mark.is-hot {
+    background: #f25a6a;
+  }
+
+  .discovery-shortcut.is-active {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .discovery-shortcut.is-active .discovery-shortcut-mark.is-new {
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #f08a24;
+  }
+
+  .discovery-shortcut.is-active .discovery-shortcut-mark.is-hot {
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #f25a6a;
   }
 
   .discovery-catalog {

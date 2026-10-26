@@ -74,13 +74,21 @@ func (m *memPublicVideos) CountReadyVideosFiltered(categoryID uint64, query, exc
 	return len(m.filter(categoryID, query, excludeCategorySlug)), nil
 }
 
-func (m *memPublicVideos) ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string, limit, offset int) ([]model.Video, error) {
+func (m *memPublicVideos) ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug, order string, limit, offset int) ([]model.Video, error) {
 	m.listCalls++
 	m.lastList = listCall{
 		categoryID: categoryID, query: query, excludeCategorySlug: excludeCategorySlug,
 		limit: limit, offset: offset,
 	}
 	filtered := m.filter(categoryID, query, excludeCategorySlug)
+	if order == "hot" {
+		sort.SliceStable(filtered, func(i, j int) bool {
+			if filtered[i].ViewCount != filtered[j].ViewCount {
+				return filtered[i].ViewCount > filtered[j].ViewCount
+			}
+			return filtered[i].ID > filtered[j].ID
+		})
+	}
 	if offset > len(filtered) {
 		return nil, nil
 	}
@@ -135,6 +143,21 @@ func decodeVideoList(t *testing.T, w *httptest.ResponseRecorder) (ids []uint64, 
 		ids = append(ids, v.ID)
 	}
 	return ids, body.Total
+}
+
+func TestListVideos_sortHotByViews(t *testing.T) {
+	mem := samplePublicCatalog()
+	mem.videos[0].ViewCount = 2
+	mem.videos[1].ViewCount = 9
+	mem.videos[4].ViewCount = 40
+	r := testListVideosRouter(mem)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/videos?limit=5&offset=0&sort=hot", nil)
+	r.ServeHTTP(w, req)
+	ids, _ := decodeVideoList(t, w)
+	if len(ids) < 2 || ids[0] != 105 || ids[1] != 102 {
+		t.Fatalf("ids=%v want hottest first", ids)
+	}
 }
 
 func TestListVideos_excludeMidnightUnscoped(t *testing.T) {

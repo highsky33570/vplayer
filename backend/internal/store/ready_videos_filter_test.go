@@ -25,6 +25,18 @@ func TestNormalizeExcludeCategorySlug(t *testing.T) {
 	}
 }
 
+func TestReadyVideoOrderSQL(t *testing.T) {
+	if got := ReadyVideoOrderSQL("hot"); got != ` ORDER BY view_count DESC, id DESC` {
+		t.Fatalf("hot order: %q", got)
+	}
+	if got := ReadyVideoOrderSQL(""); !strings.Contains(got, "created_at DESC") {
+		t.Fatalf("default order: %q", got)
+	}
+	if got := ReadyVideoOrderSQL("nope"); !strings.Contains(got, "created_at DESC") {
+		t.Fatalf("unknown sort must stay newest: %q", got)
+	}
+}
+
 func TestAppendReadyVideosWhere_excludeBeforeLimit(t *testing.T) {
 	base := `SELECT id FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
 	q, args := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{}, "", "midnight")

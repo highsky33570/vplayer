@@ -183,6 +183,8 @@ export async function listVideosPage(opts?: {
   offset?: number;
   /** Optional; homepage Featured/最新上架 only. Never set for category/search/browse. */
   excludeCategorySlug?: string;
+  /** "hot" lists most-played titles. Omitted keeps newest-added order. */
+  sort?: 'hot';
 }): Promise<VideoPage> {
   const limit = opts?.limit ?? 48;
   const offset = opts?.offset ?? 0;
@@ -195,6 +197,7 @@ export async function listVideosPage(opts?: {
   if (q) params.set('q', q);
   const excludeSlug = opts?.excludeCategorySlug?.trim();
   if (excludeSlug) params.set('exclude_category_slug', excludeSlug);
+  if (opts?.sort === 'hot') params.set('sort', 'hot');
   const res = await fetch(`${API_BASE}/api/v1/videos?${params}`);
   const json = (await res.json().catch(() => ({}))) as {
     ok?: boolean;

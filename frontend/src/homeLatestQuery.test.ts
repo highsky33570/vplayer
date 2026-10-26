@@ -37,6 +37,7 @@ describe('listVideosPage exclude_category_slug', () => {
     });
     await listVideosPage({ limit: 12, offset: 0 });
     assert.equal(seenURL.includes('exclude_category_slug'), false);
+    assert.equal(seenURL.includes('sort='), false);
   });
 });
 

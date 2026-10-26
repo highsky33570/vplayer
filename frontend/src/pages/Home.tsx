@@ -41,6 +41,7 @@ export function Home() {
   const [loadingMore, setLoadingMore] = useState(false);
   const active = params.get('ch') || 'home';
   const searchQ = (params.get('q') || '').trim();
+  const rankHot = !searchQ && active === 'home' && params.get('rank') === 'hot';
   const offsetRef = useRef(0);
 
   const activeCat = cats.find((c) => c.slug === active);
@@ -52,7 +53,7 @@ export function Home() {
     return m;
   }, [cats]);
 
-  const isHomeLanding = !searchQ && active === 'home';
+  const isHomeLanding = !searchQ && active === 'home' && !rankHot;
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +133,7 @@ export function Home() {
     listVideosPage({
       categoryId: searchQ ? undefined : categoryId,
       q: searchQ || undefined,
+      sort: rankHot ? 'hot' : undefined,
       limit: PAGE_SIZE,
       offset: 0,
     })
@@ -151,7 +153,7 @@ export function Home() {
     return () => {
       cancelled = true;
     };
-  }, [active, categoryId, cats, searchQ, isHomeLanding]);
+  }, [active, categoryId, cats, searchQ, isHomeLanding, rankHot]);
 
   async function loadMore() {
     setLoadingMore(true);
@@ -159,6 +161,7 @@ export function Home() {
       const page = await listVideosPage({
         categoryId: searchQ ? undefined : categoryId,
         q: searchQ || undefined,
+        sort: rankHot ? 'hot' : undefined,
         limit: PAGE_SIZE,
         offset: offsetRef.current,
       });
@@ -179,7 +182,9 @@ export function Home() {
   const emptyCategory = !loading && !isHomeLanding && videos.length === 0;
   const listTitle = isSearch
     ? `搜索：${searchQ}`
-    : activeCat?.name || '片库';
+    : rankHot
+      ? '热门'
+      : activeCat?.name || '片库';
 
   if (error && !loading && (isHomeLanding ? !homeSections : videos.length === 0)) {
     return (
