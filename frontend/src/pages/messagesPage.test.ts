@@ -26,7 +26,7 @@ describe('messages shell — no cinematic banner', () => {
     assert.equal(usesCinematicBanner('/messages'), false);
     assert.equal(usesCinematicBanner('/messages/'), false);
     assert.equal(usesCinematicBanner('/'), true);
-    assert.equal(usesCinematicBanner('/account'), true);
+    assert.equal(usesCinematicBanner('/account'), false);
     assert.equal(usesCinematicBanner('/vip'), false);
     assert.equal(usesCinematicBanner('/favorites'), false);
     assert.equal(usesCinematicBanner('/history'), false);

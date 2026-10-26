@@ -61,7 +61,7 @@ describe('history shell — compact like /messages', () => {
     assert.equal(usesCinematicBanner('/history'), false);
     assert.equal(usesCinematicBanner('/messages'), false);
     assert.equal(usesCinematicBanner('/'), true);
-    assert.equal(usesCinematicBanner('/account'), true);
+    assert.equal(usesCinematicBanner('/account'), false);
     assert.equal(usesCinematicBanner('/vip'), false);
     assert.equal(usesCinematicBanner('/favorites'), false);
     assert.match(flyoutLogic, /COMPACT_SHELL_PATHS|\/history/);
@@ -74,9 +74,9 @@ describe('history shell — compact like /messages', () => {
     assert.match(css, /min\(1240px/);
   });
 
-  it('25/26: /messages stays compact; /account keeps cinematic banner', () => {
+  it('25/26: /messages and /account use the compact shell', () => {
     assert.equal(usesCinematicBanner('/messages'), false);
-    assert.equal(usesCinematicBanner('/account'), true);
+    assert.equal(usesCinematicBanner('/account'), false);
     assert.match(messages, /msg-dest/);
     assert.match(account, /space-page/);
   });

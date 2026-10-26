@@ -101,12 +101,12 @@ describe('who can open a flyout', () => {
 });
 
 describe('destination shell helpers', () => {
-  it('marks destination routes; compact shell on messages, history, vip, and favorites', () => {
+  it('marks destination routes; compact shell on account, messages, history, vip, and favorites', () => {
     assert.equal(headerDestinationActive('/favorites'), 'favorites');
     assert.equal(isDestinationPath('/messages'), true);
     assert.equal(isDestinationPath('/'), false);
     assert.equal(usesCinematicBanner('/'), true);
-    assert.equal(usesCinematicBanner('/account'), true);
+    assert.equal(usesCinematicBanner('/account'), false);
     assert.equal(usesCinematicBanner('/messages'), false);
     assert.equal(usesCinematicBanner('/history'), false);
     assert.equal(usesCinematicBanner('/vip'), false);

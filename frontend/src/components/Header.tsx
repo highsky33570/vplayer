@@ -161,7 +161,7 @@ export function Header() {
   }
 
   return (
-    <div className={`banner-shell${cinematic ? '' : ' banner-shell--app'}`}>
+    <div className={`banner-shell${cinematic ? '' : ' banner-shell--app'}${pathname === '/' ? ' banner-shell--home' : ''}`}>
       {cinematic ? (
         <div className="banner-stage">
           <BannerCarousel />

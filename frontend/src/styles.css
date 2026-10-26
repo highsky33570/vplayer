@@ -7959,6 +7959,32 @@ html.dark .login-reminder-cta,
     display: none !important;
   }
 
+  .banner-shell--home {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .banner-shell--home .banner-stage {
+    display: block !important;
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    order: 2;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 2171 / 224;
+    pointer-events: none;
+  }
+
+  .banner-shell--home .banner-stage .banner-shade {
+    display: none !important;
+  }
+
+  .banner-shell--home .discovery {
+    order: 3;
+  }
+
   .banner-shell:not(.banner-shell--app) {
     position: sticky;
     top: 0;
@@ -8012,7 +8038,8 @@ html.dark .login-reminder-cta,
     padding: 0 8px;
   }
 
-  .banner-shell:not(.banner-shell--app) .discovery {
+  .banner-shell:not(.banner-shell--app) .discovery,
+  .banner-shell:not(.banner-shell--app) .discovery.discovery--home {
     margin-top: 0;
     padding-top: 0;
     background: var(--surface);
