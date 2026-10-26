@@ -1,4 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import banner01 from '../assets/banners/banner-01.webp';
+import banner02 from '../assets/banners/banner-02.webp';
+import banner03 from '../assets/banners/banner-03.webp';
+import banner04 from '../assets/banners/banner-04.webp';
+import banner05 from '../assets/banners/banner-05.webp';
+import banner06 from '../assets/banners/banner-06.webp';
+
+const BANNERS = [banner01, banner02, banner03, banner04, banner05, banner06];
 
 const HOLD_MS = 5000;
 const TRANSITION_MS = 800;
@@ -15,28 +23,22 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-type Props = {
-  images: string[];
-};
-
-/** Wide catalog stills behind the header. Empty while covers are loading. */
-export function BannerCarousel({ images }: Props) {
-  const sources = images.map((src) => src.trim()).filter(Boolean).slice(0, 5);
+export function BannerCarousel() {
   const reducedMotion = usePrefersReducedMotion();
   const [trackIndex, setTrackIndex] = useState(0);
   const [animate, setAnimate] = useState(true);
-  const count = sources.length;
-  const active = count ? trackIndex % count : 0;
+  const active = trackIndex % BANNERS.length;
   const transitioning = useRef(false);
-  const sourceKey = sources.join('|');
 
   useEffect(() => {
-    setTrackIndex(0);
-    transitioning.current = false;
-  }, [sourceKey]);
+    BANNERS.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, []);
 
   useEffect(() => {
-    if (reducedMotion || count < 2) return;
+    if (reducedMotion) return;
     const timer = window.setInterval(() => {
       if (transitioning.current) return;
       transitioning.current = true;
@@ -44,10 +46,10 @@ export function BannerCarousel({ images }: Props) {
       setTrackIndex((i) => i + 1);
     }, HOLD_MS);
     return () => window.clearInterval(timer);
-  }, [reducedMotion, count]);
+  }, [reducedMotion]);
 
   useEffect(() => {
-    if (count === 0 || trackIndex < count) {
+    if (trackIndex < BANNERS.length) {
       transitioning.current = false;
       return;
     }
@@ -59,10 +61,9 @@ export function BannerCarousel({ images }: Props) {
       });
     }, TRANSITION_MS);
     return () => window.clearTimeout(t);
-  }, [trackIndex, count]);
+  }, [trackIndex]);
 
   const goTo = (i: number) => {
-    if (count === 0) return;
     if (reducedMotion) {
       setAnimate(false);
       setTrackIndex(i);
@@ -77,11 +78,7 @@ export function BannerCarousel({ images }: Props) {
     }, TRANSITION_MS);
   };
 
-  if (count === 0) {
-    return <div className="banner-carousel banner-carousel--empty" aria-hidden />;
-  }
-
-  const slides = reducedMotion ? sources : [...sources, sources[0]];
+  const slides = reducedMotion ? BANNERS : [...BANNERS, BANNERS[0]];
 
   return (
     <div className="banner-carousel">
@@ -100,21 +97,19 @@ export function BannerCarousel({ images }: Props) {
 
       <div className="banner-shade" aria-hidden />
 
-      {count > 1 ? (
-        <div className="banner-dots" role="tablist" aria-label="横幅切换">
-          {sources.map((src, i) => (
-            <button
-              key={src}
-              type="button"
-              role="tab"
-              aria-selected={i === active}
-              aria-label={`横幅 ${i + 1}`}
-              className={i === active ? 'is-active' : undefined}
-              onClick={() => goTo(i)}
-            />
-          ))}
-        </div>
-      ) : null}
+      <div className="banner-dots" role="tablist" aria-label="横幅切换">
+        {BANNERS.map((src, i) => (
+          <button
+            key={src}
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            aria-label={`横幅 ${i + 1}`}
+            className={i === active ? 'is-active' : undefined}
+            onClick={() => goTo(i)}
+          />
+        ))}
+      </div>
     </div>
   );
 }

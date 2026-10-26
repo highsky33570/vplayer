@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchUnreadCount, listVideosPage } from '../api';
+import { fetchUnreadCount } from '../api';
 import { UserAvatar } from '../account/UserAvatar';
 import { subscribeUnreadCount } from '../account/unreadEvents';
 import { useAuth } from '../auth/AuthContext';
@@ -150,27 +150,6 @@ export function Header() {
 
   const destActive = headerDestinationActive(pathname);
   const cinematic = usesCinematicBanner(pathname);
-  const [bannerCovers, setBannerCovers] = useState<string[]>([]);
-  useEffect(() => {
-    if (!cinematic) return;
-    let cancelled = false;
-    listVideosPage({ limit: 5, offset: 0, excludeCategorySlug: 'midnight' })
-      .then((page) => {
-        if (cancelled) return;
-        setBannerCovers(
-          page.data
-            .map((video) => video.cover_url.trim())
-            .filter((url) => url.length > 0)
-            .slice(0, 5),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setBannerCovers([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [cinematic]);
 
   /** Desktop top-right destinations: new tab; guests get login on this tab instead. */
   function onDestLinkClick(id: HeaderFlyoutId, event: { preventDefault: () => void }, opts?: { public?: boolean }) {
@@ -184,7 +163,7 @@ export function Header() {
     <div className={`banner-shell${cinematic ? '' : ' banner-shell--app'}`}>
       {cinematic ? (
         <div className="banner-stage">
-          <BannerCarousel images={bannerCovers} />
+          <BannerCarousel />
         </div>
       ) : null}
       <header className="banner-bar">
