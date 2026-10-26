@@ -278,7 +278,13 @@ export function Header() {
                 active={destActive === 'vip'}
                 popup={canUseFlyout(desktopHover, showIdentity, 'vip')}
                 expanded={openFlyout === 'vip'}
-                onClick={(event) => onDestLinkClick('vip', event, { public: true })}
+                onClick={(event) => {
+                  onDestLinkClick('vip', event, { public: true });
+                  if (!event.defaultPrevented) {
+                    event.preventDefault();
+                    window.open(VIP_PANEL.href, '_blank', 'noopener,noreferrer');
+                  }
+                }}
               />
             }
           >
@@ -425,7 +431,13 @@ export function Header() {
           >
             {theme === 'dark' ? '浅色模式' : '深色模式'}
           </button>
-          <button type="button" onClick={() => goOrLogin(VIP_PANEL.href, undefined, { public: true })}>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              window.open(VIP_PANEL.href, '_blank', 'noopener,noreferrer');
+            }}
+          >
             大会员
           </button>
           {!showIdentity && (
@@ -467,7 +479,7 @@ function DestNavLink({
   label: string;
   icon: ReactNode;
   className?: string;
-  onClick?: (event: { preventDefault: () => void }) => void;
+  onClick?: (event: { preventDefault: () => void; defaultPrevented: boolean }) => void;
   popup?: boolean;
   expanded?: boolean;
   active?: boolean;

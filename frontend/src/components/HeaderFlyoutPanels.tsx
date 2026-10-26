@@ -129,9 +129,15 @@ export function VipPanel({ onNavigate }: NavProps) {
           <li key={bullet}>{bullet}</li>
         ))}
       </ul>
-      <Link className="vip-panel-cta" to={panel.href} onClick={onNavigate}>
+      <a
+        className="vip-panel-cta"
+        href={panel.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={onNavigate}
+      >
         {panel.cta}
-      </Link>
+      </a>
     </div>
   );
 }

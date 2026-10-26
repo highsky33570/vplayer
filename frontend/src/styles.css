@@ -4462,7 +4462,7 @@ html.dark .login-reminder-cta {
 .vip-hero-stage {
   position: relative;
   width: 100%;
-  min-height: min(72vh, 720px);
+  min-height: min(36vh, 360px);
   overflow: hidden;
   background: #0a121a;
   color: #fff;
@@ -4478,7 +4478,7 @@ html.dark .login-reminder-cta {
   display: grid;
   place-content: center;
   gap: 14px;
-  min-height: 420px;
+  min-height: 210px;
   text-align: center;
   color: var(--text);
   background: var(--surface);
@@ -4507,7 +4507,7 @@ html.dark .login-reminder-cta {
   position: absolute;
   z-index: 2;
   left: clamp(20px, 4vw, 72px);
-  bottom: clamp(120px, 18vh, 200px);
+  bottom: clamp(16px, 4vh, 40px);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -6889,9 +6889,17 @@ html.dark .login-reminder-cta {
 
 .discovery {
   width: 100%;
+}
+
+.discovery.discovery--home {
   background: var(--surface);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+}
+
+.discovery:not(.discovery--home) {
+  background: transparent;
+  border: 0;
 }
 
 .category-rail {
@@ -7675,13 +7683,20 @@ html.dark .login-reminder-cta,
   background: var(--brand-deep);
 }
 
-.banner-shell:not(.banner-shell--app) .discovery {
+.banner-shell:not(.banner-shell--app) .discovery.discovery--home {
   position: relative;
   z-index: 1;
   margin-top: 88px;
   padding-top: 12px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
+}
+
+.banner-shell:not(.banner-shell--app) .discovery:not(.discovery--home) {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 @media (min-width: 768px) {

@@ -31,6 +31,7 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
   const [categories, setCategories] = useState<Category[]>([]);
   const routeChannel = params.get('ch') || 'home';
   const active = pathname === '/' ? routeChannel : '';
+  const onHome = pathname === '/';
   const rankHot = pathname === '/' && !params.get('q')?.trim() && routeChannel === 'home' && params.get('rank') === 'hot';
   const latestOn = pathname === '/' && !params.get('q')?.trim() && routeChannel === 'home' && !rankHot;
 
@@ -230,10 +231,10 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
   );
 
   return (
-    <div className="discovery" ref={discoveryRef}>
+    <div className={`discovery${onHome ? ' discovery--home' : ''}`} ref={discoveryRef}>
       {wide && channelHost ? createPortal(channelRail, channelHost) : channelRail}
 
-      {catalogSubs.length > 0 ? (
+      {onHome && catalogSubs.length > 0 ? (
         <div className="discovery-catalog-wrap">
           <div className="discovery-shortcuts">
             <button
@@ -292,11 +293,11 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
         </div>
       ) : null}
 
-      {/* Second text row. Shown only while a channel with children is open. */}
-      <div
-        className={`category-subrow${expandedChildren.length > 0 ? ' is-open' : ''}`}
-        aria-hidden={expandedChildren.length === 0}
-      >
+      {onHome ? (
+        <div
+          className={`category-subrow${expandedChildren.length > 0 ? ' is-open' : ''}`}
+          aria-hidden={expandedChildren.length === 0}
+        >
         <div className="category-subrow-inner">
           <div
             ref={subrowRef}
@@ -329,6 +330,7 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
           )}
         </div>
       </div>
+      ) : null}
     </div>
   );
 }
