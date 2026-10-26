@@ -202,7 +202,10 @@ export function Header() {
           {!ready ? null : showIdentity && user ? (
             <div className="banner-user-menu">
               <button type="button" className="banner-logout" onClick={logout}>
-                退出
+                <span className="banner-action-icon" aria-hidden>
+                  <LogoutIcon />
+                </span>
+                <span>退出</span>
               </button>
               <HeaderFlyout
                 id="account"
@@ -606,6 +609,20 @@ function MsgIcon() {
         d="M4 6h16v10H8l-4 3V6z"
         stroke="currentColor"
         strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M10 7V5H5v14h5v-2M10 12h9M16 8l4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>

@@ -7520,7 +7520,7 @@ html.dark .login-reminder-cta,
 
 .banner-shell:not(.banner-shell--app) {
   position: relative;
-  background: #141414;
+  background: var(--bg);
 }
 
 .banner-stage {
@@ -7616,9 +7616,10 @@ html.dark .login-reminder-cta,
 .banner-shell:not(.banner-shell--app) .banner-action,
 .banner-shell:not(.banner-shell--app) .theme-toggle,
 .banner-shell:not(.banner-shell--app) .btn-upload,
+.banner-shell:not(.banner-shell--app) .banner-logout,
 .banner-shell:not(.banner-shell--app) .menu-toggle {
   color: #f4f4f4;
-  line-height: 72px;
+  line-height: 1.2;
 }
 
 .banner-shell:not(.banner-shell--app) .search {
@@ -8024,34 +8025,69 @@ html.dark .login-reminder-cta,
     box-shadow: inset 0 -2px 0 var(--brand);
   }
 
+  .banner-shell:not(.banner-shell--app) .banner-actions,
+  .banner-shell--app .banner-actions,
+  .banner-shell .banner-user-menu,
+  .banner-shell .header-flyout-anchor {
+    display: flex;
+    align-items: center;
+    align-self: center;
+  }
+
+  .banner-shell .header-flyout-anchor,
+  .banner-shell .banner-user-menu {
+    display: inline-flex;
+    height: auto;
+  }
+
   .banner-shell:not(.banner-shell--app) .banner-action,
   .banner-shell:not(.banner-shell--app) .theme-toggle,
   .banner-shell:not(.banner-shell--app) .btn-upload,
+  .banner-shell:not(.banner-shell--app) .banner-logout,
   .banner-shell:not(.banner-shell--app) .banner-user,
   .banner-shell--app .banner-action,
   .banner-shell--app .theme-toggle,
   .banner-shell--app .btn-upload,
+  .banner-shell--app .banner-logout,
   .banner-shell--app .banner-user {
     display: inline-flex !important;
-    flex-direction: row;
-    align-items: center;
+    flex-direction: row !important;
+    align-items: center !important;
+    align-self: center;
     gap: 4px;
-    height: auto;
-    line-height: 1.2;
+    height: 28px;
+    min-height: 28px;
+    margin: 0;
+    line-height: 1 !important;
     padding: 0 6px;
+    font-size: 13px;
+    font-weight: 500;
     background: transparent !important;
     border: 0;
+    border-radius: 0;
     box-shadow: none;
+    transform: none;
   }
 
   .banner-shell .banner-action-icon,
   .banner-shell .theme-toggle .banner-action-icon,
+  .banner-shell .banner-logout .banner-action-icon,
   .banner-shell .btn-upload svg {
-    display: inline-block !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
     width: 16px;
     height: 16px;
     margin: 0;
     color: inherit;
+    flex: 0 0 16px;
+  }
+
+  .banner-shell .banner-action-icon svg,
+  .banner-shell .btn-upload svg {
+    display: block;
+    width: 16px;
+    height: 16px;
   }
 
   .banner-actions,
