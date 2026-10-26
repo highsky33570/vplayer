@@ -15,8 +15,8 @@ export function VideoCard({ video, compact, categoryName }: Props) {
   const { user, ready } = useAuth();
   const navigate = useNavigate();
   const href = videoEntryHref(ready, Boolean(user), video.id) ?? `/watch/${video.id}`;
-  const metaBits = [categoryName, video.year, video.area].filter(Boolean);
-  const secondary = metaBits.length ? metaBits.join(' · ') : (video.description || '').trim();
+  const facts = [categoryName, video.year, video.area].filter(Boolean).join(' · ');
+  const description = (video.description || '').trim();
   const showDuration = video.duration_sec > 0;
   const showViews = video.view_count > 0;
 
@@ -46,6 +46,7 @@ export function VideoCard({ video, compact, categoryName }: Props) {
         durationSec={video.duration_sec}
         className="thumb"
       >
+        <span className="thumb-hot">热门推荐</span>
         {showViews || showDuration ? (
           <div className="thumb-stats">
             {showViews ? (
@@ -61,7 +62,8 @@ export function VideoCard({ video, compact, categoryName }: Props) {
         ) : null}
       </HoverPreviewThumb>
       <div className="video-title">{video.title}</div>
-      {!compact && secondary ? <div className="video-meta">{secondary}</div> : null}
+      {!compact && facts ? <div className="video-meta video-meta-facts">{facts}</div> : null}
+      {!compact && description ? <div className="video-meta video-meta-desc">{description}</div> : null}
     </Link>
   );
 }

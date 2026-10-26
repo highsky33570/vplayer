@@ -55,21 +55,21 @@ describe('watch null-episode crash guard', () => {
 });
 
 describe('header logged-in presentation', () => {
-  it('puts logout before the avatar and keeps the name out of the banner label', () => {
+  it('keeps logout off the banner and the name out of the banner label', () => {
     const start = header.indexOf('banner-user-menu');
     const menu = header.slice(start, start + 2200);
-    const logoutAt = menu.indexOf('className="banner-logout"');
-    const avatarAt = menu.indexOf('HeaderAccountAvatar');
-    assert.ok(logoutAt >= 0 && avatarAt > logoutAt);
+    assert.equal(menu.includes('className="banner-logout"'), false);
+    assert.equal(menu.includes('LogoutIcon'), false);
     assert.equal(menu.includes("{user.nickname || '已登录'}"), false);
     assert.equal(menu.includes('title={user.email}'), false);
     assert.match(menu, /HeaderAccountAvatar/);
     assert.match(menu, /AccountPanel/);
     assert.match(header, /退出登录/);
-    assert.match(header, /onClick=\{logout\}/);
+    assert.match(header, /onLogout=\{logout\}/);
+    assert.match(header, /logout\(\)/);
     const avatarSrc = readFileSync(join(here, '../components/HeaderAccountAvatar.tsx'), 'utf8');
-    assert.match(avatarSrc, /title=\{\(user\.nickname \?\? ''\)\.trim\(\) \|\| '已登录'\}/);
-    assert.match(avatarSrc, /UserAvatar/);
+    assert.match(avatarSrc, /title="个人空间"/);
+    assert.equal(avatarSrc.includes('UserAvatar'), false);
   });
 });
 
