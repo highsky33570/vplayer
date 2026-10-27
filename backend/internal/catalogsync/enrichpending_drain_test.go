@@ -451,14 +451,14 @@ func (s *drainLockProbeStore) AcquireAdvisoryLock(ctx context.Context, name stri
 	}), nil
 }
 
-func (s *drainLockProbeStore) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]store.PendingEnrichmentEpisode, error) {
+func (s *drainLockProbeStore) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry, includeLegacyUnavailable bool) ([]store.PendingEnrichmentEpisode, error) {
 	s.listCalls++
 	if s.listCalls == 2 {
 		s.mu.Lock()
 		s.lockedDuringSecondList = s.locked
 		s.mu.Unlock()
 	}
-	return s.enrichMemStore.ListPendingEnrichmentEpisodes(system, finalLimit, includeMembershipRetry)
+	return s.enrichMemStore.ListPendingEnrichmentEpisodes(system, finalLimit, includeMembershipRetry, includeLegacyUnavailable)
 }
 
 func TestRunDrain_rejectsViaValidationInRunDrain(t *testing.T) {

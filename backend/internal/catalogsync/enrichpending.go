@@ -28,7 +28,7 @@ const (
 // EnrichPendingStore is the DB surface for deferred enrichment (mockable).
 type EnrichPendingStore interface {
 	AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error)
-	ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]store.PendingEnrichmentEpisode, error)
+	ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry, includeLegacyUnavailable bool) ([]store.PendingEnrichmentEpisode, error)
 	GetEnrichmentCandidateByID(system string, id uint64) (store.PendingEnrichmentEpisode, bool, error)
 	GetEnrichmentCandidateBySourceRef(system, sourceVideoID string, sid, nid int) (store.PendingEnrichmentEpisode, bool, error)
 	ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status, restrictionReason string) (updated bool, err error)
@@ -92,12 +92,12 @@ type EnrichPendingWorker struct {
 	LockName          string
 	TriggerType       string // cli|timer|admin; empty defaults to cli
 	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
-	// IncludeMembershipRetry also selects empty-URL unavailable rows with
-	// restriction_reason source_restricted OR empty historical state.
-	// CLI must set this only when auth is configured AND
-	// (--catch-up|--drain|single-episode target).
-	// Default false so anonymous/timer runs never sweep thousands of unavailable rows.
+	// IncludeMembershipRetry selects unavailable + source_restricted.
+	// CLI: auth configured AND (--catch-up|--drain|single-episode target).
 	IncludeMembershipRetry bool
+	// IncludeLegacyUnavailable selects unavailable + empty restriction_reason.
+	// CLI: auth configured AND explicit --retry-legacy-unavailable (never timers).
+	IncludeLegacyUnavailable bool
 }
 
 func NewEnrichPendingWorker(st EnrichPendingStore, fetcher PageFetcher) *EnrichPendingWorker {
@@ -352,7 +352,7 @@ func (w *EnrichPendingWorker) runBatchLocked(ctx context.Context, limit int, dry
 	}
 
 	// Store diversifies (≤3/video) then LIMITs; pass the worker --limit directly.
-	cands, err := w.Store.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, limit, w.IncludeMembershipRetry)
+	cands, err := w.Store.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, limit, w.IncludeMembershipRetry, w.IncludeLegacyUnavailable)
 	if err != nil {
 		sum.Failures++
 		sum.Error = "list pending: " + err.Error()
@@ -449,6 +449,27 @@ func (w *EnrichPendingWorker) runBatchLocked(ctx context.Context, limit int, dry
 		finishOp(store.OpStatusSucceeded, "", false)
 	}
 	return sum, nil
+}
+
+// ValidateEnrichPendingLegacyRetryFlags rejects unsafe --retry-legacy-unavailable use.
+// Auth presence is checked by the CLI (must not log cookie contents).
+func ValidateEnrichPendingLegacyRetryFlags(retryLegacy bool, drain bool, trigger string) error {
+	if !retryLegacy {
+		return nil
+	}
+	trig := trigger
+	if trig == "" {
+		trig = store.TriggerCLI
+	}
+	trig, err := store.ValidateTriggerType(trig)
+	if err != nil {
+		return err
+	}
+	if trig != store.TriggerCLI {
+		return fmt.Errorf("enrichpending: --retry-legacy-unavailable requires --trigger=cli (manual only; not for timers)")
+	}
+	_ = drain // drain is allowed only with catch-up + cli; still never scheduled
+	return nil
 }
 
 // ValidateEnrichPendingTargetFlags rejects unsafe single-episode CLI combinations.
@@ -549,9 +570,23 @@ func (w *EnrichPendingWorker) RunOneTarget(ctx context.Context, target EnrichPen
 		return sum, fmt.Errorf("%s", sum.Error)
 	}
 	st := strings.ToLower(strings.TrimSpace(ep.PlaybackStatus))
-	if st == "unavailable" && !w.IncludeMembershipRetry {
-		sum.Error = "unavailable episode retry requires OLEHDTV authentication configured"
-		return sum, fmt.Errorf("%s", sum.Error)
+	if st == "unavailable" {
+		reason := strings.TrimSpace(ep.RestrictionReason)
+		switch {
+		case reason == store.RestrictionReasonMembership:
+			if !w.IncludeMembershipRetry {
+				sum.Error = "source_restricted retry requires OLEHDTV authentication and catch-up/manual targeting"
+				return sum, fmt.Errorf("%s", sum.Error)
+			}
+		case reason == "":
+			if !w.IncludeLegacyUnavailable {
+				sum.Error = "legacy unavailable (empty restriction_reason) requires --retry-legacy-unavailable with auth configured"
+				return sum, fmt.Errorf("%s", sum.Error)
+			}
+		default:
+			sum.Error = "episode restriction_reason is not eligible for authenticated retry"
+			return sum, fmt.Errorf("%s", sum.Error)
+		}
 	}
 
 	sum.Selected = 1

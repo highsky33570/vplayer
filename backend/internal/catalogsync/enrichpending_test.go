@@ -150,7 +150,7 @@ func (m *enrichMemStore) GetEnrichmentCandidateBySourceRef(system, sourceVideoID
 	return *best, true, nil
 }
 
-func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]store.PendingEnrichmentEpisode, error) {
+func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry, includeLegacyUnavailable bool) ([]store.PendingEnrichmentEpisode, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []store.PendingEnrichmentEpisode
@@ -160,11 +160,13 @@ func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit
 		}
 		st := strings.ToLower(e.PlaybackStatus)
 		if st != "pending_enrichment" {
-			if !includeMembershipRetry || st != "unavailable" {
+			if st != "unavailable" {
 				continue
 			}
 			reason := strings.TrimSpace(e.RestrictionReason)
-			if reason != store.RestrictionReasonMembership && reason != "" {
+			okRestricted := includeMembershipRetry && reason == store.RestrictionReasonMembership
+			okLegacy := includeLegacyUnavailable && reason == ""
+			if !okRestricted && !okLegacy {
 				continue
 			}
 		}
@@ -437,7 +439,7 @@ func TestEnrichPending_listDiversifiesAndFillsLimit(t *testing.T) {
 	add(20, "B", 50)
 	add(30, "C", 20)
 
-	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, false)
+	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -546,7 +548,7 @@ func TestEnrichPending_sourceRestrictedBecomesUnavailable(t *testing.T) {
 	if len(sum.Actions) != 1 || sum.Actions[0].Detail != "source_restricted" {
 		t.Fatalf("actions=%+v", sum.Actions)
 	}
-	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20, false)
+	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -970,7 +972,7 @@ func TestEnrichPending_selectsOnlyEligible(t *testing.T) {
 		ID: 4, VideoID: 1, SourceSystem: "other", SourceVideoID: "a",
 		SID: 1, NID: 4, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p4",
 	}
-	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20, false)
+	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1241,42 +1243,41 @@ func historicalEmptyUnavailable() *store.PendingEnrichmentEpisode {
 	}
 }
 
-func TestEnrichPending_historicalEmptyReason_authFalseCatchUpNotSelected(t *testing.T) {
-	// Simulates auth=false even with --catch-up: IncludeMembershipRetry stays false.
+func TestEnrichPending_legacyUnavailable_notSelectedNormally(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{}})
-	w.IncludeMembershipRetry = false
-	sum, err := w.Run(context.Background(), 5, true, 1, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sum.Selected != 0 || sum.Attempted != 0 {
-		t.Fatalf("auth=false must not select historical empty-reason: %+v", sum)
-	}
-}
-
-func TestEnrichPending_historicalEmptyReason_authTrueNormalTimerNotSelected(t *testing.T) {
-	// Simulates auth=true but normal timer/non-catch-up: IncludeMembershipRetry stays false.
-	st := newEnrichMemStore()
-	st.episodes[43393] = historicalEmptyUnavailable()
-	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{}})
-	w.IncludeMembershipRetry = false
 	sum, err := w.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if sum.Selected != 0 {
-		t.Fatalf("timer/non-catch-up must not select historical empty-reason: %+v", sum)
+		t.Fatalf("normal pending mode must not select legacy unavailable: %+v", sum)
 	}
 }
 
-func TestEnrichPending_historicalEmptyReason_authTrueCatchUpSelected(t *testing.T) {
+func TestEnrichPending_legacyUnavailable_authAloneNotEnough(t *testing.T) {
+	// auth=true + catch-up (membership retry) without --retry-legacy-unavailable.
+	st := newEnrichMemStore()
+	st.episodes[43393] = historicalEmptyUnavailable()
+	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{}})
+	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = false
+	sum, err := w.Run(context.Background(), 5, true, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Selected != 0 {
+		t.Fatalf("auth+catch-up without legacy flag must not select empty-reason: %+v", sum)
+	}
+}
+
+func TestEnrichPending_legacyUnavailable_explicitFlagSelectsAndDryRunNoWrite(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: playHTML("https://cdn.example/32222.m3u8")}})
-	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
 	sum, err := w.Run(context.Background(), 5, true, 1, true)
 	if err != nil {
 		t.Fatal(err)
@@ -1292,12 +1293,12 @@ func TestEnrichPending_historicalEmptyReason_authTrueCatchUpSelected(t *testing.
 	}
 }
 
-func TestEnrichPending_historicalEmptyReason_authorizedHTMLToOk(t *testing.T) {
+func TestEnrichPending_legacyUnavailable_authorizedHTMLToOk(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: playHTML("https://cdn.example/32222.m3u8")}})
-	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
 	sum, err := w.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
@@ -1314,13 +1315,13 @@ func TestEnrichPending_historicalEmptyReason_authorizedHTMLToOk(t *testing.T) {
 	}
 }
 
-func TestEnrichPending_historicalEmptyReason_denialRemainsRestricted(t *testing.T) {
+func TestEnrichPending_legacyUnavailable_denialBecomesSourceRestricted(t *testing.T) {
 	restricted := `<html><body>系统提示 您没有权限访问此数据，请升级会员</body></html>`
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: restricted}})
-	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
 	sum, err := w.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
 		t.Fatal(err)
@@ -1337,12 +1338,12 @@ func TestEnrichPending_historicalEmptyReason_denialRemainsRestricted(t *testing.
 	}
 }
 
-func TestEnrichPending_historicalEmptyReason_unknownDoesNotActivate(t *testing.T) {
+func TestEnrichPending_legacyUnavailable_unknownDoesNotActivate(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: `<html>broken page</html>`}})
-	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
 	sum, _ := w.Run(context.Background(), 5, false, 1, false)
 	if sum.StillPending != 1 || st.writes != 0 {
 		t.Fatalf("%+v writes=%d", sum, st.writes)
@@ -1353,6 +1354,45 @@ func TestEnrichPending_historicalEmptyReason_unknownDoesNotActivate(t *testing.T
 	}
 }
 
+func TestEnrichPending_legacyUnavailable_excludesExistingPlaybackURL(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[10] = &store.PendingEnrichmentEpisode{
+		ID: 10, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "keep",
+		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlaybackURL: "https://keep/me.m3u8",
+		PlayPageURL: "https://src/p", RestrictionReason: "", IsActive: true,
+	}
+	st.episodes[43393] = historicalEmptyUnavailable()
+	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{
+		st.episodes[43393].PlayPageURL: playHTML("https://cdn.example/32222.m3u8"),
+	}})
+	w.IncludeLegacyUnavailable = true
+	sum, err := w.Run(context.Background(), 5, false, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Selected != 1 || sum.Actions[0].EpisodeID != 43393 {
+		t.Fatalf("%+v", sum)
+	}
+	if st.episodes[10].PlaybackURL != "https://keep/me.m3u8" {
+		t.Fatalf("must not touch existing URL: %+v", st.episodes[10])
+	}
+}
+
+func TestValidateEnrichPendingLegacyRetryFlags(t *testing.T) {
+	if err := ValidateEnrichPendingLegacyRetryFlags(false, false, store.TriggerTimer); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateEnrichPendingLegacyRetryFlags(true, false, store.TriggerTimer); err == nil {
+		t.Fatal("legacy retry + timer must fail")
+	}
+	if err := ValidateEnrichPendingLegacyRetryFlags(true, false, store.TriggerAdmin); err == nil {
+		t.Fatal("legacy retry + admin must fail")
+	}
+	if err := ValidateEnrichPendingLegacyRetryFlags(true, true, store.TriggerCLI); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEnrichPending_sourceRestrictedStillSelectedWithMembershipRetry(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[1] = &store.PendingEnrichmentEpisode{
@@ -1360,19 +1400,29 @@ func TestEnrichPending_sourceRestrictedStillSelectedWithMembershipRetry(t *testi
 		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlayPageURL: "https://src/vip",
 		RestrictionReason: store.RestrictionReasonMembership, IsActive: false,
 	}
-	cands, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, true)
+	cands, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(cands) != 1 {
 		t.Fatalf("source_restricted must remain eligible: %d", len(cands))
 	}
-	candsOff, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, false)
+	candsOff, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(candsOff) != 0 {
 		t.Fatalf("without membership retry must exclude: %d", len(candsOff))
+	}
+	// Membership retry alone must NOT pull empty-reason legacy rows.
+	st.episodes[2] = historicalEmptyUnavailable()
+	st.episodes[2].ID = 2
+	mixed, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mixed) != 1 || mixed[0].ID != 1 {
+		t.Fatalf("membership retry must not select empty-reason: %+v", mixed)
 	}
 }
 
@@ -1434,7 +1484,7 @@ func TestRunOneTarget_sourceRefSelectsOnlyMatchingEpisode(t *testing.T) {
 		st.episodes[50001].PlayPageURL: playHTML("https://cdn.example/other.m3u8"),
 	}
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: pages})
-	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
 	sum, err := w.RunOneTarget(context.Background(), EnrichPendingTarget{
 		SourceVideoID: "32222", SID: 1, NID: 1,
 	}, false)
@@ -1452,21 +1502,21 @@ func TestRunOneTarget_sourceRefSelectsOnlyMatchingEpisode(t *testing.T) {
 	}
 }
 
-func TestRunOneEpisode_historicalEmptyRequiresAuthGate(t *testing.T) {
+func TestRunOneEpisode_historicalEmptyRequiresLegacyFlag(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	f := &mapFetcher{pages: map[string]string{url: playHTML("https://cdn.example/32222.m3u8")}}
 
-	wNoAuth := NewEnrichPendingWorker(st, f)
-	wNoAuth.IncludeMembershipRetry = false
-	_, err := wNoAuth.RunOneEpisode(context.Background(), 43393, true)
+	wMembershipOnly := NewEnrichPendingWorker(st, f)
+	wMembershipOnly.IncludeMembershipRetry = true
+	_, err := wMembershipOnly.RunOneEpisode(context.Background(), 43393, true)
 	if err == nil {
-		t.Fatal("unavailable without membership retry must error")
+		t.Fatal("empty-reason without --retry-legacy-unavailable must error")
 	}
 
 	w := NewEnrichPendingWorker(st, f)
-	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
 	sum, err := w.RunOneEpisode(context.Background(), 43393, true)
 	if err != nil {
 		t.Fatal(err)
@@ -1487,7 +1537,7 @@ func TestRunOneEpisode_doesNotOverwriteExistingPlaybackURL(t *testing.T) {
 		PlayPageURL: "https://src/p", IsActive: true,
 	}
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{}})
-	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
 	_, err := w.RunOneEpisode(context.Background(), 10, false)
 	if err == nil {
 		t.Fatal("existing playback_url must be ineligible")

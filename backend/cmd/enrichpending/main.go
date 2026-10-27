@@ -19,8 +19,9 @@ import (
 
 func main() {
 	dryRun := flag.Bool("dry-run", false, "fetch/parse pending play pages but perform zero DB writes")
-	catchUp := flag.Bool("catch-up", false, "manual backlog catch-up: allow --limit up to 90; with auth, also retries historical unavailable")
+	catchUp := flag.Bool("catch-up", false, "manual backlog catch-up: allow --limit up to 90; with auth, also retries source_restricted unavailable")
 	drain := flag.Bool("drain", false, "with --catch-up: repeat bounded batches until empty or safety limits (manual only; not for timers)")
+	retryLegacy := flag.Bool("retry-legacy-unavailable", false, "manual only: with auth, also retry unavailable rows with empty restriction_reason (never timers)")
 	limit := flag.Int("limit", catalogsync.EnrichPendingDefaultLim, "max pending episodes per batch (1–20; or 1–90 with --catch-up)")
 	concurrency := flag.Int("concurrency", 1, "HTTP concurrency (1–2; default 1)")
 	maxBatches := flag.Int("max-batches", catalogsync.EnrichPendingDrainMaxBatchesDefault, "drain only: max batches (1–100)")
@@ -40,6 +41,9 @@ func main() {
 		NID:           *nid,
 	}
 	if err := catalogsync.ValidateEnrichPendingTargetFlags(target, *drain, *trigger); err != nil {
+		log.Fatal(err)
+	}
+	if err := catalogsync.ValidateEnrichPendingLegacyRetryFlags(*retryLegacy, *drain, *trigger); err != nil {
 		log.Fatal(err)
 	}
 	if !target.Active() {
@@ -76,6 +80,9 @@ func main() {
 	fetcher.SetAuthCookie(cfg.OleHdTvAuthCookie)
 	fetcher.TrustPublicBaseURL(cfg.OleHdTvPublicBaseURL)
 	authConfigured := cfg.OleHdTvAuthConfigured()
+	if *retryLegacy && !authConfigured {
+		log.Fatal("enrichpending: --retry-legacy-unavailable requires OLEHDTV_AUTH_COOKIE configured")
+	}
 	db, err := store.OpenMySQL(cfg.MySQLDSN)
 	if err != nil {
 		log.Fatalf("mysql: %v", err)
@@ -85,8 +92,10 @@ func main() {
 	svc := catalogsync.NewEnrichPendingWorker(db, fetcher)
 	svc.TriggerType = trig
 	svc.RequestedByUserID = *requestedBy
-	// Historical unavailable retry: auth + (catch-up/drain OR explicit single-episode target).
+	// source_restricted retry: auth + catch-up/drain/target (not timers alone).
 	svc.IncludeMembershipRetry = authConfigured && (*catchUp || *drain || target.Active())
+	// empty-reason legacy retry: auth + explicit --retry-legacy-unavailable only.
+	svc.IncludeLegacyUnavailable = authConfigured && *retryLegacy
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -95,11 +104,11 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		if target.EpisodeID > 0 {
-			fmt.Fprintf(os.Stderr, "enrichpending episode_id=%d dry_run=%v trigger=%s auth=%v\n",
-				target.EpisodeID, *dryRun, trig, authConfigured)
+			fmt.Fprintf(os.Stderr, "enrichpending episode_id=%d dry_run=%v trigger=%s auth=%v legacy_retry=%v\n",
+				target.EpisodeID, *dryRun, trig, authConfigured, svc.IncludeLegacyUnavailable)
 		} else {
-			fmt.Fprintf(os.Stderr, "enrichpending source_video_id=%s sid=%d nid=%d dry_run=%v trigger=%s auth=%v\n",
-				target.SourceVideoID, target.SID, target.NID, *dryRun, trig, authConfigured)
+			fmt.Fprintf(os.Stderr, "enrichpending source_video_id=%s sid=%d nid=%d dry_run=%v trigger=%s auth=%v legacy_retry=%v\n",
+				target.SourceVideoID, target.SID, target.NID, *dryRun, trig, authConfigured, svc.IncludeLegacyUnavailable)
 		}
 		sum, runErr := svc.RunOneTarget(ctx, target, *dryRun)
 		_ = enc.Encode(sum)
@@ -114,14 +123,13 @@ func main() {
 	}
 
 	if *drain {
-		// Signal + max-runtime budget for the whole drain session.
 		sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		ctx, cancel := context.WithTimeout(sigCtx, *maxRuntime)
 		defer cancel()
 
-		fmt.Fprintf(os.Stderr, "enrichpending drain=true catch_up=true limit=%d concurrency=%d max_batches=%d max_runtime=%s delay_ms=%d trigger=%s auth=%v membership_retry=%v\n",
-			*limit, conc, *maxBatches, maxRuntime.String(), delayMs, trig, authConfigured, svc.IncludeMembershipRetry)
+		fmt.Fprintf(os.Stderr, "enrichpending drain=true catch_up=true limit=%d concurrency=%d max_batches=%d max_runtime=%s delay_ms=%d trigger=%s auth=%v membership_retry=%v legacy_retry=%v\n",
+			*limit, conc, *maxBatches, maxRuntime.String(), delayMs, trig, authConfigured, svc.IncludeMembershipRetry, svc.IncludeLegacyUnavailable)
 		sum, runErr := svc.RunDrain(ctx, catalogsync.EnrichPendingDrainOptions{
 			Limit:       *limit,
 			Concurrency: conc,
@@ -141,8 +149,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	fmt.Fprintf(os.Stderr, "enrichpending dry_run=%v catch_up=%v limit=%d concurrency=%d delay_ms=%d trigger=%s auth=%v membership_retry=%v\n",
-		*dryRun, *catchUp, *limit, conc, delayMs, trig, authConfigured, svc.IncludeMembershipRetry)
+	fmt.Fprintf(os.Stderr, "enrichpending dry_run=%v catch_up=%v limit=%d concurrency=%d delay_ms=%d trigger=%s auth=%v membership_retry=%v legacy_retry=%v\n",
+		*dryRun, *catchUp, *limit, conc, delayMs, trig, authConfigured, svc.IncludeMembershipRetry, svc.IncludeLegacyUnavailable)
 	sum, err := svc.Run(ctx, *limit, *dryRun, conc, *catchUp)
 	_ = enc.Encode(sum)
 	if err != nil {

@@ -65,11 +65,11 @@ func PendingEnrichmentFetchLimit(finalLimit int) int {
 // At most 3 pending episodes per video are returned (pending_rank), then ordered by
 // zero-ok priority so a single huge series cannot fill the entire LIMIT alone.
 // finalLimit is the worker --limit (1–90 absolute store bound); fetch window is bounded.
-// When includeMembershipRetry is true (CLI must gate: auth configured AND
-// catch-up/drain/single-episode target), also includes empty-URL unavailable
-// rows with restriction_reason source_restricted OR empty/NULL historical
-// state for authorized re-evaluation. ClassifyPlayPage remains authority.
-func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]PendingEnrichmentEpisode, error) {
+// includeMembershipRetry (CLI: auth + catch-up/drain/target) adds unavailable +
+// source_restricted. includeLegacyUnavailable (CLI: auth + --retry-legacy-unavailable)
+// adds unavailable + empty restriction_reason. ClassifyPlayPage remains authority —
+// empty reason is never bulk-assumed to be membership.
+func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry, includeLegacyUnavailable bool) ([]PendingEnrichmentEpisode, error) {
 	if finalLimit <= 0 {
 		finalLimit = PendingEnrichmentDefaultFinalLimit
 	}
@@ -81,6 +81,10 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, inc
 	membershipFlag := 0
 	if includeMembershipRetry {
 		membershipFlag = 1
+	}
+	legacyFlag := 0
+	if includeLegacyUnavailable {
+		legacyFlag = 1
 	}
 	// ROW_NUMBER caps each video at 3 pending rows before the global LIMIT, so a
 	// single zero-ok series cannot monopolize the candidate window.
@@ -119,18 +123,17 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, inc
 		    AND (
 		      LOWER(COALESCE(e.playback_status,'')) = 'pending_enrichment'
 		      OR (
-		        ? = 1
-		        AND LOWER(COALESCE(e.playback_status,'')) = 'unavailable'
+		        LOWER(COALESCE(e.playback_status,'')) = 'unavailable'
 		        AND (
-		          COALESCE(e.restriction_reason,'') = ?
-		          OR COALESCE(e.restriction_reason,'') = ''
+		          (? = 1 AND COALESCE(e.restriction_reason,'') = ?)
+		          OR (? = 1 AND COALESCE(e.restriction_reason,'') = '')
 		        )
 		      )
 		    )
 		) ranked
 		WHERE pending_rank <= ?
 		ORDER BY ok_count ASC, video_id ASC, nid ASC, id ASC
-		LIMIT ?`, system, membershipFlag, RestrictionReasonMembership, maxPerVideo, fetchLimit)
+		LIMIT ?`, system, membershipFlag, RestrictionReasonMembership, legacyFlag, maxPerVideo, fetchLimit)
 	if err != nil {
 		return nil, err
 	}
