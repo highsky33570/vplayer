@@ -65,8 +65,10 @@ func PendingEnrichmentFetchLimit(finalLimit int) int {
 // At most 3 pending episodes per video are returned (pending_rank), then ordered by
 // zero-ok priority so a single huge series cannot fill the entire LIMIT alone.
 // finalLimit is the worker --limit (1–90 absolute store bound); fetch window is bounded.
-// When includeMembershipRetry is true (operator auth configured), also includes empty-URL
-// unavailable rows labeled source_restricted so authorized re-enrich can clear them.
+// When includeMembershipRetry is true (CLI must gate: auth configured AND
+// catch-up/drain/--episode-id), also includes empty-URL unavailable rows with
+// restriction_reason source_restricted OR empty/NULL historical state for
+// authorized re-evaluation. ClassifyPlayPage remains authority.
 func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]PendingEnrichmentEpisode, error) {
 	if finalLimit <= 0 {
 		finalLimit = PendingEnrichmentDefaultFinalLimit
@@ -119,7 +121,10 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, inc
 		      OR (
 		        ? = 1
 		        AND LOWER(COALESCE(e.playback_status,'')) = 'unavailable'
-		        AND COALESCE(e.restriction_reason,'') = ?
+		        AND (
+		          COALESCE(e.restriction_reason,'') = ?
+		          OR COALESCE(e.restriction_reason,'') = ''
+		        )
 		      )
 		    )
 		) ranked
@@ -148,6 +153,54 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, inc
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// GetEnrichmentCandidateByID loads one OLEHDTV episode for manual --episode-id targeting.
+// Eligible when playback_url is empty, play_page_url is set, and status is pending_enrichment
+// or unavailable with restriction_reason source_restricted OR empty historical state.
+// Returns ok=false when missing or ineligible — never invents playback URLs.
+func (m *MySQL) GetEnrichmentCandidateByID(system string, id uint64) (PendingEnrichmentEpisode, bool, error) {
+	var e PendingEnrichmentEpisode
+	var active int
+	err := m.DB.QueryRow(`
+		SELECT id, video_id,
+		       COALESCE(source_system,''), COALESCE(source_video_id,''),
+		       sid, nid, COALESCE(title,''),
+		       COALESCE(playback_source,''), COALESCE(playback_url,''), COALESCE(play_page_url,''),
+		       COALESCE(playback_status,''), COALESCE(restriction_reason,''),
+		       COALESCE(hls_object_key,''), COALESCE(storage_provider,''), COALESCE(migration_status,''),
+		       is_active, created_at
+		FROM video_episodes
+		WHERE id = ?
+		  AND source_system = ?
+		  AND COALESCE(playback_url,'') = ''
+		  AND COALESCE(play_page_url,'') <> ''
+		  AND (
+		    LOWER(COALESCE(playback_status,'')) = 'pending_enrichment'
+		    OR (
+		      LOWER(COALESCE(playback_status,'')) = 'unavailable'
+		      AND (
+		        COALESCE(restriction_reason,'') = ?
+		        OR COALESCE(restriction_reason,'') = ''
+		      )
+		    )
+		  )
+		LIMIT 1`, id, system, RestrictionReasonMembership).Scan(
+		&e.ID, &e.VideoID, &e.SourceSystem, &e.SourceVideoID,
+		&e.SID, &e.NID, &e.Title,
+		&e.PlaybackSource, &e.PlaybackURL, &e.PlayPageURL,
+		&e.PlaybackStatus, &e.RestrictionReason,
+		&e.HlsObjectKey, &e.StorageProvider, &e.MigrationStatus,
+		&active, &e.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return PendingEnrichmentEpisode{}, false, nil
+	}
+	if err != nil {
+		return PendingEnrichmentEpisode{}, false, err
+	}
+	e.IsActive = active == 1
+	return e, true, nil
 }
 
 // ApplyPlaybackEnrichment sets playback_url/status only when the row is still pending+empty.
@@ -187,8 +240,11 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 		    LOWER(COALESCE(playback_status,'')) = 'pending_enrichment'
 		    OR (
 		      LOWER(COALESCE(playback_status,'')) = 'unavailable'
-		      AND COALESCE(restriction_reason,'') = ?
 		      AND COALESCE(play_page_url,'') <> ''
+		      AND (
+		        COALESCE(restriction_reason,'') = ?
+		        OR COALESCE(restriction_reason,'') = ''
+		      )
 		    )
 		  )`,
 		playbackURL,

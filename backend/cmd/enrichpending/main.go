@@ -19,7 +19,7 @@ import (
 
 func main() {
 	dryRun := flag.Bool("dry-run", false, "fetch/parse pending play pages but perform zero DB writes")
-	catchUp := flag.Bool("catch-up", false, "manual backlog catch-up: allow --limit up to 90")
+	catchUp := flag.Bool("catch-up", false, "manual backlog catch-up: allow --limit up to 90; with auth, also retries historical unavailable")
 	drain := flag.Bool("drain", false, "with --catch-up: repeat bounded batches until empty or safety limits (manual only; not for timers)")
 	limit := flag.Int("limit", catalogsync.EnrichPendingDefaultLim, "max pending episodes per batch (1–20; or 1–90 with --catch-up)")
 	concurrency := flag.Int("concurrency", 1, "HTTP concurrency (1–2; default 1)")
@@ -27,17 +27,23 @@ func main() {
 	maxRuntime := flag.Duration("max-runtime", catalogsync.EnrichPendingDrainMaxRuntimeDefault, "drain only: overall runtime budget (hard max 3h)")
 	trigger := flag.String("trigger", store.TriggerCLI, "operational trigger: cli|timer|admin")
 	requestedBy := flag.Uint64("requested-by-user-id", 0, "admin user id when --trigger=admin; must be 0 for cli|timer")
+	episodeID := flag.Uint64("episode-id", 0, "manual only: process exactly one episode id (requires auth for unavailable rows)")
 	flag.Parse()
 
-	if err := catalogsync.ValidateEnrichPendingDrainFlags(*catchUp, *drain, *dryRun); err != nil {
+	if err := catalogsync.ValidateEnrichPendingEpisodeIDFlags(*episodeID, *drain, *trigger); err != nil {
 		log.Fatal(err)
 	}
-	if *drain {
-		if err := catalogsync.ValidateEnrichPendingDrainOptions(*limit, *maxBatches, *maxRuntime); err != nil {
+	if *episodeID == 0 {
+		if err := catalogsync.ValidateEnrichPendingDrainFlags(*catchUp, *drain, *dryRun); err != nil {
 			log.Fatal(err)
 		}
-	} else if err := catalogsync.ValidateEnrichPendingLimitMode(*limit, *catchUp); err != nil {
-		log.Fatal(err)
+		if *drain {
+			if err := catalogsync.ValidateEnrichPendingDrainOptions(*limit, *maxBatches, *maxRuntime); err != nil {
+				log.Fatal(err)
+			}
+		} else if err := catalogsync.ValidateEnrichPendingLimitMode(*limit, *catchUp); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	trig, err := store.ValidateTriggerType(*trigger)
@@ -70,10 +76,28 @@ func main() {
 	svc := catalogsync.NewEnrichPendingWorker(db, fetcher)
 	svc.TriggerType = trig
 	svc.RequestedByUserID = *requestedBy
-	svc.IncludeMembershipRetry = authConfigured
+	// Historical unavailable retry: auth + (catch-up/drain OR explicit --episode-id).
+	svc.IncludeMembershipRetry = authConfigured && (*catchUp || *drain || *episodeID > 0)
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
+
+	if *episodeID > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		fmt.Fprintf(os.Stderr, "enrichpending episode_id=%d dry_run=%v trigger=%s auth=%v\n",
+			*episodeID, *dryRun, trig, authConfigured)
+		sum, runErr := svc.RunOneEpisode(ctx, *episodeID, *dryRun)
+		_ = enc.Encode(sum)
+		if runErr != nil {
+			fmt.Fprintf(os.Stderr, "enrichpending: %v\n", runErr)
+			os.Exit(1)
+		}
+		if *dryRun {
+			fmt.Fprintf(os.Stderr, "dry-run complete — no DB writes\n")
+		}
+		return
+	}
 
 	if *drain {
 		// Signal + max-runtime budget for the whole drain session.
@@ -82,8 +106,8 @@ func main() {
 		ctx, cancel := context.WithTimeout(sigCtx, *maxRuntime)
 		defer cancel()
 
-		fmt.Fprintf(os.Stderr, "enrichpending drain=true catch_up=true limit=%d concurrency=%d max_batches=%d max_runtime=%s delay_ms=%d trigger=%s auth=%v\n",
-			*limit, conc, *maxBatches, maxRuntime.String(), delayMs, trig, authConfigured)
+		fmt.Fprintf(os.Stderr, "enrichpending drain=true catch_up=true limit=%d concurrency=%d max_batches=%d max_runtime=%s delay_ms=%d trigger=%s auth=%v membership_retry=%v\n",
+			*limit, conc, *maxBatches, maxRuntime.String(), delayMs, trig, authConfigured, svc.IncludeMembershipRetry)
 		sum, runErr := svc.RunDrain(ctx, catalogsync.EnrichPendingDrainOptions{
 			Limit:       *limit,
 			Concurrency: conc,
@@ -103,8 +127,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	fmt.Fprintf(os.Stderr, "enrichpending dry_run=%v catch_up=%v limit=%d concurrency=%d delay_ms=%d trigger=%s auth=%v\n",
-		*dryRun, *catchUp, *limit, conc, delayMs, trig, authConfigured)
+	fmt.Fprintf(os.Stderr, "enrichpending dry_run=%v catch_up=%v limit=%d concurrency=%d delay_ms=%d trigger=%s auth=%v membership_retry=%v\n",
+		*dryRun, *catchUp, *limit, conc, delayMs, trig, authConfigured, svc.IncludeMembershipRetry)
 	sum, err := svc.Run(ctx, *limit, *dryRun, conc, *catchUp)
 	_ = enc.Encode(sum)
 	if err != nil {

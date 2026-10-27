@@ -29,6 +29,7 @@ const (
 type EnrichPendingStore interface {
 	AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error)
 	ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]store.PendingEnrichmentEpisode, error)
+	GetEnrichmentCandidateByID(system string, id uint64) (store.PendingEnrichmentEpisode, bool, error)
 	ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status, restrictionReason string) (updated bool, err error)
 	StartOperationalRun(in store.StartOperationalRunInput) (uint64, error)
 	FinishOperationalRun(in store.FinishOperationalRunInput) error
@@ -76,8 +77,10 @@ type EnrichPendingWorker struct {
 	LockName          string
 	TriggerType       string // cli|timer|admin; empty defaults to cli
 	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
-	// IncludeMembershipRetry also selects empty-URL unavailable+source_restricted rows
-	// so an authorized OLEHDTV session can clear stale membership denials. Default false.
+	// IncludeMembershipRetry also selects empty-URL unavailable rows with
+	// restriction_reason source_restricted OR empty historical state.
+	// CLI must set this only when auth is configured AND (--catch-up|--drain|--episode-id).
+	// Default false so anonymous/timer runs never sweep thousands of unavailable rows.
 	IncludeMembershipRetry bool
 }
 
@@ -428,6 +431,107 @@ func (w *EnrichPendingWorker) runBatchLocked(ctx context.Context, limit int, dry
 		finishOp(store.OpStatusFailed, store.ErrCodePartialFailure, true)
 	default:
 		finishOp(store.OpStatusSucceeded, "", false)
+	}
+	return sum, nil
+}
+
+// ValidateEnrichPendingEpisodeIDFlags rejects unsafe combinations for --episode-id.
+func ValidateEnrichPendingEpisodeIDFlags(episodeID uint64, drain bool, trigger string) error {
+	if episodeID == 0 {
+		return nil
+	}
+	if drain {
+		return fmt.Errorf("enrichpending: --episode-id cannot be combined with --drain")
+	}
+	trig := trigger
+	if trig == "" {
+		trig = store.TriggerCLI
+	}
+	trig, err := store.ValidateTriggerType(trig)
+	if err != nil {
+		return err
+	}
+	if trig != store.TriggerCLI {
+		return fmt.Errorf("enrichpending: --episode-id requires --trigger=cli (manual only)")
+	}
+	return nil
+}
+
+// RunOneEpisode processes a single episode by id (manual --episode-id).
+// Unavailable historical rows require IncludeMembershipRetry (auth configured).
+// Does not overwrite non-empty playback_url; uses the same ClassifyPlayPage path.
+func (w *EnrichPendingWorker) RunOneEpisode(ctx context.Context, episodeID uint64, dryRun bool) (EnrichPendingSummary, error) {
+	sum := EnrichPendingSummary{
+		DryRun:  dryRun,
+		Limit:   1,
+		Actions: make([]EnrichPendingAction, 0, 1),
+	}
+	if episodeID == 0 {
+		sum.Error = "episode id required"
+		return sum, fmt.Errorf("%s", sum.Error)
+	}
+	if w.Store == nil || w.Fetcher == nil {
+		sum.Error = "store and fetcher are required"
+		return sum, fmt.Errorf("%s", sum.Error)
+	}
+	if err := ValidateEnrichPendingEpisodeIDFlags(episodeID, false, w.TriggerType); err != nil {
+		sum.Error = err.Error()
+		return sum, err
+	}
+
+	hold, err := w.Store.AcquireAdvisoryLock(ctx, w.LockName)
+	if err != nil {
+		if errors.Is(err, store.ErrOperationLocked) {
+			sum.Error = "another enrichpending worker is already running"
+			return sum, fmt.Errorf("%w: %s", store.ErrOperationLocked, sum.Error)
+		}
+		sum.Error = "advisory lock error"
+		return sum, err
+	}
+	sum.LockAcquired = true
+	defer func() { _ = hold.Release() }()
+
+	ep, ok, err := w.Store.GetEnrichmentCandidateByID(olehdtv.SourceSystem, episodeID)
+	if err != nil {
+		sum.Failures++
+		sum.Error = "load episode: " + err.Error()
+		return sum, err
+	}
+	if !ok {
+		sum.Error = fmt.Sprintf("episode %d not found or not eligible (need empty playback_url, non-empty play_page_url, pending_enrichment|unavailable)", episodeID)
+		return sum, fmt.Errorf("%s", sum.Error)
+	}
+	st := strings.ToLower(strings.TrimSpace(ep.PlaybackStatus))
+	if st == "unavailable" && !w.IncludeMembershipRetry {
+		sum.Error = "unavailable episode retry requires OLEHDTV authentication configured"
+		return sum, fmt.Errorf("%s", sum.Error)
+	}
+
+	sum.Selected = 1
+	sum.Attempted = 1
+	r := w.processOne(ctx, ep, dryRun)
+	if r.req {
+		sum.RequestsMade++
+	}
+	sum.Actions = append(sum.Actions, r.action)
+	if r.enr {
+		sum.Enriched++
+	}
+	if r.unav {
+		sum.Unavailable++
+	}
+	if r.pend {
+		sum.StillPending++
+	}
+	if r.fail {
+		sum.Failures++
+	}
+	if r.skip {
+		sum.SkippedExisting++
+	}
+	if sum.Failures > 0 && sum.Enriched == 0 && sum.Error == "" {
+		sum.Error = fmt.Sprintf("%d enrichment failures", sum.Failures)
+		return sum, fmt.Errorf("%s", sum.Error)
 	}
 	return sum, nil
 }
