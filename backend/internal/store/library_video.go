@@ -18,8 +18,10 @@ const libraryVideoColumns = `
 		COALESCE(v.playback_url,''), v.source_updated_at, v.last_synced_at, COALESCE(v.sync_status,'ok'),
 		COALESCE(v.is_active,1), v.status, COALESCE(v.membership_required,0), v.created_at`
 
-// libraryVideoVisible limits library lists to videos the public site can show.
-const libraryVideoVisible = `v.status IN ('ready','demo') AND COALESCE(v.is_active,1)=1`
+// libraryVideoVisible limits library lists to videos the public site can show
+// (ready/active and playable, same gate as AppendReadyVideosWhere).
+var libraryVideoVisible = `v.status IN ('ready','demo') AND COALESCE(v.is_active,1)=1` +
+	PlayableEpisodeCatalogSQL("v.id")
 
 // libraryMembershipVisible appends membership gating for non-members.
 func libraryMembershipVisible(includeMembershipRequired bool) string {

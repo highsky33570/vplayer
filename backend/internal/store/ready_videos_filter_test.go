@@ -67,11 +67,24 @@ func TestAppendReadyVideosWhere_excludeBeforeLimit(t *testing.T) {
 func TestAppendReadyVideosWhere_noExcludeByDefault(t *testing.T) {
 	base := `SELECT COUNT(*) FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
 	q, args := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{}, "", "", false)
-	if strings.Contains(q, "NOT IN") || strings.Contains(q, "categories") {
-		t.Fatalf("empty exclude must not alter SQL: %s", q)
+	if strings.Contains(q, "NOT IN (SELECT id FROM categories") {
+		t.Fatalf("empty exclude must not add category slug filter: %s", q)
+	}
+	if !strings.Contains(q, "playable_ep.playback_url") {
+		t.Fatalf("public lists must require a playable episode: %s", q)
 	}
 	if len(args) != 0 {
 		t.Fatalf("args=%v", args)
+	}
+}
+
+func TestPlayableEpisodeCatalogSQL_membershipBypass(t *testing.T) {
+	sqlText := PlayableEpisodeCatalogSQL("videos.id")
+	if !strings.Contains(sqlText, "playable_keep.membership_required") {
+		t.Fatal("VIP membership_required titles must remain listable without a URL")
+	}
+	if !strings.Contains(sqlText, "playable_ep.is_active") {
+		t.Fatal("playable gate must require active episode rows")
 	}
 }
 

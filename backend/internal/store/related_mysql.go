@@ -16,7 +16,8 @@ func relatedVideosSQL(includeMembershipRequired bool) string {
 	if !includeMembershipRequired {
 		q += ` AND COALESCE(membership_required,0)=0`
 	}
-	q += MembershipOnlyCatalogExclusionSQL("videos.id") + `
+	q += MembershipOnlyCatalogExclusionSQL("videos.id")
+	q += PlayableEpisodeCatalogSQL("videos.id") + `
 		ORDER BY
 		  CASE
 		    WHEN ? <> '' AND category_id=? AND leaf_source_id=? THEN 0

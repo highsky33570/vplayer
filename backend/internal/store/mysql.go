@@ -232,6 +232,19 @@ func (m *MySQL) GetVideo(id uint64) (*model.Video, error) {
 	return scanVideo(row)
 }
 
+// GetPublicCatalogVideo returns a ready/active video only when it passes the same
+// playable-episode gate as public list/count (or is membership_required VIP showcase).
+// Unplayable OLEHDTV rows stay in DB for enrichment but resolve as not found here.
+func (m *MySQL) GetPublicCatalogVideo(id uint64) (*model.Video, error) {
+	q := `SELECT ` + videoScanSelect + `
+		FROM videos
+		WHERE id=? AND status IN ('ready','demo') AND COALESCE(is_active,1)=1`
+	q += MembershipOnlyCatalogExclusionSQL("videos.id")
+	q += PlayableEpisodeCatalogSQL("videos.id")
+	row := m.DB.QueryRow(q, id)
+	return scanVideo(row)
+}
+
 func (m *MySQL) resolveCategoryBrowse(categoryID uint64) (CategoryBrowseFilter, error) {
 	if categoryID == 0 {
 		return CategoryBrowseFilter{}, nil

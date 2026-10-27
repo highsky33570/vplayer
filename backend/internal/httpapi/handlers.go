@@ -170,7 +170,7 @@ func (a *API) GetVideo(c *gin.Context) {
 	}
 	var v *model.Video
 	if a.Store != nil {
-		v, err = a.Store.GetVideo(id)
+		v, err = a.Store.GetPublicCatalogVideo(id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 			return

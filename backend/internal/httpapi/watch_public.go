@@ -10,7 +10,7 @@ import (
 )
 
 type watchCatalog interface {
-	GetVideo(id uint64) (*model.Video, error)
+	GetPublicCatalogVideo(id uint64) (*model.Video, error)
 	ListRelatedVideos(current model.Video, limit int) ([]model.Video, error)
 	ListPublicEpisodes(videoID uint64) ([]store.PublicEpisode, error)
 }
@@ -57,7 +57,7 @@ func (a *API) ListRelated(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "data": []relatedCardJSON{}})
 		return
 	}
-	video, err := cat.GetVideo(id)
+	video, err := cat.GetPublicCatalogVideo(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
@@ -112,7 +112,7 @@ func (a *API) ListEpisodes(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "data": []store.PublicEpisode{}})
 		return
 	}
-	video, err := cat.GetVideo(id)
+	video, err := cat.GetPublicCatalogVideo(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return

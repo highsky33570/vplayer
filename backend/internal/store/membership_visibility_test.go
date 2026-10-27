@@ -28,12 +28,19 @@ func TestMembershipExclusion_searchCategoryRelatedSharePredicate(t *testing.T) {
 	)
 	pred := "restriction_reason = '" + RestrictionReasonMembership + "'"
 	keep := "membership_keep.membership_required"
+	playable := "playable_ep.playback_url"
 	related := relatedVideosSQL(false)
 	if !strings.Contains(list, pred) || !strings.Contains(count, pred) || !strings.Contains(related, pred) {
 		t.Fatal("list, count, and related must share the membership predicate")
 	}
 	if !strings.Contains(list, keep) || !strings.Contains(related, keep) {
 		t.Fatal("admin membership_required titles must stay visible in catalog SQL")
+	}
+	if !strings.Contains(list, playable) || !strings.Contains(count, playable) || !strings.Contains(related, playable) {
+		t.Fatal("list, count, and related must require a playable episode")
+	}
+	if !strings.Contains(libraryVideoVisible, playable) {
+		t.Fatal("favorites/history must share the playable-episode gate")
 	}
 	if !strings.Contains(list, `COALESCE(membership_required,0)=0`) {
 		t.Fatal("non-member list must exclude membership_required titles when includeMembership=false")

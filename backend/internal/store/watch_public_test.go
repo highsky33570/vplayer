@@ -90,6 +90,8 @@ func TestRelatedSQLShape(t *testing.T) {
 		"LIMIT ?",
 		"restriction_reason = 'source_restricted'",
 		"COALESCE(membership_required,0)=0",
+		"playable_ep.playback_url",
+		"playable_keep.membership_required",
 	} {
 		if !strings.Contains(sqlText, needle) {
 			t.Fatalf("missing %s", needle)

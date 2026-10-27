@@ -118,9 +118,11 @@ func AppendReadyVideosWhere(q string, args []any, browse CategoryBrowseFilter, q
 	if !includeMembershipRequired {
 		q += ` AND COALESCE(membership_required,0)=0`
 	}
-	// Membership-only exclusion is part of the shared WHERE, before the caller
-	// appends ORDER BY / LIMIT / OFFSET. Count and list use this same function.
+	// Membership-only exclusion + playable-episode gate are part of the shared
+	// WHERE, before the caller appends ORDER BY / LIMIT / OFFSET. Count and list
+	// use this same function so totals match visible cards.
 	q += MembershipOnlyCatalogExclusionSQL("videos.id")
+	q += PlayableEpisodeCatalogSQL("videos.id")
 	return q, args
 }
 

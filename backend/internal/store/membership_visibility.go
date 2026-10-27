@@ -41,6 +41,30 @@ AND NOT (
 )`
 }
 
+// PlayableEpisodeCatalogSQL keeps public discovery limited to titles users can
+// actually play: at least one active episode with a non-empty playback_url.
+// Pending enrichment / source_restricted / empty-URL rows stay in the DB for
+// workers but do not appear in lists (avoids "no playback url" / unavailable UX).
+// Admin membership_required VIP showcase titles remain listable without a URL.
+//
+// videoIDExpr is the outer videos primary key (videos.id or v.id).
+func PlayableEpisodeCatalogSQL(videoIDExpr string) string {
+	return `
+AND (
+  EXISTS (
+    SELECT 1 FROM videos playable_keep
+    WHERE playable_keep.id = ` + videoIDExpr + `
+      AND COALESCE(playable_keep.membership_required,0)=1
+  )
+  OR EXISTS (
+    SELECT 1 FROM video_episodes playable_ep
+    WHERE playable_ep.video_id = ` + videoIDExpr + `
+      AND TRIM(COALESCE(playable_ep.playback_url,'')) <> ''
+      AND COALESCE(playable_ep.is_active,0)=1
+  )
+)`
+}
+
 // VisibilityClass is a read-only label for preserved catalog rows.
 type VisibilityClass string
 

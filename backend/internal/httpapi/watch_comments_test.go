@@ -379,6 +379,17 @@ func (f *fakeWatch) GetVideo(id uint64) (*model.Video, error) {
 	return nil, nil
 }
 
+func (f *fakeWatch) GetPublicCatalogVideo(id uint64) (*model.Video, error) {
+	v, err := f.GetVideo(id)
+	if err != nil || v == nil {
+		return v, err
+	}
+	if !v.IsActive || (v.Status != "ready" && v.Status != "demo") {
+		return nil, nil
+	}
+	return v, nil
+}
+
 func (f *fakeWatch) ListRelatedVideos(current model.Video, limit int) ([]model.Video, error) {
 	f.limit = limit
 	return store.RankRelatedVideos(current, f.videos, limit), nil
