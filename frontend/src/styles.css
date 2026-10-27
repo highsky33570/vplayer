@@ -8576,6 +8576,19 @@ html.dark .login-reminder-cta,
     background: #2f80ed;
     color: #fff;
   }
+
+  .mobile-corner-btn.is-avatar {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .mobile-corner-btn .mobile-corner-avatar,
+  .mobile-corner-btn .banner-avatar.mobile-corner-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+    border-radius: 50%;
+  }
 }
 
 .carousel {
@@ -8696,7 +8709,7 @@ html.dark .login-reminder-cta,
     display: block;
     position: fixed;
     inset: 0;
-    z-index: 120;
+    z-index: 300;
     pointer-events: none;
   }
 
@@ -8903,7 +8916,7 @@ html.dark .login-reminder-cta,
     display: block;
     position: fixed;
     inset: 0;
-    z-index: 120;
+    z-index: 300;
     pointer-events: none;
   }
 

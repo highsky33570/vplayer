@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { listCategories, type Category } from '../api';
 import { useAuth } from '../auth/AuthContext';
@@ -86,7 +87,9 @@ export function MobileCategoryDrawer({
     return pathname === '/' && active === item.slug;
   }
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div className={`mobile-cat-drawer${open ? ' is-open' : ''}`} aria-hidden={!open}>
       <button type="button" className="mobile-cat-backdrop" aria-label="关闭菜单" onClick={onClose} />
       <aside className="mobile-cat-panel" role="dialog" aria-modal="true" aria-label="分类导航">
@@ -142,6 +145,7 @@ export function MobileCategoryDrawer({
           ))}
         </nav>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -147,13 +147,12 @@ export function Header() {
     else if (soon) showNotice(soon);
   };
 
-  /** Submit-only search: never runs from typing / onChange. */
+  /** Submit-only search: never runs from typing / onChange. Keep mobile search open after Enter. */
   function runSearch() {
     const keyword = q.trim();
     if (!keyword) return;
     navigate(`/?q=${encodeURIComponent(keyword)}`);
     setMenuOpen(false);
-    setSearchOpen(false);
   }
 
   function onSearchSubmit(e: FormEvent) {

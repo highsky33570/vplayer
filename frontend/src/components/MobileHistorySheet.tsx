@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { clearHistory, listHistoryPage, type HistoryVideo } from '../api';
 import { useAuth } from '../auth/AuthContext';
@@ -77,7 +78,9 @@ export function MobileHistorySheet({ open, onClose }: { open: boolean; onClose: 
     }
   }
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div className={`mobile-history-sheet${open ? ' is-open' : ''}`} aria-hidden={!open}>
       <div className="mobile-history-panel" role="dialog" aria-modal="true" aria-label="播放记录">
         <header className="mobile-history-head">
@@ -155,7 +158,8 @@ export function MobileHistorySheet({ open, onClose }: { open: boolean; onClose: 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
