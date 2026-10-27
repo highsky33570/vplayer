@@ -1879,12 +1879,18 @@ html.dark .category-btn--child.is-active {
   background: #0b0d10;
   border-radius: 12px;
   overflow: hidden;
-  min-height: 280px;
+  width: 100%;
+  max-width: min(100%, 960px);
+  aspect-ratio: 16 / 9;
+  max-height: min(56vh, 540px);
+  min-height: 0;
   box-shadow: var(--shadow-soft);
 }
 
 .player-wrap .xgplayer {
   width: 100% !important;
+  height: 100% !important;
+  max-height: min(56vh, 540px);
 }
 
 .watch-side {
@@ -1942,6 +1948,8 @@ html.dark .category-btn--child.is-active {
 .player-gate {
   aspect-ratio: 16 / 9;
   width: 100%;
+  max-width: min(100%, 960px);
+  max-height: min(56vh, 540px);
   min-height: 180px;
   display: flex;
   flex-direction: column;
@@ -7531,6 +7539,13 @@ html.dark .login-reminder-cta,
   background: var(--bg);
 }
 
+/* Home uses discovery margin to clear the absolute stage. Watch and other
+   non-home cinematic pages only have the 72px bar in flow, so reserve the
+   full 140px stage height so title/actions sit below the banner image. */
+.banner-shell:not(.banner-shell--app):not(.banner-shell--home) {
+  min-height: 140px;
+}
+
 .banner-stage {
   position: absolute;
   left: 0;
@@ -7957,6 +7972,10 @@ html.dark .login-reminder-cta,
   .discovery-catalog-wrap,
   .feature-switch {
     display: none !important;
+  }
+
+  .banner-shell:not(.banner-shell--app):not(.banner-shell--home) {
+    min-height: 0;
   }
 
   .banner-shell--home {
