@@ -25,8 +25,14 @@ type HTTPFetcher struct {
 	Delay     time.Duration
 	Retries   int
 	Log       *slog.Logger
-	mu        sync.Mutex
-	lastAt    time.Time
+	// authCookie is an optional opaque OLEHDTV Cookie header value for authorized
+	// operator enrichment. Never log or include in error strings.
+	authCookie string
+	// extraTrustedHosts are additional hosts (e.g. from OLEHDTV_PUBLIC_BASE_URL)
+	// allowed to receive authCookie, besides IsOleHdTvHost.
+	extraTrustedHosts map[string]struct{}
+	mu                sync.Mutex
+	lastAt            time.Time
 }
 
 func NewHTTPFetcher(timeout time.Duration, delayMs, retries int, ua string) *HTTPFetcher {
@@ -47,13 +53,91 @@ func NewHTTPFetcher(timeout time.Duration, delayMs, retries int, ua string) *HTT
 		}
 		return http.ProxyFromEnvironment(req)
 	}
-	return &HTTPFetcher{
+	h := &HTTPFetcher{
 		Client:    &http.Client{Timeout: timeout, Transport: transport},
 		UserAgent: ua,
 		Delay:     time.Duration(delayMs) * time.Millisecond,
 		Retries:   retries,
 		Log:       slog.Default().With("component", "maccms-http"),
 	}
+	h.Client.CheckRedirect = h.checkRedirect
+	return h
+}
+
+// SetAuthCookie configures an optional opaque Cookie header for trusted OLEHDTV hosts.
+// Empty disables authentication (default). The value must never be logged.
+func (h *HTTPFetcher) SetAuthCookie(cookie string) {
+	if h == nil {
+		return
+	}
+	h.authCookie = strings.TrimSpace(cookie)
+}
+
+// AuthCookieConfigured reports whether an auth cookie is set without exposing it.
+func (h *HTTPFetcher) AuthCookieConfigured() bool {
+	return h != nil && strings.TrimSpace(h.authCookie) != ""
+}
+
+// TrustHost allows an extra hostname to receive the auth cookie (e.g. configured public base).
+func (h *HTTPFetcher) TrustHost(host string) {
+	if h == nil {
+		return
+	}
+	host = strings.ToLower(strings.TrimSpace(host))
+	if i := strings.IndexByte(host, ':'); i >= 0 {
+		host = host[:i]
+	}
+	if host == "" {
+		return
+	}
+	if h.extraTrustedHosts == nil {
+		h.extraTrustedHosts = make(map[string]struct{})
+	}
+	h.extraTrustedHosts[host] = struct{}{}
+}
+
+// TrustPublicBaseURL trusts the hostname of OLEHDTV_PUBLIC_BASE_URL when set.
+func (h *HTTPFetcher) TrustPublicBaseURL(baseURL string) {
+	h.TrustHost(HostFromBaseURL(baseURL))
+}
+
+func (h *HTTPFetcher) hostAllowsAuthCookie(host string) bool {
+	if IsOleHdTvHost(host) {
+		return true
+	}
+	host = strings.ToLower(strings.TrimSpace(host))
+	if i := strings.IndexByte(host, ':'); i >= 0 {
+		host = host[:i]
+	}
+	if h == nil || h.extraTrustedHosts == nil {
+		return false
+	}
+	_, ok := h.extraTrustedHosts[host]
+	return ok
+}
+
+func (h *HTTPFetcher) applyAuthCookie(req *http.Request) {
+	if h == nil || req == nil || req.URL == nil {
+		return
+	}
+	cookie := strings.TrimSpace(h.authCookie)
+	if cookie == "" {
+		return
+	}
+	if !h.hostAllowsAuthCookie(req.URL.Hostname()) {
+		return
+	}
+	req.Header.Set("Cookie", cookie)
+}
+
+// checkRedirect follows redirects but never forwards the auth Cookie to an untrusted host.
+func (h *HTTPFetcher) checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after 10 redirects")
+	}
+	req.Header.Del("Cookie")
+	h.applyAuthCookie(req)
+	return nil
 }
 
 func (h *HTTPFetcher) Fetch(ctx context.Context, pageURL string) (string, error) {
@@ -61,6 +145,7 @@ func (h *HTTPFetcher) Fetch(ctx context.Context, pageURL string) (string, error)
 }
 
 // FetchHeaders is Fetch with extra request headers. A nil map keeps the catalog GET unchanged.
+// Caller-supplied Cookie headers are ignored so auth stays operator-controlled via SetAuthCookie.
 func (h *HTTPFetcher) FetchHeaders(ctx context.Context, pageURL string, headers map[string]string) (string, error) {
 	var last error
 	for attempt := 0; attempt < h.Retries; attempt++ {
@@ -71,8 +156,12 @@ func (h *HTTPFetcher) FetchHeaders(ctx context.Context, pageURL string, headers 
 		}
 		req.Header.Set("User-Agent", h.UserAgent)
 		for key, value := range headers {
+			if strings.EqualFold(key, "Cookie") {
+				continue
+			}
 			req.Header.Set(key, value)
 		}
+		h.applyAuthCookie(req)
 		resp, err := h.Client.Do(req)
 		if err != nil {
 			last = err

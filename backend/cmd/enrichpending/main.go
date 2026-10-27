@@ -58,6 +58,9 @@ func main() {
 	}
 
 	fetcher := maccms.NewHTTPFetcher(timeout, delayMs, retries, "VPlayerEnrichPending/1.0")
+	fetcher.SetAuthCookie(cfg.OleHdTvAuthCookie)
+	fetcher.TrustPublicBaseURL(cfg.OleHdTvPublicBaseURL)
+	authConfigured := cfg.OleHdTvAuthConfigured()
 	db, err := store.OpenMySQL(cfg.MySQLDSN)
 	if err != nil {
 		log.Fatalf("mysql: %v", err)
@@ -67,6 +70,7 @@ func main() {
 	svc := catalogsync.NewEnrichPendingWorker(db, fetcher)
 	svc.TriggerType = trig
 	svc.RequestedByUserID = *requestedBy
+	svc.IncludeMembershipRetry = authConfigured
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -78,8 +82,8 @@ func main() {
 		ctx, cancel := context.WithTimeout(sigCtx, *maxRuntime)
 		defer cancel()
 
-		fmt.Fprintf(os.Stderr, "enrichpending drain=true catch_up=true limit=%d concurrency=%d max_batches=%d max_runtime=%s delay_ms=%d trigger=%s\n",
-			*limit, conc, *maxBatches, maxRuntime.String(), delayMs, trig)
+		fmt.Fprintf(os.Stderr, "enrichpending drain=true catch_up=true limit=%d concurrency=%d max_batches=%d max_runtime=%s delay_ms=%d trigger=%s auth=%v\n",
+			*limit, conc, *maxBatches, maxRuntime.String(), delayMs, trig, authConfigured)
 		sum, runErr := svc.RunDrain(ctx, catalogsync.EnrichPendingDrainOptions{
 			Limit:       *limit,
 			Concurrency: conc,
@@ -99,8 +103,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	fmt.Fprintf(os.Stderr, "enrichpending dry_run=%v catch_up=%v limit=%d concurrency=%d delay_ms=%d trigger=%s\n",
-		*dryRun, *catchUp, *limit, conc, delayMs, trig)
+	fmt.Fprintf(os.Stderr, "enrichpending dry_run=%v catch_up=%v limit=%d concurrency=%d delay_ms=%d trigger=%s auth=%v\n",
+		*dryRun, *catchUp, *limit, conc, delayMs, trig, authConfigured)
 	sum, err := svc.Run(ctx, *limit, *dryRun, conc, *catchUp)
 	_ = enc.Encode(sum)
 	if err != nil {

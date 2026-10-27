@@ -65,7 +65,9 @@ func PendingEnrichmentFetchLimit(finalLimit int) int {
 // At most 3 pending episodes per video are returned (pending_rank), then ordered by
 // zero-ok priority so a single huge series cannot fill the entire LIMIT alone.
 // finalLimit is the worker --limit (1–90 absolute store bound); fetch window is bounded.
-func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]PendingEnrichmentEpisode, error) {
+// When includeMembershipRetry is true (operator auth configured), also includes empty-URL
+// unavailable rows labeled source_restricted so authorized re-enrich can clear them.
+func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]PendingEnrichmentEpisode, error) {
 	if finalLimit <= 0 {
 		finalLimit = PendingEnrichmentDefaultFinalLimit
 	}
@@ -74,6 +76,10 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]
 	}
 	fetchLimit := PendingEnrichmentFetchLimit(finalLimit)
 	const maxPerVideo = 3
+	membershipFlag := 0
+	if includeMembershipRetry {
+		membershipFlag = 1
+	}
 	// ROW_NUMBER caps each video at 3 pending rows before the global LIMIT, so a
 	// single zero-ok series cannot monopolize the candidate window.
 	rows, err := m.DB.Query(`
@@ -106,13 +112,20 @@ func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]
 		         ) AS pending_rank
 		  FROM video_episodes e
 		  WHERE e.source_system = ?
-		    AND LOWER(COALESCE(e.playback_status,'')) = 'pending_enrichment'
 		    AND COALESCE(e.playback_url,'') = ''
 		    AND COALESCE(e.play_page_url,'') <> ''
+		    AND (
+		      LOWER(COALESCE(e.playback_status,'')) = 'pending_enrichment'
+		      OR (
+		        ? = 1
+		        AND LOWER(COALESCE(e.playback_status,'')) = 'unavailable'
+		        AND COALESCE(e.restriction_reason,'') = ?
+		      )
+		    )
 		) ranked
 		WHERE pending_rank <= ?
 		ORDER BY ok_count ASC, video_id ASC, nid ASC, id ASC
-		LIMIT ?`, system, maxPerVideo, fetchLimit)
+		LIMIT ?`, system, membershipFlag, RestrictionReasonMembership, maxPerVideo, fetchLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -169,8 +182,15 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 		  last_synced_at = ?,
 		  sync_status = 'ok'
 		WHERE id = ?
-		  AND LOWER(COALESCE(playback_status,'')) = 'pending_enrichment'
-		  AND COALESCE(playback_url,'') = ''`,
+		  AND COALESCE(playback_url,'') = ''
+		  AND (
+		    LOWER(COALESCE(playback_status,'')) = 'pending_enrichment'
+		    OR (
+		      LOWER(COALESCE(playback_status,'')) = 'unavailable'
+		      AND COALESCE(restriction_reason,'') = ?
+		      AND COALESCE(play_page_url,'') <> ''
+		    )
+		  )`,
 		playbackURL,
 		playbackSource, playbackSource,
 		status,
@@ -178,6 +198,7 @@ func (m *MySQL) ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, 
 		activate,
 		now,
 		id,
+		RestrictionReasonMembership,
 	)
 	if err != nil {
 		return false, err

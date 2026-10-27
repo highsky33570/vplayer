@@ -98,7 +98,7 @@ func (m *enrichMemStore) RejectOperationalRun(in store.RejectOperationalRunInput
 	return id, nil
 }
 
-func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]store.PendingEnrichmentEpisode, error) {
+func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]store.PendingEnrichmentEpisode, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []store.PendingEnrichmentEpisode
@@ -106,8 +106,11 @@ func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit
 		if e.SourceSystem != system {
 			continue
 		}
-		if strings.ToLower(e.PlaybackStatus) != "pending_enrichment" {
-			continue
+		st := strings.ToLower(e.PlaybackStatus)
+		if st != "pending_enrichment" {
+			if !includeMembershipRetry || st != "unavailable" || e.RestrictionReason != store.RestrictionReasonMembership {
+				continue
+			}
 		}
 		if strings.TrimSpace(e.PlaybackURL) != "" {
 			continue
@@ -160,8 +163,14 @@ func (m *enrichMemStore) ApplyPlaybackEnrichment(id uint64, playbackURL, playbac
 	if e == nil {
 		return false, nil
 	}
-	if strings.ToLower(e.PlaybackStatus) != "pending_enrichment" || strings.TrimSpace(e.PlaybackURL) != "" {
+	st := strings.ToLower(e.PlaybackStatus)
+	if strings.TrimSpace(e.PlaybackURL) != "" {
 		return false, nil
+	}
+	if st != "pending_enrichment" {
+		if st != "unavailable" || e.RestrictionReason != store.RestrictionReasonMembership || strings.TrimSpace(e.PlayPageURL) == "" {
+			return false, nil
+		}
 	}
 	e.PlaybackURL = playbackURL
 	if playbackSource != "" {
@@ -368,7 +377,7 @@ func TestEnrichPending_listDiversifiesAndFillsLimit(t *testing.T) {
 	add(20, "B", 50)
 	add(30, "C", 20)
 
-	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5)
+	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,7 +486,7 @@ func TestEnrichPending_sourceRestrictedBecomesUnavailable(t *testing.T) {
 	if len(sum.Actions) != 1 || sum.Actions[0].Detail != "source_restricted" {
 		t.Fatalf("actions=%+v", sum.Actions)
 	}
-	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20)
+	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -901,7 +910,7 @@ func TestEnrichPending_selectsOnlyEligible(t *testing.T) {
 		ID: 4, VideoID: 1, SourceSystem: "other", SourceVideoID: "a",
 		SID: 1, NID: 4, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/p4",
 	}
-	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20)
+	list, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 20, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1077,5 +1086,87 @@ func TestEnrichPending_prioritizeZeroOkInRun(t *testing.T) {
 	}
 	if sum.Enriched != 1 || st.episodes[2001].PlaybackStatus != "ok" {
 		t.Fatalf("expected zero-ok video first: %+v ep=%+v", sum, st.episodes[2001])
+	}
+}
+
+func TestEnrichPending_membershipRetryClearsRestrictedOnAuthorizedHTML(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[43393] = &store.PendingEnrichmentEpisode{
+		ID: 43393, VideoID: 10056, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "32222",
+		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlayPageURL: "https://www.olehdtv.com/index.php/vod/play/id/32222/sid/1/nid/1.html",
+		RestrictionReason: store.RestrictionReasonMembership, IsActive: false,
+	}
+	f := &mapFetcher{pages: map[string]string{
+		"https://www.olehdtv.com/index.php/vod/play/id/32222/sid/1/nid/1.html": playHTML("https://cdn.example/32222.m3u8"),
+	}}
+
+	// Without membership retry, stale restricted rows are not selected.
+	sumSkip, err := NewEnrichPendingWorker(st, f).Run(context.Background(), 5, false, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sumSkip.Selected != 0 || sumSkip.Enriched != 0 {
+		t.Fatalf("anonymous/default must skip restricted unavailable: %+v", sumSkip)
+	}
+	if st.episodes[43393].PlaybackStatus != "unavailable" || st.episodes[43393].RestrictionReason != store.RestrictionReasonMembership {
+		t.Fatalf("row must stay restricted without retry: %+v", st.episodes[43393])
+	}
+
+	w := NewEnrichPendingWorker(st, f)
+	w.IncludeMembershipRetry = true
+	sum, err := w.Run(context.Background(), 5, false, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Enriched != 1 {
+		t.Fatalf("expected authorized re-enrich: %+v", sum)
+	}
+	ep := st.episodes[43393]
+	if ep.PlaybackStatus != "ok" || ep.PlaybackURL != "https://cdn.example/32222.m3u8" || !ep.IsActive {
+		t.Fatalf("playback not updated: %+v", ep)
+	}
+	if ep.RestrictionReason != "" {
+		t.Fatalf("stale source_restricted must clear: %+v", ep)
+	}
+}
+
+func TestEnrichPending_membershipRetryStillRestricted(t *testing.T) {
+	restricted := `<html><body>系统提示 您没有权限访问此数据，请升级会员</body></html>`
+	st := newEnrichMemStore()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 10056, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "32222",
+		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlayPageURL: "https://src/vip",
+		RestrictionReason: store.RestrictionReasonMembership, IsActive: false,
+	}
+	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{"https://src/vip": restricted}})
+	w.IncludeMembershipRetry = true
+	sum, err := w.Run(context.Background(), 5, false, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Unavailable != 1 || sum.Enriched != 0 {
+		t.Fatalf("%+v", sum)
+	}
+	if st.episodes[1].PlaybackURL != "" || st.episodes[1].RestrictionReason != store.RestrictionReasonMembership {
+		t.Fatalf("%+v", st.episodes[1])
+	}
+}
+
+func TestEnrichPending_membershipRetryUnknownStaysPendingSemantics(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 9, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "9",
+		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlayPageURL: "https://src/unk",
+		RestrictionReason: store.RestrictionReasonMembership, IsActive: false,
+	}
+	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{"https://src/unk": `<html>no player</html>`}})
+	w.IncludeMembershipRetry = true
+	sum, _ := w.Run(context.Background(), 5, false, 1, false)
+	// Unknown HTML leaves the row unchanged (retryable / no write), matching pending parse-miss semantics.
+	if sum.StillPending != 1 || st.writes != 0 {
+		t.Fatalf("%+v writes=%d", sum, st.writes)
+	}
+	if st.episodes[1].PlaybackStatus != "unavailable" || st.episodes[1].RestrictionReason != store.RestrictionReasonMembership {
+		t.Fatalf("%+v", st.episodes[1])
 	}
 }

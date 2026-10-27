@@ -119,6 +119,10 @@ type Config struct {
 	OleHdTvRequestTimeoutSec int
 	OleHdTvMaxConcurrency    int
 	OleHdTvMaxRetries        int
+	// OleHdTvAuthCookie is an optional opaque Cookie header for authorized OLEHDTV
+	// play-page enrichment (OLEHDTV_AUTH_COOKIE). Empty = anonymous (default).
+	// Never log, never return via API, never store in MySQL, never commit.
+	OleHdTvAuthCookie string
 }
 
 // loadEnvFiles applies dotenv files without overriding keys already present in
@@ -192,7 +196,13 @@ func Load() Config {
 		OleHdTvRequestTimeoutSec: getenvInt("OLEHDTV_REQUEST_TIMEOUT_SECONDS", 20),
 		OleHdTvMaxConcurrency:    getenvInt("OLEHDTV_MAX_CONCURRENCY", 2),
 		OleHdTvMaxRetries:        getenvInt("OLEHDTV_MAX_RETRIES", 3),
+		OleHdTvAuthCookie:        strings.TrimSpace(os.Getenv("OLEHDTV_AUTH_COOKIE")),
 	}
+}
+
+// OleHdTvAuthConfigured reports whether optional OLEHDTV auth is present without exposing it.
+func (c Config) OleHdTvAuthConfigured() bool {
+	return strings.TrimSpace(c.OleHdTvAuthCookie) != ""
 }
 
 const (

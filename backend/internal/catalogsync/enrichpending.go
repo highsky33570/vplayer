@@ -28,7 +28,7 @@ const (
 // EnrichPendingStore is the DB surface for deferred enrichment (mockable).
 type EnrichPendingStore interface {
 	AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error)
-	ListPendingEnrichmentEpisodes(system string, finalLimit int) ([]store.PendingEnrichmentEpisode, error)
+	ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]store.PendingEnrichmentEpisode, error)
 	ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status, restrictionReason string) (updated bool, err error)
 	StartOperationalRun(in store.StartOperationalRunInput) (uint64, error)
 	FinishOperationalRun(in store.FinishOperationalRunInput) error
@@ -76,6 +76,9 @@ type EnrichPendingWorker struct {
 	LockName          string
 	TriggerType       string // cli|timer|admin; empty defaults to cli
 	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
+	// IncludeMembershipRetry also selects empty-URL unavailable+source_restricted rows
+	// so an authorized OLEHDTV session can clear stale membership denials. Default false.
+	IncludeMembershipRetry bool
 }
 
 func NewEnrichPendingWorker(st EnrichPendingStore, fetcher PageFetcher) *EnrichPendingWorker {
@@ -330,7 +333,7 @@ func (w *EnrichPendingWorker) runBatchLocked(ctx context.Context, limit int, dry
 	}
 
 	// Store diversifies (≤3/video) then LIMITs; pass the worker --limit directly.
-	cands, err := w.Store.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, limit)
+	cands, err := w.Store.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, limit, w.IncludeMembershipRetry)
 	if err != nil {
 		sum.Failures++
 		sum.Error = "list pending: " + err.Error()

@@ -32,6 +32,9 @@ func main() {
 		timeout = 20 * time.Second
 	}
 	fetcher := maccms.NewHTTPFetcher(timeout, delayMs, retries, "VPlayerClassifyRestricted/1.0")
+	fetcher.SetAuthCookie(cfg.OleHdTvAuthCookie)
+	fetcher.TrustPublicBaseURL(cfg.OleHdTvPublicBaseURL)
+	authConfigured := cfg.OleHdTvAuthConfigured()
 	db, err := store.OpenMySQL(cfg.MySQLDSN)
 	if err != nil {
 		log.Fatalf("mysql: %v", err)
@@ -41,8 +44,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	fmt.Fprintf(os.Stderr, "classifyrestricted dry_run=%v limit=%d after_id=%d delay_ms=%d\n",
-		*dryRun, *limit, *afterID, delayMs)
+	fmt.Fprintf(os.Stderr, "classifyrestricted dry_run=%v limit=%d after_id=%d delay_ms=%d auth=%v\n",
+		*dryRun, *limit, *afterID, delayMs, authConfigured)
 	sum, err := catalogsync.NewClassifyRestrictedWorker(db, fetcher).Run(ctx, *afterID, *limit, *dryRun)
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
