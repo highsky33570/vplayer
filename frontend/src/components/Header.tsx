@@ -30,12 +30,18 @@ import {
   usesCinematicBanner,
   type HeaderFlyoutId,
 } from './headerFlyoutLogic';
+import { MobileCategoryDrawer } from './MobileCategoryDrawer';
+import { MobileHistorySheet } from './MobileHistorySheet';
 
 const UNREAD_POLL_MS = 60_000;
 const NOTICE_MS = 2400;
 
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [params] = useSearchParams();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -46,6 +52,7 @@ export function Header() {
   const showIdentity = Boolean(ready && authRequired && user);
   const { theme, toggleTheme } = useTheme();
   const desktopHover = useDesktopHover();
+  const isPhone = useIsPhone();
   const reducedMotion = usePrefersReducedMotion();
   const [openFlyout, setOpenFlyout] = useState<HeaderFlyoutId | null>(null);
   const [unread, setUnread] = useState(0);
@@ -119,6 +126,9 @@ export function Header() {
   /** Guest: login when auth is required. Signed-in: navigate (or coming-soon notice). */
   const goOrLogin = (href?: string, soon?: string, opts?: { public?: boolean }) => {
     setMenuOpen(false);
+    setCategoryOpen(false);
+    setHistoryOpen(false);
+    setSearchOpen(false);
     setOpenFlyout(null);
     if (!authRequired) {
       if (href) navigate(href);
@@ -143,6 +153,7 @@ export function Header() {
     if (!keyword) return;
     navigate(`/?q=${encodeURIComponent(keyword)}`);
     setMenuOpen(false);
+    setSearchOpen(false);
   }
 
   function onSearchSubmit(e: FormEvent) {
@@ -150,8 +161,41 @@ export function Header() {
     runSearch();
   }
 
+  function toggleMobileSearch() {
+    setHistoryOpen(false);
+    setCategoryOpen(false);
+    setMenuOpen(false);
+    setSearchOpen((open) => {
+      const next = !open;
+      if (next) {
+        window.setTimeout(() => searchInputRef.current?.focus(), 180);
+      }
+      return next;
+    });
+  }
+
+  function openMobileHistory() {
+    setSearchOpen(false);
+    setCategoryOpen(false);
+    setMenuOpen(false);
+    setHistoryOpen((open) => !open);
+  }
+
+  function toggleMobileMenu() {
+    setSearchOpen(false);
+    setHistoryOpen(false);
+    if (isPhone) {
+      setMenuOpen(false);
+      setCategoryOpen((v) => !v);
+      return;
+    }
+    setCategoryOpen(false);
+    setMenuOpen((v) => !v);
+  }
+
   const destActive = headerDestinationActive(pathname);
   const cinematic = usesCinematicBanner(pathname);
+  const shellSearchOpen = searchOpen ? ' is-search-open' : '';
 
   /** Desktop top-right destinations: new tab; guests get login on this tab instead. */
   function onDestLinkClick(id: HeaderFlyoutId, event: { preventDefault: () => void }, opts?: { public?: boolean }) {
@@ -162,7 +206,9 @@ export function Header() {
   }
 
   return (
-    <div className={`banner-shell${cinematic ? '' : ' banner-shell--app'}${pathname === '/' ? ' banner-shell--home' : ''}`}>
+    <div
+      className={`banner-shell${cinematic ? '' : ' banner-shell--app'}${pathname === '/' ? ' banner-shell--home' : ''}${shellSearchOpen}`}
+    >
       {cinematic ? (
         <div className="banner-stage">
           <BannerCarousel />
@@ -170,13 +216,22 @@ export function Header() {
       ) : null}
       <header className="banner-bar">
         <div className="banner-left">
-          <Link to="/" className="brand" onClick={() => setMenuOpen(false)} aria-label="天涯欧乐">
+          <Link
+            to="/"
+            className="brand"
+            onClick={() => {
+              setMenuOpen(false);
+              setCategoryOpen(false);
+              setSearchOpen(false);
+            }}
+            aria-label="天涯欧乐"
+          >
             <img className="brand-logo" src={logoUrl} alt="天涯欧乐" width={120} height={32} decoding="async" />
           </Link>
           <div className="banner-channels" ref={setChannelHost} />
         </div>
 
-        <form className="search" role="search" onSubmit={onSearchSubmit}>
+        <form className="search search--desktop" role="search" onSubmit={onSearchSubmit}>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -191,14 +246,48 @@ export function Header() {
         </form>
 
         <div className="banner-actions">
+          <div className={`mobile-search${searchOpen ? ' is-open' : ''}`}>
+            <form className="mobile-search-form" role="search" onSubmit={onSearchSubmit}>
+              <input
+                ref={searchInputRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="搜索影视、剧集、动漫"
+                aria-label="搜索"
+                autoComplete="off"
+                tabIndex={searchOpen ? 0 : -1}
+              />
+            </form>
+            <button
+              type="button"
+              className="mobile-chrome-btn mobile-search-toggle"
+              aria-label={searchOpen ? '关闭搜索' : '搜索'}
+              aria-expanded={searchOpen}
+              onClick={toggleMobileSearch}
+            >
+              <SearchIcon />
+            </button>
+          </div>
+          <button
+            type="button"
+            className="mobile-chrome-btn mobile-history-toggle"
+            aria-label="播放记录"
+            aria-expanded={historyOpen}
+            onClick={openMobileHistory}
+          >
+            <HistoryIcon />
+          </button>
           <button
             type="button"
             className="menu-toggle"
-            aria-label="更多"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={isPhone ? '分类菜单' : '更多'}
+            aria-expanded={isPhone ? categoryOpen : menuOpen}
+            onClick={toggleMobileMenu}
           >
-            更多
+            <span className="menu-toggle-label">更多</span>
+            <span className="menu-toggle-icon" aria-hidden>
+              <MenuIcon />
+            </span>
           </button>
           {!ready ? null : showIdentity && user ? (
             <div className="banner-user-menu">
@@ -459,6 +548,9 @@ export function Header() {
           </button>
         </div>
       </div>
+
+      <MobileCategoryDrawer open={categoryOpen} onClose={() => setCategoryOpen(false)} />
+      <MobileHistorySheet open={historyOpen} onClose={() => setHistoryOpen(false)} />
       <DiscoveryNav channelHost={channelHost} />
     </div>
   );
@@ -524,6 +616,28 @@ function useDesktopHover() {
     return () => media.removeEventListener('change', update);
   }, []);
   return desktop;
+}
+
+function useIsPhone() {
+  const [phone, setPhone] = useState(
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false,
+  );
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const update = () => setPhone(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return phone;
+}
+
+function MenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 7h16M4 12h16M4 17h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function usePrefersReducedMotion() {
