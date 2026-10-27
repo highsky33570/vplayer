@@ -176,6 +176,7 @@ describe('destination page composition markers', () => {
   it('vip uses a full-bleed hero stage under the shared banner', () => {
     assert.match(vip, /vip-dest/);
     assert.match(vip, /vip-hero-stage/);
+    assert.match(vip, /vip-hero-body/);
     assert.match(vip, /vip-status-card/);
     assert.match(vip, /vip-featured-overlap/);
   });

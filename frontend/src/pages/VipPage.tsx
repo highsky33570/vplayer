@@ -74,38 +74,41 @@ export function VipPage() {
   return (
     <div className="vip-dest">
       <section className="vip-hero-stage" aria-label="大会员精选">
-        {loading ? (
-          <div className="vip-hero vip-hero--empty">加载中…</div>
-        ) : hero ? (
-          <div className="vip-hero">
+        {hero && !loading ? (
+          <div className="vip-hero" aria-hidden>
             <img
               className="vip-hero-bg"
               src={coverImgSrc(hero.cover_url)}
               alt=""
               onError={onCoverImgError}
             />
-            <div className="vip-hero-shade" aria-hidden />
-            <div className="vip-hero-body">
-              <p className="vip-hero-kicker">{VIP_CHANNEL_NAME}</p>
-              <h1 className="vip-hero-title">{hero.title}</h1>
-              <p className="vip-hero-meta">
-                {[hero.year, hero.area, hero.duration_sec > 0 ? `${Math.round(hero.duration_sec / 60)} 分钟` : '']
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-              {hero.description ? <p className="vip-hero-desc">{hero.description}</p> : null}
-              <div className="vip-hero-actions">
-                <Link className="vip-cta" to={`/watch/${hero.id}`}>
-                  立即观看
-                </Link>
-                <Link className="vip-cta vip-cta--ghost" to={`/?ch=${VIP_CHANNEL_SLUG}`}>
-                  浏览频道
-                </Link>
-              </div>
+            <div className="vip-hero-shade" />
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="vip-hero-body vip-hero-body--empty">加载中…</div>
+        ) : hero ? (
+          <div className="vip-hero-body">
+            <p className="vip-hero-kicker">{VIP_CHANNEL_NAME}</p>
+            <h1 className="vip-hero-title">{hero.title}</h1>
+            <p className="vip-hero-meta">
+              {[hero.year, hero.area, hero.duration_sec > 0 ? `${Math.round(hero.duration_sec / 60)} 分钟` : '']
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+            {hero.description ? <p className="vip-hero-desc">{hero.description}</p> : null}
+            <div className="vip-hero-actions">
+              <Link className="vip-cta" to={`/watch/${hero.id}`}>
+                立即观看
+              </Link>
+              <Link className="vip-cta vip-cta--ghost" to={`/?ch=${VIP_CHANNEL_SLUG}`}>
+                浏览频道
+              </Link>
             </div>
           </div>
         ) : (
-          <div className="vip-hero vip-hero--empty">
+          <div className="vip-hero-body vip-hero-body--empty">
             <p>暂无 VIP蓝光影院 内容</p>
             <Link className="vip-cta" to="/">
               返回首页

@@ -4499,26 +4499,19 @@ html.dark .login-reminder-cta {
 .vip-hero-stage {
   position: relative;
   width: 100%;
-  min-height: min(36vh, 360px);
+  min-height: min(48vh, 520px);
   overflow: hidden;
   background: #0a121a;
   color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 .vip-hero {
   position: absolute;
   inset: 0;
-}
-
-.vip-hero--empty {
-  position: relative;
-  display: grid;
-  place-content: center;
-  gap: 14px;
-  min-height: 210px;
-  text-align: center;
-  color: var(--text);
-  background: var(--surface);
+  z-index: 0;
 }
 
 .vip-hero-bg {
@@ -4541,14 +4534,23 @@ html.dark .login-reminder-cta {
 }
 
 .vip-hero-body {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  left: clamp(20px, 4vw, 72px);
-  bottom: clamp(16px, 4vh, 40px);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: min(560px, 46vw);
+  max-width: min(560px, 52vw);
+  margin: 0 clamp(20px, 4vw, 72px);
+  margin-right: min(340px, 38vw);
+  padding: clamp(88px, 14vh, 140px) 0 18px;
+}
+
+.vip-hero-body--empty {
+  max-width: none;
+  margin-right: clamp(20px, 4vw, 72px);
+  min-height: 210px;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .vip-hero-kicker {
@@ -4695,12 +4697,10 @@ html.dark .login-reminder-cta {
 }
 
 .vip-featured-overlap {
-  position: absolute;
-  z-index: 3;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 0 clamp(16px, 3vw, 40px) 22px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  padding: 4px clamp(16px, 3vw, 40px) 22px;
 }
 
 .vip-featured-row {
