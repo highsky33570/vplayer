@@ -6492,8 +6492,24 @@ html.dark .login-reminder-cta {
   font-size: 13px;
 }
 
+.space-identity-email-row {
+  margin: 6px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .space-identity-email {
   color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-identity-logout {
+  display: none;
 }
 
 .space-identity-stats {
@@ -6902,6 +6918,30 @@ html.dark .login-reminder-cta {
     width: 56px;
     height: 56px;
     font-size: 22px;
+  }
+
+  .space-identity-email-row {
+    width: 100%;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .space-identity-logout {
+    display: inline-flex;
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--brand);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+
+  .space-identity-logout:active {
+    opacity: 0.75;
   }
 
   .space-video-grid {

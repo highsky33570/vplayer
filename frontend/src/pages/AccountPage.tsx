@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   fetchMeSummary,
   formatDuration,
@@ -55,6 +55,7 @@ export function AccountPage() {
 }
 
 function AccountSpace({ token }: { token: string }) {
+  const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [summary, setSummary] = useState<MeSummary | null>(null);
@@ -163,7 +164,19 @@ function AccountSpace({ token }: { token: string }) {
           <h1 className="space-identity-name">{displayName}</h1>
           <p className="space-identity-role">
             <span className="me-role">{roleLabel(user.is_admin)}</span>
+          </p>
+          <p className="space-identity-email-row">
             <span className="space-identity-email">{user.email}</span>
+            <button
+              type="button"
+              className="space-identity-logout"
+              onClick={() => {
+                logout();
+                navigate('/', { replace: true });
+              }}
+            >
+              退出登录
+            </button>
           </p>
         </div>
         <dl className="space-identity-stats" aria-label="我的数据">
