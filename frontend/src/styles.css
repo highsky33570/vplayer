@@ -4993,6 +4993,7 @@ html.dark .login-reminder-cta {
   display: grid;
   place-items: center;
   padding: 20px 14px;
+  overflow: hidden;
 }
 
 .vip-modal-backdrop {
@@ -5002,36 +5003,39 @@ html.dark .login-reminder-cta {
   margin: 0;
   padding: 0;
   cursor: pointer;
-  background: rgba(12, 8, 18, 0.62);
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
   backdrop-filter: blur(8px);
 }
 
 .vip-modal {
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
   width: min(560px, 100%);
+  max-width: 100%;
   max-height: min(92vh, 760px);
-  overflow: auto;
+  overflow: hidden;
   padding: 22px 20px 18px;
   border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background:
-    linear-gradient(165deg, rgba(48, 24, 64, 0.96), rgba(22, 14, 32, 0.98));
-  color: #f7f1fb;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: var(--surface);
+  color: var(--text);
   box-shadow:
-    0 28px 80px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(196, 75, 122, 0.18);
+    0 28px 80px color-mix(in srgb, #000 28%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .vip-modal-glow {
   pointer-events: none;
   position: absolute;
-  inset: -20% -10% auto;
-  height: 55%;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 42%;
+  overflow: hidden;
+  border-radius: 22px 22px 0 0;
   background:
-    radial-gradient(circle at 30% 40%, rgba(196, 75, 122, 0.35), transparent 55%),
-    radial-gradient(circle at 75% 20%, rgba(122, 58, 155, 0.28), transparent 50%);
-  filter: blur(2px);
+    radial-gradient(circle at 28% 30%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 58%),
+    radial-gradient(circle at 78% 10%, color-mix(in srgb, var(--accent-deep) 16%, transparent), transparent 52%);
 }
 
 .vip-modal-head {
@@ -5048,20 +5052,21 @@ html.dark .login-reminder-cta {
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(255, 214, 232, 0.78);
+  color: var(--accent);
 }
 
 .vip-modal-head h2 {
   margin: 0 0 8px;
   font-size: 1.55rem;
   letter-spacing: -0.02em;
+  color: var(--text);
 }
 
 .vip-modal-lead {
   margin: 0;
   max-width: 36ch;
   line-height: 1.55;
-  color: rgba(247, 241, 251, 0.78);
+  color: var(--text-2);
   font-size: 0.92rem;
 }
 
@@ -5070,16 +5075,16 @@ html.dark .login-reminder-cta {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: var(--text);
   font-size: 1.35rem;
   line-height: 1;
   cursor: pointer;
 }
 
 .vip-modal-close:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--text) 8%, var(--surface));
 }
 
 .vip-modal-active {
@@ -5087,8 +5092,9 @@ html.dark .login-reminder-cta {
   margin: 0 0 12px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(196, 75, 122, 0.18);
-  border: 1px solid rgba(196, 75, 122, 0.28);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--text);
   font-size: 0.88rem;
   line-height: 1.45;
 }
@@ -5098,10 +5104,11 @@ html.dark .login-reminder-cta {
   position: relative;
   margin: 0 0 12px;
   font-size: 0.9rem;
+  color: var(--text-2);
 }
 
 .vip-modal-error {
-  color: #ffb4c4;
+  color: var(--accent);
 }
 
 .vip-modal-plans {
@@ -5110,6 +5117,7 @@ html.dark .login-reminder-cta {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 4px 0 16px;
+  min-width: 0;
 }
 
 .vip-modal-plan {
@@ -5118,29 +5126,31 @@ html.dark .login-reminder-cta {
   gap: 6px;
   align-items: flex-start;
   text-align: left;
+  min-width: 0;
   padding: 14px 13px 12px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: inherit;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: color-mix(in srgb, var(--bg) 65%, var(--surface));
+  color: var(--text);
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
 }
 
 .vip-modal-plan:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
 }
 
 .vip-modal-plan.is-selected {
-  border-color: rgba(236, 140, 180, 0.85);
-  background: linear-gradient(160deg, rgba(196, 75, 122, 0.28), rgba(122, 58, 155, 0.22));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
   transform: translateY(-1px);
 }
 
 .vip-modal-plan-top {
   display: flex;
   width: 100%;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -5149,6 +5159,7 @@ html.dark .login-reminder-cta {
 .vip-modal-plan-name {
   font-size: 0.92rem;
   font-weight: 650;
+  color: var(--text);
 }
 
 .vip-modal-plan-tag {
@@ -5157,19 +5168,20 @@ html.dark .login-reminder-cta {
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #2a1020;
-  background: linear-gradient(135deg, #ffd0e2, #f0b4ff);
+  color: #fff;
+  background: var(--accent);
 }
 
 .vip-modal-plan-price {
   font-size: 1.55rem;
   letter-spacing: -0.03em;
   font-weight: 750;
+  color: var(--text);
 }
 
 .vip-modal-plan-meta {
   font-size: 0.76rem;
-  color: rgba(247, 241, 251, 0.62);
+  color: var(--text-2);
 }
 
 .vip-modal-foot {
@@ -5177,6 +5189,7 @@ html.dark .login-reminder-cta {
   display: grid;
   gap: 10px;
   padding-top: 4px;
+  min-width: 0;
 }
 
 .vip-modal-summary {
@@ -5185,11 +5198,11 @@ html.dark .login-reminder-cta {
   gap: 8px;
   align-items: baseline;
   font-size: 0.88rem;
-  color: rgba(247, 241, 251, 0.7);
+  color: var(--text-2);
 }
 
 .vip-modal-summary strong {
-  color: #fff;
+  color: var(--text);
   font-size: 1rem;
 }
 
@@ -5201,14 +5214,14 @@ html.dark .login-reminder-cta {
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: #2a1020;
+  color: #fff;
   cursor: pointer;
-  background: linear-gradient(135deg, #ffd0e2 0%, #f3b4ff 45%, #d9b8ff 100%);
-  box-shadow: 0 10px 28px rgba(196, 75, 122, 0.35);
+  background: var(--accent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 .vip-modal-pay:hover:not(:disabled) {
-  filter: brightness(1.04);
+  background: var(--accent-deep);
 }
 
 .vip-modal-pay:disabled {
@@ -5220,7 +5233,7 @@ html.dark .login-reminder-cta {
   margin: 0;
   font-size: 0.78rem;
   line-height: 1.45;
-  color: rgba(247, 241, 251, 0.55);
+  color: var(--text-2);
 }
 
 .vip-purchase-actions {
