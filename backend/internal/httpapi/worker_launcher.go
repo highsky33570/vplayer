@@ -14,7 +14,8 @@ const (
 	WorkerWorkingDir       = "/opt/vplayer/backend"
 	SyncIncrementalBin     = WorkerBinDir + "/syncincremental"
 	EnrichPendingBin       = WorkerBinDir + "/enrichpending"
-	AdminIncrementalLimit  = 5
+	// Catch up after quiet periods while staying under maccms RecentMaxLimit (20).
+	AdminIncrementalLimit  = 15
 	AdminEnrichmentLimit   = 15
 	AdminEnrichmentConc    = 1
 )

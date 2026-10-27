@@ -7,7 +7,7 @@
 
 | Unit | Role |
 |------|------|
-| `vplayer-syncincremental.service` + `.timer` | Bounded recent **discovery** (`syncincremental --limit 5 --trigger=timer`) — live host unit is the production pattern |
+| `vplayer-syncincremental.service` + `.timer` | Bounded recent **discovery** (`syncincremental --limit 15 --trigger=timer`) — installed by deploy (enable+restart timer only) |
 | `vplayer-enrichpending.service` + `.timer` | Bounded deferred **play enrichment** (`enrichpending --limit 15 --concurrency 1 --trigger=timer`) |
 | `vplayer-migratemedia.service` + `.timer` | Selective R2 **media migration** (`migratemedia --execute --confirm=MIGRATE --limit 1 --trigger=timer`) |
 | `vplayer-db-backup.service` + `.timer` | Daily MySQL logical backup (Plan 8; timer only from deploy) |

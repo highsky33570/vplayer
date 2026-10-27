@@ -1,9 +1,9 @@
 [Unit]
 Description=Run VPlayer pending playback enrichment every 3 hours (offset after discovery)
-Requires=vplayer-enrichpending.service
+# Do NOT Requires= the oneshot — activating the timer must not start enrichment immediately.
 
 [Timer]
-# Discovery timer is intended at 00/3:00; enrichment follows ~20 minutes later.
+# Discovery timer is at 00/3:00; enrichment follows ~20 minutes later.
 OnCalendar=*-*-* 00/3:20:00
 Persistent=false
 RandomizedDelaySec=3min

@@ -135,6 +135,46 @@ migrations_has_sql() {
   [[ -n "${f}" ]]
 }
 
+# Install/update syncincremental oneshot + timer from the repo.
+# Never starts the oneshot service. Enables and (re)starts the TIMER only so the
+# next OnCalendar event can fire later — not an immediate discovery crawl.
+install_syncincremental_units() {
+  local svc_src="${SYSTEMD_UNIT_SRC}/vplayer-syncincremental.service"
+  local timer_src="${SYSTEMD_UNIT_SRC}/vplayer-syncincremental.timer"
+  [[ -f "${svc_src}" ]] || die "missing unit: ${svc_src}"
+  [[ -f "${timer_src}" ]] || die "missing unit: ${timer_src}"
+
+  install -m 644 "${svc_src}" "${SYSTEMD_UNIT_DST}/vplayer-syncincremental.service"
+  install -m 644 "${timer_src}" "${SYSTEMD_UNIT_DST}/vplayer-syncincremental.timer"
+  systemctl daemon-reload
+
+  systemctl enable "${SYNC_TIMER}"
+  systemctl restart "${SYNC_TIMER}"
+
+  if is_active "${SYNC_UNIT}"; then
+    die "${SYNC_UNIT} became active during timer install; refusing unexpected discovery run"
+  fi
+}
+
+# Install/update enrichpending oneshot + timer from the repo (same pattern as discovery).
+install_enrichpending_units() {
+  local svc_src="${SYSTEMD_UNIT_SRC}/vplayer-enrichpending.service"
+  local timer_src="${SYSTEMD_UNIT_SRC}/vplayer-enrichpending.timer"
+  [[ -f "${svc_src}" ]] || die "missing unit: ${svc_src}"
+  [[ -f "${timer_src}" ]] || die "missing unit: ${timer_src}"
+
+  install -m 644 "${svc_src}" "${SYSTEMD_UNIT_DST}/vplayer-enrichpending.service"
+  install -m 644 "${timer_src}" "${SYSTEMD_UNIT_DST}/vplayer-enrichpending.timer"
+  systemctl daemon-reload
+
+  systemctl enable "${ENRICH_TIMER}"
+  systemctl restart "${ENRICH_TIMER}"
+
+  if is_active "${ENRICH_UNIT}"; then
+    die "${ENRICH_UNIT} became active during timer install; refusing unexpected enrichment run"
+  fi
+}
+
 # Install/update migratemedia oneshot + timer from the repo.
 # Never starts the oneshot service. Enables and (re)starts the TIMER only so the
 # next OnCalendar event can fire later — not an immediate migration.
@@ -586,6 +626,12 @@ main() {
   log "restarting ${API_UNIT} only (oneshot workers not started)…"
   systemctl restart "${API_UNIT}"
   sleep 1
+
+  log "installing ${SYNC_UNIT} / ${SYNC_TIMER} (enable+restart timer only; never start oneshot)…"
+  install_syncincremental_units
+
+  log "installing ${ENRICH_UNIT} / ${ENRICH_TIMER} (enable+restart timer only; never start oneshot)…"
+  install_enrichpending_units
 
   log "installing ${MIGRATE_UNIT} / ${MIGRATE_TIMER} (enable+restart timer only; never start oneshot)…"
   install_migratemedia_units

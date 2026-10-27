@@ -1,0 +1,28 @@
+[Unit]
+Description=VPlayer OLEHDTV bounded recent discovery (syncincremental)
+Documentation=file:///opt/vplayer/deploy/systemd/README.md
+After=network-online.target docker.service
+Wants=network-online.target
+# Match proven production worker conventions (no dedicated Linux user).
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vplayer
+# Dotenv: cwd=/opt/vplayer → loadEnvFiles reads ./.env → /opt/vplayer/.env (no secrets in this unit).
+
+# Bounded page-1 recent discovery only. VIP蓝光影院 is excluded in-app.
+# Overlap protection is the app advisory lock (vplayer_olehdtv_incremental_sync).
+ExecStart=/opt/vplayer/backend/bin/syncincremental --limit 15 --trigger=timer
+
+# CLI uses a 15-minute context; leave a buffer for process teardown.
+TimeoutStartSec=20m
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vplayer-syncincremental
+
+[Install]
+WantedBy=multi-user.target

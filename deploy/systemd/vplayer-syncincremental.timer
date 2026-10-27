@@ -1,0 +1,15 @@
+[Unit]
+Description=Run VPlayer OLEHDTV recent discovery every 3 hours
+# Do NOT use Requires= on the oneshot service here: activating the timer would
+# also activate the service (status=immediate sync). Unit= below is enough.
+
+[Timer]
+# Discovery at :00; enrichment follows at :20 (see vplayer-enrichpending.timer).
+OnCalendar=*-*-* 00/3:00:00
+Persistent=false
+RandomizedDelaySec=3min
+AccuracySec=1min
+Unit=vplayer-syncincremental.service
+
+[Install]
+WantedBy=timers.target

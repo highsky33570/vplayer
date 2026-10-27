@@ -388,7 +388,7 @@ func TestAdminSyncActionsGuardsAndLaunchFailure(t *testing.T) {
 
 func TestFixedAdminArgBuilders(t *testing.T) {
 	inc := incrementalAdminArgs(99)
-	if strings.Join(inc, " ") != "--limit 5 --trigger=admin --requested-by-user-id=99" {
+	if strings.Join(inc, " ") != "--limit 15 --trigger=admin --requested-by-user-id=99" {
 		t.Fatalf("%v", inc)
 	}
 	en := enrichmentAdminArgs(7)

@@ -7,13 +7,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=vplayer
-Group=vplayer
-WorkingDirectory=/opt/vplayer/backend
-
-# Reuse the same secrets file as the API / syncincremental — no credentials in this unit.
-# Confirm path with: systemctl show -p EnvironmentFiles vplayer-api.service
-EnvironmentFile=-/etc/vplayer/vplayer.env
+WorkingDirectory=/opt/vplayer
+# Dotenv: cwd=/opt/vplayer → /opt/vplayer/.env (no secrets in this unit).
 
 Environment=APP_ENV=production
 Environment=OLEHDTV_SYNC_ENABLED=false

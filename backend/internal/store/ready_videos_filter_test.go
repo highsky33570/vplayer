@@ -29,10 +29,11 @@ func TestReadyVideoOrderSQL(t *testing.T) {
 	if got := ReadyVideoOrderSQL("hot"); got != ` ORDER BY view_count DESC, id DESC` {
 		t.Fatalf("hot order: %q", got)
 	}
-	if got := ReadyVideoOrderSQL(""); !strings.Contains(got, "created_at DESC") {
+	wantLatest := ` ORDER BY COALESCE(source_updated_at, created_at) DESC, id DESC`
+	if got := ReadyVideoOrderSQL(""); got != wantLatest {
 		t.Fatalf("default order: %q", got)
 	}
-	if got := ReadyVideoOrderSQL("nope"); !strings.Contains(got, "created_at DESC") {
+	if got := ReadyVideoOrderSQL("nope"); got != wantLatest {
 		t.Fatalf("unknown sort must stay newest: %q", got)
 	}
 }
