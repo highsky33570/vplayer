@@ -59,15 +59,7 @@ export function VipPage() {
   const hero = pickVipHero(videos);
   const featured = vipFeaturedStrip(videos, 8);
   const catalog = vipCatalogGrid(videos, featured.length > 0 ? 1 : 0, 24);
-  const baseStatus = vipAccessStatus(Boolean(user), authRequired);
-  const status =
-    !user && !playbackNeedsLogin
-      ? {
-          label: '可浏览 VIP蓝光影院',
-          detail:
-            '天涯欧乐 没有付费会员等级。视频可直接播放。片源本身不可用时仍不可播放，并不表示会员限制已解除。收藏、历史和账号仍需要登录。',
-        }
-      : baseStatus;
+  const status = vipAccessStatus(Boolean(user), authRequired);
   const featureCards = VIP_FEATURE_CARDS.map((card) => {
     if (card.id !== 'devices') return card;
     if (!authRequired) {

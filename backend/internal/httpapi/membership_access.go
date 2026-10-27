@@ -7,6 +7,9 @@ import (
 	"github.com/tycdn/vplayer/internal/store"
 )
 
+// membershipRequiredUserMessage is shown when a non-member tries to play a gated title.
+const membershipRequiredUserMessage = "需要升级大会员后才能观看"
+
 // viewerSeesMembership reports whether the optional Bearer user may see
 // membership_required titles. Missing/invalid tokens count as non-members.
 func (a *API) viewerSeesMembership(c *gin.Context) bool {

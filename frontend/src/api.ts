@@ -110,6 +110,8 @@ export type Video = {
   rating?: number;
   play_sid?: number;
   play_nid?: number;
+  /** When true, playback requires site membership (is_member / admin). */
+  membership_required?: boolean;
 };
 
 export type PlaybackInfo = {

@@ -56,14 +56,19 @@ export function AdminLayout() {
           )}
         </nav>
         <div className="admin-sidebar-foot">
-          <Link className="admin-text-link" to="/">
-            ← 返回站点
+          <Link className="admin-home-btn" to="/">
+            返回首页
           </Link>
         </div>
       </aside>
       <div className="admin-main">
         <header className="admin-topbar">
-          <div className="admin-topbar-title">管理后台</div>
+          <div className="admin-topbar-title">
+            <Link className="admin-home-link" to="/">
+              返回首页
+            </Link>
+            <span>管理后台</span>
+          </div>
           <div className="admin-topbar-user">
             <div className="admin-user-meta">
               <strong>{display}</strong>

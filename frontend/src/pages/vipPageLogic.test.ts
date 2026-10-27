@@ -51,11 +51,11 @@ describe('vip page logic', () => {
       [2, 3],
     );
     assert.equal(vipAccessStatus(true).label.includes('付费'), false);
-    assert.match(vipAccessStatus(false).detail, /没有付费订阅/);
-    assert.match(vipAccessStatus(false).label, /登录后观看/);
+    assert.match(vipAccessStatus(false).detail, /升级大会员/);
+    assert.match(vipAccessStatus(false).label, /升级后观看/);
     const guest = vipAccessStatus(false, false);
     assert.equal(guest.label.includes('登录'), false);
-    assert.match(guest.detail, /并不表示会员限制已解除/);
+    assert.match(guest.detail, /升级大会员/);
     assert.equal(VIP_FEATURE_CARDS.length, 4);
     for (const phrase of ['4K', '免广告', '到期', '续费', '优惠券']) {
       assert.equal(VIP_FEATURE_CARDS.some((c) => `${c.title}${c.body}`.includes(phrase)), false);

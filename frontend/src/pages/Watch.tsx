@@ -67,6 +67,7 @@ export function Watch() {
   const { user, token, ready, authRequired, playbackAuthRequired, logout, openLogin } = useAuth();
   const playbackNeedsLogin = authRequired && playbackAuthRequired;
   const userId = user?.id ?? 0;
+  const canPlayMembership = Boolean(user?.is_member || user?.is_admin);
   const [favorited, setFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -105,7 +106,7 @@ export function Watch() {
     setVideo(null);
     setRelated([]);
     setEpisodes([]);
-    getVideo(videoId)
+    getVideo(videoId, token)
       .then((meta) => {
         if (!cancelled) setVideo(meta);
       })
@@ -140,11 +141,17 @@ export function Watch() {
     return () => {
       cancelled = true;
     };
-  }, [videoId]);
+  }, [videoId, token]);
 
   useEffect(() => {
-    if (!videoId || !ready) return;
+    if (!videoId || !ready || metaLoading) return;
+    if (!video) return;
     if (playbackNeedsLogin && (!user || !token)) return;
+    if (video.membership_required && !canPlayMembership) {
+      setPlayLoading(false);
+      setPlayError('需要升级大会员后才能观看');
+      return;
+    }
     const session = new WatchPlaybackSession();
     sessionRef.current = session;
 
@@ -201,6 +208,10 @@ export function Watch() {
           setPlayError(PLAYBACK_UNAVAILABLE_MESSAGE);
           return;
         }
+        if (e instanceof ApiError && (e.code === 'membership_required' || e.status === 403)) {
+          setPlayError(e.message || '需要升级大会员后才能观看');
+          return;
+        }
         setPlayError(e instanceof Error ? e.message : '播放失败');
       } finally {
         if (!session.debugState().cancelled) setPlayLoading(false);
@@ -219,7 +230,7 @@ export function Watch() {
       session.cancel();
       destroyPlayer();
     };
-  }, [videoId, sid, nid, ready, playbackNeedsLogin, user, token, navigate, logout]);
+  }, [videoId, sid, nid, ready, metaLoading, video, playbackNeedsLogin, user, token, navigate, logout, canPlayMembership]);
 
   // Favorite status for the signed-in user.
   useEffect(() => {
@@ -319,6 +330,8 @@ export function Watch() {
       ].filter((row): row is [string, string] => row != null)
     : [];
 
+  const membershipLocked = Boolean(video?.membership_required && !canPlayMembership);
+
   return (
     <div className="page watch">
       <header className="watch-head">
@@ -328,7 +341,7 @@ export function Watch() {
           </Link>
         </p>
         <div className="watch-title-row">
-          <h1>{video?.title ?? (metaLoading ? '加载中…' : '视频')}</h1>
+          <h1>{video?.title ?? (metaLoading ? '加载中…' : metaError ? '视频' : '视频')}</h1>
           <button
             type="button"
             className={`watch-fav${favorited ? ' is-active' : ''}`}
@@ -341,11 +354,26 @@ export function Watch() {
           </button>
         </div>
         {meta && <p className="watch-meta">{meta}</p>}
+        {membershipLocked ? (
+          <div className="watch-membership-bar" role="status">
+            <span>本片为大会员专属内容，升级后即可观看</span>
+            <Link className="watch-membership-cta" to="/vip">
+              升级大会员
+            </Link>
+          </div>
+        ) : null}
         {metaError && <p className="watch-comments-error">{metaError}</p>}
       </header>
       <div className={`watch-main-grid${related.length > 0 ? ' has-recs' : ''}`}>
         <div className="player-panel">
-          {!playbackNeedsLogin || (user && token) ? (
+          {membershipLocked ? (
+            <div className="player-gate">
+              <p>需要升级大会员后才能观看</p>
+              <button type="button" onClick={() => navigate('/vip')}>
+                去升级大会员
+              </button>
+            </div>
+          ) : !playbackNeedsLogin || (user && token) ? (
             <>
               <div className="player-wrap" ref={rootRef} />
               {playLoading && <p style={{ padding: 12, color: 'var(--muted)' }}>加载中…</p>}

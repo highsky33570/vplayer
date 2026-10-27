@@ -121,7 +121,8 @@ func (a *API) ListVideos(c *gin.Context) {
 		offset = 0
 	}
 	repo := a.publicVideoRepo()
-	seesMembership := a.viewerSeesMembership(c)
+	// Catalog cards always list membership titles (VIP 片库可见); playback stays gated.
+	const includeMembershipRequired = true
 	if repo == nil {
 		rows := demoVideos()
 		if q != "" {
@@ -137,12 +138,12 @@ func (a *API) ListVideos(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "data": rows, "total": len(rows), "limit": limit, "offset": offset, "has_more": false})
 		return
 	}
-	total, err := repo.CountReadyVideosFiltered(catID, q, excludeSlug, seesMembership)
+	total, err := repo.CountReadyVideosFiltered(catID, q, excludeSlug, includeMembershipRequired)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
-	rows, err := repo.ListReadyVideosFiltered(catID, q, excludeSlug, sortKey, limit, offset, seesMembership)
+	rows, err := repo.ListReadyVideosFiltered(catID, q, excludeSlug, sortKey, limit, offset, includeMembershipRequired)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
@@ -188,10 +189,7 @@ func (a *API) GetVideo(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "not found"})
 		return
 	}
-	if !videoVisibleToViewer(v, a.viewerSeesMembership(c)) {
-		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "not found"})
-		return
-	}
+	// Metadata is public so VIP 页 / 详情可展示封面与标题; playback is gated separately.
 	out := a.withCoverURL(*v)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": out})
 }
@@ -209,8 +207,16 @@ func (a *API) ResolvePlay(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": gerr.Error()})
 			return
 		}
-		if v == nil || !videoVisibleToViewer(v, a.viewerSeesMembership(c)) {
+		if v == nil {
 			c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "not found"})
+			return
+		}
+		if v.MembershipRequired && !a.viewerSeesMembership(c) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"ok":      false,
+				"error":   "membership_required",
+				"message": membershipRequiredUserMessage,
+			})
 			return
 		}
 	}

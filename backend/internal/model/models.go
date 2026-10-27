@@ -51,8 +51,8 @@ type Video struct {
 	SyncStatus       string     `json:"sync_status,omitempty"`
 	IsActive         bool       `json:"is_active"`
 	Status           string     `json:"status"` // draft|ready|disabled|demo
-	// MembershipRequired gates public discovery/play to site members (users.is_member).
-	MembershipRequired bool `json:"membership_required,omitempty"`
+	// MembershipRequired gates playback to site members (users.is_member). Catalog cards stay visible.
+	MembershipRequired bool `json:"membership_required"`
 	CreatedAt          time.Time `json:"created_at"`
 }
 

@@ -46,22 +46,22 @@ export function vipCatalogGrid(videos: Video[], offset = 1, limit = 24): Video[]
   return videos.slice(Math.max(0, offset), Math.max(0, offset) + Math.max(0, limit));
 }
 
-/** Status copy for the VIP page card — never invents paid membership. */
+/** Status copy for the VIP / 大会员 page. */
 export function vipAccessStatus(authenticated: boolean, authRequired = true): { label: string; detail: string } {
   if (!authRequired) {
     return {
-      label: '可浏览 VIP蓝光影院',
-      detail: '天涯欧乐 没有付费会员等级。可浏览本频道片库。片源本身不可播放时仍不可用，并不表示会员限制已解除。',
+      label: '可浏览大会员片库',
+      detail: '可浏览本频道片库。会员专属影片需升级大会员后才能播放。',
     };
   }
   if (authenticated) {
     return {
-      label: '可浏览 VIP蓝光影院',
-      detail: '天涯欧乐 没有付费会员等级。登录后即可浏览本频道片库并观看内容。',
+      label: '可浏览大会员片库',
+      detail: '可浏览本频道片库。会员专属影片需升级大会员后才能播放；管理员可在后台为用户开通大会员。',
     };
   }
   return {
-    label: '登录后观看',
-    detail: '可先浏览 VIP蓝光影院 片库；完整播放需要登录。站点没有付费订阅。',
+    label: '浏览片库 · 升级后观看',
+    detail: '可先浏览 VIP蓝光影院 片库；会员专属内容需升级大会员后才能观看。',
   };
 }

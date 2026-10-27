@@ -66,15 +66,10 @@ func (a *API) ListRelated(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "视频不存在"})
 		return
 	}
-	seesMembership := a.viewerSeesMembership(c)
-	if !videoVisibleToViewer(video, seesMembership) {
-		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "视频不存在"})
-		return
-	}
 	limit := relatedLimit(c.Query("limit"))
 	var rows []model.Video
 	if a.Store != nil {
-		rows, err = a.Store.ListRelatedVideosForViewer(*video, limit, seesMembership)
+		rows, err = a.Store.ListRelatedVideosForViewer(*video, limit, true)
 	} else {
 		rows, err = cat.ListRelatedVideos(*video, limit)
 	}
@@ -123,10 +118,6 @@ func (a *API) ListEpisodes(c *gin.Context) {
 		return
 	}
 	if video == nil || video.ID == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "视频不存在"})
-		return
-	}
-	if !videoVisibleToViewer(video, a.viewerSeesMembership(c)) {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "视频不存在"})
 		return
 	}

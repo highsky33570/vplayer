@@ -48,6 +48,7 @@ export function AdminVideos() {
   const [createOK, setCreateOK] = useState<string | null>(null);
   const [listTick, setListTick] = useState(0);
   const [membershipBusyId, setMembershipBusyId] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     setQInput(parsed.q);
@@ -190,6 +191,9 @@ export function AdminVideos() {
             : r,
         ),
       );
+      const msg = next ? '已设为会员专属' : '已取消会员专属';
+      setToast(msg);
+      window.setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 1000);
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) {
@@ -208,6 +212,11 @@ export function AdminVideos() {
 
   return (
     <section className="admin-page">
+      {toast ? (
+        <div className="admin-toast" role="status">
+          {toast}
+        </div>
+      ) : null}
       <div className="admin-page-head">
         <h1>视频管理</h1>
         <p className="admin-muted">

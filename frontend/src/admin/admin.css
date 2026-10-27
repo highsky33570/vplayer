@@ -142,6 +142,45 @@
   font-size: 0.9rem;
 }
 
+.admin-home-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--brand);
+  color: #fff;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.admin-home-btn:hover {
+  filter: brightness(1.05);
+}
+
+.admin-home-link {
+  color: var(--brand);
+  font-weight: 650;
+  text-decoration: none;
+  margin-right: 12px;
+}
+
+.admin-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, #2f9e44 92%, #000);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
 .admin-main {
   display: flex;
   flex-direction: column;
@@ -160,6 +199,9 @@
 }
 
 .admin-topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--display);
   font-weight: 650;
 }
