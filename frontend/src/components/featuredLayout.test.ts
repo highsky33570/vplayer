@@ -5,6 +5,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   FEATURED_CAROUSEL_LIMIT,
+  FEATURED_CAROUSEL_MOBILE_LIMIT,
   FEATURED_POOL_LIMIT,
   FEATURED_SIDE_LIMIT,
   splitFeaturedVideos,
@@ -19,8 +20,10 @@ function videos(count: number) {
 describe('splitFeaturedVideos', () => {
   it('keeps five hero slides and six distinct side cards', () => {
     assert.equal(FEATURED_CAROUSEL_LIMIT, 5);
+    assert.equal(FEATURED_CAROUSEL_MOBILE_LIMIT, 9);
     assert.equal(FEATURED_SIDE_LIMIT, 6);
     assert.equal(FEATURED_POOL_LIMIT, 11);
+    assert.ok(FEATURED_POOL_LIMIT >= FEATURED_CAROUSEL_MOBILE_LIMIT);
     const { carousel, side } = splitFeaturedVideos(videos(11));
     assert.deepEqual(carousel.map((v) => v.id), [1, 2, 3, 4, 5]);
     assert.deepEqual(side.map((v) => v.id), [6, 7, 8, 9, 10, 11]);
@@ -45,10 +48,13 @@ describe('desktop featured and catalog density', () => {
     const home = readFileSync(join(here, '../pages/Home.tsx'), 'utf8');
     assert.match(grid, /splitFeaturedVideos\(videos\)/);
     assert.equal(grid.includes('slice(0, 4)'), false);
-    assert.match(carousel, /videos\.slice\(0,\s*5\)/);
+    assert.match(carousel, /FEATURED_CAROUSEL_LIMIT/);
+    assert.match(carousel, /FEATURED_CAROUSEL_MOBILE_LIMIT/);
+    assert.match(carousel, /videos\.slice\(0,\s*slideLimit\)/);
     assert.match(carousel, /setInterval/);
     assert.match(carousel, /carousel-dots/);
     assert.match(carousel, /carousel-nav/);
+    assert.match(carousel, /onPointerDown/);
     assert.equal(grid.includes('compact'), false);
     assert.match(home, /GRID_COLS_DESKTOP = 6/);
     assert.match(home, /latest\.slice\(0,\s*HOME_SECTION_LIMIT\)/);

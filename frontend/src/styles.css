@@ -3617,74 +3617,78 @@ html.dark .login-reminder-cta {
     border-radius: 6px;
   }
 
+  .carousel {
+    touch-action: pan-y;
+    user-select: none;
+    cursor: grab;
+  }
+
+  .carousel:active {
+    cursor: grabbing;
+  }
+
   .carousel-caption {
-    padding: 8px 8px 4px;
+    padding: 28px 12px 18px;
+    background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.18) 24%, rgba(0, 0, 0, 0.78) 100%);
   }
 
   .carousel-caption h3 {
-    font-size: 13px;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.25;
     -webkit-line-clamp: 1;
   }
 
   .carousel-caption p {
-    display: none;
+    display: -webkit-box;
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.88);
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .carousel-nav {
-    top: 50%;
-    right: 4px;
-    bottom: auto;
-    left: 4px;
-    transform: translateY(-50%);
-    justify-content: space-between;
-    pointer-events: none;
-  }
-
-  .carousel-nav button {
-    position: relative;
-    width: 22px;
-    height: 22px;
-    pointer-events: auto;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.28);
-    font-size: 14px;
-    line-height: 1;
-    opacity: 0.85;
+    display: none !important;
   }
 
   .carousel-dots {
     left: 50%;
-    bottom: 2px;
+    right: auto;
+    bottom: 8px;
     transform: translateX(-50%);
+    gap: 3px;
+    justify-content: center;
   }
 
-  .carousel-dots button {
-    width: 28px;
-    height: 32px;
+  .carousel-dots button,
+  .carousel-dots button.is-active {
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    border: 0;
     border-radius: 0;
     background: transparent;
     display: grid;
     place-items: center;
   }
 
-  .carousel-dots button::after {
+  .carousel-dots button::after,
+  .carousel-dots button.is-active::after {
     content: '';
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
     background: rgba(255, 255, 255, 0.55);
   }
 
-  .carousel-dots button.is-active {
-    width: 32px;
-    border-radius: 0;
-    background: transparent;
-  }
-
   .carousel-dots button.is-active::after {
-    width: 16px;
-    border-radius: 999px;
-    background: #fff;
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: #2f8fff;
   }
 
   .content-section {
@@ -8678,28 +8682,69 @@ html.dark .login-reminder-cta,
 }
 
 @media (max-width: 767px) {
+  .carousel {
+    touch-action: pan-y;
+  }
+
   .carousel-caption {
-    padding: 16px 70px 22px 10px;
+    padding: 28px 12px 18px 10px !important;
   }
 
   .carousel-caption h3 {
-    font-size: 13px;
+    font-size: 20px !important;
+    font-weight: 700;
+    -webkit-line-clamp: 1;
   }
 
-  .carousel-dots {
-    left: 10px;
-    bottom: 6px;
+  .carousel-caption p {
+    display: -webkit-box !important;
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.88);
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .carousel-nav {
-    right: 8px;
-    bottom: 6px;
+    display: none !important;
   }
 
-  .carousel-nav button {
-    width: 26px;
-    height: 26px;
-    border-radius: 6px;
+  .carousel-dots {
+    display: flex !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: 8px !important;
+    transform: translateX(-50%) !important;
+    gap: 3px !important;
+    justify-content: center;
+  }
+
+  .carousel-dots button,
+  .carousel-dots button.is-active {
+    width: 12px !important;
+    height: 12px !important;
+    padding: 0;
+    border: 0;
+    border-radius: 0 !important;
+    background: transparent !important;
+    display: grid;
+    place-items: center;
+  }
+
+  .carousel-dots button::after,
+  .carousel-dots button.is-active::after {
+    content: '';
+    width: 10px !important;
+    height: 2px !important;
+    border-radius: 1px !important;
+    background: rgba(255, 255, 255, 0.55) !important;
+  }
+
+  .carousel-dots button.is-active::after {
+    width: 12px !important;
+    background: #2f8fff !important;
   }
 }
 
