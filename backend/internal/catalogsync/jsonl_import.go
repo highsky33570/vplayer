@@ -123,6 +123,11 @@ func (imp *JSONLImporter) RunImport(ctx context.Context, root string, dryRun boo
 		if imp.ProgressEvery > 0 && idx%imp.ProgressEvery == 0 {
 			imp.Log.Info(fmt.Sprintf("Videos: %d / %d", idx, val.VideoCount))
 		}
+		// VIP蓝光影院 is admin-local only; do not ingest OLEHDTV VIP titles.
+		if olehdtv.IsVIPSourceCategoryID(v.SourceCategoryID) {
+			sum.VideosSkipped++
+			return nil
+		}
 		keep = append(keep, v.SourceID)
 
 		catID := catMap[v.SourceCategoryID]

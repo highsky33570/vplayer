@@ -322,6 +322,40 @@
   margin-bottom: 14px;
 }
 
+.admin-alert.is-ok {
+  background: color-mix(in srgb, #2f9e44 14%, transparent);
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.admin-create-form {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.admin-create-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.admin-filter-grow {
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+
+.admin-filter-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
 .admin-detail-panel {
   background: var(--surface);
   border: 1px solid var(--line);

@@ -15,17 +15,32 @@ func TestCategoryBrowseFromRow_topLevelAndChild(t *testing.T) {
 	vip601 := &model.Category{ID: 200, ParentID: ptrU64(17), SourceID: "601", Slug: "type-601"}
 	mid506 := &model.Category{ID: 300, ParentID: ptrU64(16), SourceID: "506", Slug: "type-506"}
 
-	if got := CategoryBrowseFromRow(2, movie); got.LeafSourceID != "" || got.CanonicalCategoryID != 2 || got.FailClosed {
+	if got := CategoryBrowseFromRow(2, movie); got.LeafSourceID != "" || got.CanonicalCategoryID != 2 || got.FailClosed || got.ExcludeOleHdTvSource {
 		t.Fatalf("movie browse: %+v", got)
 	}
-	if got := CategoryBrowseFromRow(100, child101); got.CanonicalCategoryID != 2 || got.LeafSourceID != "101" {
+	if got := CategoryBrowseFromRow(100, child101); got.CanonicalCategoryID != 2 || got.LeafSourceID != "101" || got.ExcludeOleHdTvSource {
 		t.Fatalf("101 browse: %+v", got)
 	}
-	if got := CategoryBrowseFromRow(200, vip601); got.CanonicalCategoryID != 17 || got.LeafSourceID != "601" {
+	vipTop := &model.Category{ID: 17, ParentID: nil, SourceID: "6", Slug: "vip-bluray"}
+	if got := CategoryBrowseFromRow(17, vipTop); !got.ExcludeOleHdTvSource || got.CanonicalCategoryID != 17 {
+		t.Fatalf("vip top browse: %+v", got)
+	}
+	if got := CategoryBrowseFromRow(200, vip601); got.CanonicalCategoryID != 17 || got.LeafSourceID != "601" || !got.ExcludeOleHdTvSource {
 		t.Fatalf("601 browse: %+v", got)
 	}
-	if got := CategoryBrowseFromRow(300, mid506); got.CanonicalCategoryID != 16 || got.LeafSourceID != "506" {
+	if got := CategoryBrowseFromRow(300, mid506); got.CanonicalCategoryID != 16 || got.LeafSourceID != "506" || got.ExcludeOleHdTvSource {
 		t.Fatalf("506 browse: %+v", got)
+	}
+}
+
+func TestAppendReadyVideosWhere_excludeOleHdTv(t *testing.T) {
+	base := `SELECT id FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
+	q, _ := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{
+		CanonicalCategoryID:  17,
+		ExcludeOleHdTvSource: true,
+	}, "", "")
+	if !strings.Contains(q, `COALESCE(source_system,'') <> 'olehdtv'`) {
+		t.Fatalf("missing olehdtv exclusion: %s", q)
 	}
 }
 

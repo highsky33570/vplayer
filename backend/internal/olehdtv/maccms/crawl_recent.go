@@ -19,9 +19,11 @@ const (
 )
 
 // RecentCategoryAllowlist is the homepage navigation set (excludes 体育直播/短剧).
+// VIP蓝光影院 is intentionally omitted: OLEHDTV VIP membership titles are not
+// ingested by syncincremental; the public VIP channel is admin-local only.
 var RecentCategoryAllowlist = map[string]struct{}{
 	"电影": {}, "连续剧": {}, "剧集": {}, "综艺": {}, "动漫": {},
-	"午夜影院": {}, "VIP蓝光影院": {},
+	"午夜影院": {},
 }
 
 // RequestBudget reports HTTP usage for a bounded recent crawl.

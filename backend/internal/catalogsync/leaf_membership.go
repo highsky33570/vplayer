@@ -73,7 +73,8 @@ func NewLeafMembershipSync(st LeafMembershipStore, fetcher PageFetcher, baseURL 
 	}
 }
 
-// SelectLeafTargets returns persisted children under canonical parents 1–6 only.
+// SelectLeafTargets returns persisted children under canonical parents 1–5 only.
+// Parent 6 (VIP蓝光影院) is excluded: VIP channel is admin-local, not OLEHDTV leaf sync.
 // Unknown/noncanonical parents are omitted (fail closed). Sorted by source_id.
 func SelectLeafTargets(cats []model.Category) []leafTarget {
 	byID := make(map[uint64]model.Category, len(cats))
@@ -92,6 +93,10 @@ func SelectLeafTargets(cats []model.Category) []leafTarget {
 		parentSrc := strings.TrimSpace(parent.SourceID)
 		childSrc := strings.TrimSpace(c.SourceID)
 		if childSrc == "" || !olehdtv.IsCanonicalHierarchyParentSourceID(parentSrc) {
+			continue
+		}
+		// Skip VIP parent — do not ingest/enrich OLEHDTV VIP membership titles.
+		if parentSrc == "6" || olehdtv.IsVIPSourceCategoryID(childSrc) {
 			continue
 		}
 		out = append(out, leafTarget{

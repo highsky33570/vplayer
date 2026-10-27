@@ -79,6 +79,10 @@ func (s *OleHdTvSyncService) Run(ctx context.Context, trigger string) (model.Syn
 			s.Log.Info("batch progress", "processed", i, "total", len(videos))
 		}
 		sum.Scanned++
+		// VIP蓝光影院 is admin-local only; do not ingest OLEHDTV VIP titles.
+		if olehdtv.IsVIPSourceCategoryID(v.SourceCategoryID) {
+			continue
+		}
 		keep = append(keep, v.SourceID)
 
 		catID := catMap[v.SourceCategoryID]

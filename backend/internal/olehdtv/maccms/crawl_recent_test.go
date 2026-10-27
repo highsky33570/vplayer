@@ -162,10 +162,13 @@ func TestFilterRecentCategoriesExcludesSportsShort(t *testing.T) {
 			t.Fatalf("excluded category leaked: %s", c.Name)
 		}
 	}
-	for _, want := range []string{"电影", "连续剧", "综艺", "动漫", "午夜影院", "VIP蓝光影院"} {
+	for _, want := range []string{"电影", "连续剧", "综艺", "动漫", "午夜影院"} {
 		if !names[want] {
 			t.Fatalf("missing %s in %#v", want, names)
 		}
+	}
+	if names["VIP蓝光影院"] {
+		t.Fatal("VIP蓝光影院 must stay off incremental recent allowlist")
 	}
 }
 

@@ -394,9 +394,9 @@ func TestLeafImport_crossParentMultiLeafConflict(t *testing.T) {
 	f := &importMemFetcher{pages: map[string]string{
 		base + "/index.php/vod/type/id/101.html": listingPage([]string{"9001"}, ""),
 		base + "/index.php/vod/type/id/102.html": listingPage(nil, ""),
-		base + "/index.php/vod/type/id/201.html": listingPage(nil, ""),
+		base + "/index.php/vod/type/id/201.html": listingPage([]string{"9001"}, ""), // TV vs movie cross-parent
 		base + "/index.php/vod/type/id/506.html": listingPage(nil, ""),
-		base + "/index.php/vod/type/id/601.html": listingPage([]string{"9001"}, ""),
+		base + "/index.php/vod/type/id/601.html": listingPage(nil, ""), // VIP leaf ignored by SelectLeafTargets
 	}}
 	opt := DefaultLeafImportOptions()
 	opt.DryRun = true
@@ -616,15 +616,13 @@ func TestLeafImport_splitMultiLeafMetrics(t *testing.T) {
 	st := newImportMemStore(importCats())
 	base := "https://maccms.local"
 	f := &importMemFetcher{pages: map[string]string{
-		base + "/index.php/vod/type/id/101.html": listingPage([]string{"9001", "9002"}, ""),
+		base + "/index.php/vod/type/id/101.html": listingPage([]string{"9001", "9002", "9003"}, ""),
 		base + "/index.php/vod/type/id/102.html": listingPage([]string{"9001"}, ""), // same-parent multi
-		base + "/index.php/vod/type/id/201.html": listingPage(nil, ""),
+		base + "/index.php/vod/type/id/201.html": listingPage([]string{"9002"}, ""), // cross-parent with 101
 		base + "/index.php/vod/type/id/506.html": listingPage(nil, ""),
-		base + "/index.php/vod/type/id/601.html": listingPage([]string{"9002"}, ""), // cross-parent with 101
+		base + "/index.php/vod/type/id/601.html": listingPage(nil, ""), // VIP leaf ignored
 	}}
 	st.videos["9003"] = &model.Video{ID: 3, SourceID: "9003", CategoryID: 2, SourceCategoryID: "1", LeafSourceID: "102"}
-	// put 9003 only on 101 so existing-leaf conflict
-	f.pages[base+"/index.php/vod/type/id/101.html"] = listingPage([]string{"9001", "9002", "9003"}, "")
 
 	opt := DefaultLeafImportOptions()
 	opt.DryRun = true

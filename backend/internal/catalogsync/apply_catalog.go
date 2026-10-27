@@ -49,6 +49,17 @@ func ApplySourceVideoCatalog(
 	}
 
 	srcCatID := strings.TrimSpace(v.SourceCategoryID)
+	// Do not ingest OLEHDTV VIP蓝光影院 titles (parent 6 / leaves 601–613).
+	// Public VIP channel is reserved for admin-created local videos.
+	if olehdtv.IsVIPSourceCategoryID(srcCatID) {
+		out.Actions = append(out.Actions, ItemAction{
+			Action:   "SKIP VIP",
+			SourceID: v.SourceID,
+			Title:    v.Title,
+			Detail:   "olehdtv VIP category excluded from sync ingest",
+		})
+		return out, nil
+	}
 	catID := uint64(0)
 	if srcCatID != "" {
 		catID = catMap[srcCatID]

@@ -1074,3 +1074,34 @@ export async function fetchAdminVideos(
 export function fetchAdminVideo(id: number, token: string | null | undefined) {
   return getJSON<AdminVideoDetail>(`/api/v1/admin/videos/${id}`, token);
 }
+
+export type AdminCreateVideoInput = {
+  title: string;
+  playback_url: string;
+  cover_url?: string;
+  description?: string;
+  as_vip?: boolean;
+  category_id?: number;
+};
+
+export async function createAdminVideo(
+  token: string | null | undefined,
+  input: AdminCreateVideoInput,
+): Promise<AdminVideoDetail> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/videos`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminVideoDetail;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}

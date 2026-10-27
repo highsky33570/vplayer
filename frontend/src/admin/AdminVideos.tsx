@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError,
+  createAdminVideo,
   fetchAdminVideos,
   listCategories,
   type AdminVideoListItem,
@@ -36,6 +37,15 @@ export function AdminVideos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [createTitle, setCreateTitle] = useState('');
+  const [createURL, setCreateURL] = useState('');
+  const [createCover, setCreateCover] = useState('');
+  const [createDesc, setCreateDesc] = useState('');
+  const [createAsVIP, setCreateAsVIP] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createOK, setCreateOK] = useState<string | null>(null);
+  const [listTick, setListTick] = useState(0);
 
   useEffect(() => {
     setQInput(parsed.q);
@@ -98,7 +108,42 @@ export function AdminVideos() {
     return () => {
       cancelled = true;
     };
-  }, [token, logout, navigate, parsed]);
+  }, [token, logout, navigate, parsed, listTick]);
+
+  async function onCreateSubmit(e: FormEvent) {
+    e.preventDefault();
+    setCreateError(null);
+    setCreateOK(null);
+    setCreating(true);
+    try {
+      const created = await createAdminVideo(token, {
+        title: createTitle.trim(),
+        playback_url: createURL.trim(),
+        cover_url: createCover.trim() || undefined,
+        description: createDesc.trim() || undefined,
+        as_vip: createAsVIP,
+      });
+      setCreateOK(`已添加 #${created.id} ${created.title}`);
+      setCreateTitle('');
+      setCreateURL('');
+      setCreateCover('');
+      setCreateDesc('');
+      setListTick((n) => n + 1);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          logout();
+          navigate(loginWithNext('/admin/videos'), { replace: true });
+          return;
+        }
+        setCreateError(err.message);
+      } else {
+        setCreateError(err instanceof Error ? err.message : '创建失败');
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
 
   const categoryName = useMemo(() => {
     const map = new Map(categories.map((c) => [c.id, c.name]));
@@ -131,8 +176,71 @@ export function AdminVideos() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>视频管理</h1>
-        <p className="admin-muted">只读片库列表 · 分页加载，不一次拉取全部数据</p>
+        <p className="admin-muted">
+          片库列表 · 可添加本地 VIP 视频（播放链接）。OLEHDTV VIP 片源不再同步到 VIP 分类。
+        </p>
       </div>
+
+      <form className="admin-create-form" onSubmit={onCreateSubmit}>
+        <h2 className="admin-create-title">添加视频</h2>
+        <div className="admin-filters">
+          <label className="admin-filter-field admin-filter-grow">
+            <span>标题</span>
+            <input
+              value={createTitle}
+              onChange={(e) => setCreateTitle(e.target.value)}
+              placeholder="视频标题"
+              required
+            />
+          </label>
+          <label className="admin-filter-field admin-filter-grow">
+            <span>播放链接</span>
+            <input
+              value={createURL}
+              onChange={(e) => setCreateURL(e.target.value)}
+              placeholder="https://…/.m3u8 或直链"
+              required
+            />
+          </label>
+          <label className="admin-filter-field admin-filter-grow">
+            <span>封面链接（可选）</span>
+            <input
+              value={createCover}
+              onChange={(e) => setCreateCover(e.target.value)}
+              placeholder="https://…"
+            />
+          </label>
+          <label className="admin-filter-field admin-filter-grow">
+            <span>简介（可选）</span>
+            <input
+              value={createDesc}
+              onChange={(e) => setCreateDesc(e.target.value)}
+              placeholder="简短描述"
+            />
+          </label>
+          <label className="admin-filter-check">
+            <input
+              type="checkbox"
+              checked={createAsVIP}
+              onChange={(e) => setCreateAsVIP(e.target.checked)}
+            />
+            <span>设为 VIP 蓝光影院</span>
+          </label>
+          <button type="submit" className="admin-btn-primary" disabled={creating}>
+            {creating ? '提交中…' : '添加'}
+          </button>
+        </div>
+        {createError ? (
+          <div className="admin-alert is-danger" role="alert">
+            {createError}
+          </div>
+        ) : null}
+        {createOK ? (
+          <div className="admin-alert is-ok" role="status">
+            {createOK}
+          </div>
+        ) : null}
+      </form>
 
       <form className="admin-filters" onSubmit={onSearchSubmit}>
         <label className="admin-filter-field">

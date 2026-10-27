@@ -18,10 +18,13 @@ const maxCategorySlugLen = 64
 // → videos.category_id = parent_id AND videos.leaf_source_id = source_id
 //
 // FailClosed: invalid child (missing parent or source_id) → match nothing.
+// ExcludeOleHdTvSource: when browsing VIP蓝光影院, hide OLEHDTV-synced rows so
+// the channel stays empty until admin-local VIP titles are added.
 type CategoryBrowseFilter struct {
-	CanonicalCategoryID uint64
-	LeafSourceID        string
-	FailClosed          bool
+	CanonicalCategoryID  uint64
+	LeafSourceID         string
+	FailClosed           bool
+	ExcludeOleHdTvSource bool
 }
 
 // NormalizeExcludeCategorySlug bounds an optional public list exclude slug.
@@ -35,6 +38,25 @@ func NormalizeExcludeCategorySlug(raw string) string {
 	return s
 }
 
+// isVipBlurayBrowseCategory is true for VIP蓝光影院 (slug/source 6) or its
+// OLEHDTV leaf types 601–613. Public browse then hides olehdtv-sourced rows.
+func isVipBlurayBrowseCategory(cat *model.Category) bool {
+	if cat == nil {
+		return false
+	}
+	if strings.TrimSpace(cat.Slug) == "vip-bluray" {
+		return true
+	}
+	switch strings.TrimSpace(cat.SourceID) {
+	case "6",
+		"601", "602", "603", "604", "605", "606", "607",
+		"608", "609", "610", "611", "612", "613":
+		return true
+	default:
+		return false
+	}
+}
+
 // CategoryBrowseFromRow maps a requested local category id + loaded row to a browse filter.
 // Uses persisted parent_id / source_id only — never numeric ID band heuristics.
 // cat == nil (unknown id): keep legacy behavior category_id = requestedID (typically empty).
@@ -42,11 +64,15 @@ func CategoryBrowseFromRow(requestedID uint64, cat *model.Category) CategoryBrow
 	if requestedID == 0 {
 		return CategoryBrowseFilter{}
 	}
+	excludeOle := isVipBlurayBrowseCategory(cat)
 	if cat == nil {
 		return CategoryBrowseFilter{CanonicalCategoryID: requestedID}
 	}
 	if cat.ParentID == nil {
-		return CategoryBrowseFilter{CanonicalCategoryID: requestedID}
+		return CategoryBrowseFilter{
+			CanonicalCategoryID:  requestedID,
+			ExcludeOleHdTvSource: excludeOle,
+		}
 	}
 	parentID := *cat.ParentID
 	sourceID := strings.TrimSpace(cat.SourceID)
@@ -54,8 +80,9 @@ func CategoryBrowseFromRow(requestedID uint64, cat *model.Category) CategoryBrow
 		return CategoryBrowseFilter{FailClosed: true}
 	}
 	return CategoryBrowseFilter{
-		CanonicalCategoryID: parentID,
-		LeafSourceID:        sourceID,
+		CanonicalCategoryID:  parentID,
+		LeafSourceID:         sourceID,
+		ExcludeOleHdTvSource: excludeOle,
 	}
 }
 
@@ -81,6 +108,9 @@ func AppendReadyVideosWhere(q string, args []any, browse CategoryBrowseFilter, q
 		// Resolve by categories.slug (parameterized). Never interpolate slug into SQL.
 		q += ` AND category_id NOT IN (SELECT id FROM categories WHERE slug=?)`
 		args = append(args, slug)
+	}
+	if browse.ExcludeOleHdTvSource {
+		q += ` AND COALESCE(source_system,'') <> 'olehdtv'`
 	}
 	// Membership-only exclusion is part of the shared WHERE, before the caller
 	// appends ORDER BY / LIMIT / OFFSET. Count and list use this same function.

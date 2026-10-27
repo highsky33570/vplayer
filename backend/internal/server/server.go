@@ -148,6 +148,7 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/admin/me", api.RequireUser, api.RequireAdmin, api.AdminMe)
 		v1.GET("/admin/dashboard", api.RequireUser, api.RequireAdmin, api.AdminDashboard)
 		v1.GET("/admin/videos", api.RequireUser, api.RequireAdmin, api.AdminListVideos)
+		v1.POST("/admin/videos", api.RequireUser, api.RequireAdmin, api.AdminCreateVideo)
 		v1.GET("/admin/videos/:id", api.RequireUser, api.RequireAdmin, api.AdminGetVideo)
 		v1.GET("/admin/categories", api.RequireUser, api.RequireAdmin, api.AdminListCategories)
 		v1.GET("/admin/categories/:id", api.RequireUser, api.RequireAdmin, api.AdminGetCategory)

@@ -100,12 +100,15 @@ func baseCats() []model.Category {
 
 func TestSelectLeafTargets_canonicalOnly(t *testing.T) {
 	got := SelectLeafTargets(baseCats())
-	if len(got) != 3 {
-		t.Fatalf("len=%d want 3 (101,506,601)", len(got))
+	if len(got) != 2 {
+		t.Fatalf("len=%d want 2 (101,506; VIP 601 excluded)", len(got))
 	}
 	for _, leaf := range got {
 		if leaf.SourceID == "801" {
 			t.Fatal("noncanonical parent child must be excluded")
+		}
+		if leaf.SourceID == "601" || leaf.ParentSourceID == "6" {
+			t.Fatal("VIP parent/leaf must be excluded from leaf sync")
 		}
 		if !olehdtv.IsCanonicalHierarchyParentSourceID(leaf.ParentSourceID) {
 			t.Fatalf("parent %s not canonical", leaf.ParentSourceID)
@@ -216,7 +219,7 @@ func TestLeafMembership_midnight506MovieOwnedRejected(t *testing.T) {
 	}
 }
 
-func TestLeafMembership_vip601(t *testing.T) {
+func TestLeafMembership_vip601Skipped(t *testing.T) {
 	st := &leafMemStore{
 		cats: baseCats(),
 		videos: map[string]*model.Video{
@@ -232,8 +235,11 @@ func TestLeafMembership_vip601(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sum.Assigned != 1 || st.videos["6001"].LeafSourceID != "601" {
-		t.Fatalf("sum=%+v", sum)
+	if sum.Assigned != 0 || st.videos["6001"].LeafSourceID != "" {
+		t.Fatalf("VIP leaf must not be enriched: sum=%+v leaf=%q", sum, st.videos["6001"].LeafSourceID)
+	}
+	if sum.LeavesSelected != 2 {
+		t.Fatalf("LeavesSelected=%d want 2 (VIP excluded)", sum.LeavesSelected)
 	}
 }
 
@@ -254,11 +260,14 @@ func TestLeafMembership_101vs601Isolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.videos["9001"].LeafSourceID != "101" || st.videos["6001"].LeafSourceID != "601" {
-		t.Fatalf("leaves=%q/%q", st.videos["9001"].LeafSourceID, st.videos["6001"].LeafSourceID)
+	if st.videos["9001"].LeafSourceID != "101" {
+		t.Fatalf("movie leaf=%q", st.videos["9001"].LeafSourceID)
 	}
-	if sum.Assigned != 2 {
-		t.Fatalf("assigned=%d", sum.Assigned)
+	if st.videos["6001"].LeafSourceID != "" {
+		t.Fatalf("VIP must stay unenriched leaf=%q", st.videos["6001"].LeafSourceID)
+	}
+	if sum.Assigned != 1 {
+		t.Fatalf("assigned=%d want 1", sum.Assigned)
 	}
 }
 
@@ -363,16 +372,19 @@ func TestLeafMembership_onePagePerLeafNoDetail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sum.Requests != 3 || sum.DetailRequests != 0 {
+	// VIP 601 is excluded from SelectLeafTargets → only 101 + 506.
+	if sum.Requests != 2 || sum.DetailRequests != 0 {
 		t.Fatalf("requests=%d detail=%d urls=%v", sum.Requests, sum.DetailRequests, f.urls)
 	}
 	for _, u := range f.urls {
 		if strings.Contains(u, "/page/") || strings.Contains(u, "/detail/") {
 			t.Fatalf("forbidden url fetched: %s", u)
 		}
+		if strings.Contains(u, "/id/601") {
+			t.Fatalf("VIP leaf must not be fetched: %s", u)
+		}
 	}
-	// one URL per leaf
-	if len(f.urls) != 3 {
+	if len(f.urls) != 2 {
 		t.Fatalf("urls=%v", f.urls)
 	}
 }
