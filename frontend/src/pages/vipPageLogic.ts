@@ -3,29 +3,12 @@ import type { Category, Video } from '../api';
 export const VIP_CHANNEL_SLUG = 'vip-bluray';
 export const VIP_CHANNEL_NAME = 'VIP蓝光影院';
 
-/** Truthful feature cards — only capabilities VPlayer actually has. */
-export const VIP_FEATURE_CARDS = [
-  {
-    id: 'catalog',
-    title: '精选片库',
-    body: '集中浏览 VIP蓝光影院 频道中的高质量影视内容。',
-  },
-  {
-    id: 'quality',
-    title: '片源整理',
-    body: '按分类整理的片源入口，方便按兴趣筛选与观看。',
-  },
-  {
-    id: 'episodes',
-    title: '分集浏览',
-    body: '剧集类内容支持分集选择，连续追剧更清晰。',
-  },
-  {
-    id: 'devices',
-    title: '跨端访问',
-    body: '登录后可在不同设备上继续浏览与播放站点内容。',
-  },
-] as const;
+/** Hero copy on /vip — about premium membership, not a single film. */
+export const VIP_HERO_COPY = {
+  kicker: '天涯欧乐 · 大会员',
+  title: '开通大会员，畅看专属影库',
+  desc: '升级大会员即可解锁 VIP蓝光影院专属内容。支持 USDT 加密货币支付，开通后可在账户查看徽章与剩余天数。',
+} as const;
 
 export function resolveVipCategory(categories: Category[]): Category | undefined {
   return (

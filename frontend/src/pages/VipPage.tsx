@@ -4,12 +4,12 @@ import { listCategories, listVideosPage, type Category, type Video } from '../ap
 import { useAuth } from '../auth/AuthContext';
 import { UserAvatar } from '../account/UserAvatar';
 import { VideoCard } from '../components/VideoCard';
+import { VipPurchaseModal } from '../components/VipPurchaseModal';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
-import { VipPurchasePanel } from '../components/VipPurchasePanel';
 import {
   VIP_CHANNEL_NAME,
   VIP_CHANNEL_SLUG,
-  VIP_FEATURE_CARDS,
+  VIP_HERO_COPY,
   pickVipHero,
   resolveVipCategory,
   vipAccessStatus,
@@ -25,6 +25,7 @@ export function VipPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [statusMinimized, setStatusMinimized] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023px)').matches : false,
   );
@@ -32,7 +33,6 @@ export function VipPage() {
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
     const onChange = () => {
-      // Mobile default is minimized; expanding to desktop restores the full card.
       if (!mq.matches) setStatusMinimized(false);
       else setStatusMinimized(true);
     };
@@ -75,20 +75,19 @@ export function VipPage() {
   const featured = vipFeaturedStrip(videos, 8);
   const catalog = vipCatalogGrid(videos, featured.length > 0 ? 1 : 0, 24);
   const status = vipAccessStatus(Boolean(user), authRequired);
-  const featureCards = VIP_FEATURE_CARDS.map((card) => {
-    if (card.id !== 'devices') return card;
-    if (!authRequired) {
-      return { ...card, body: '可在当前浏览器浏览与播放。片源本身不可播时仍会提示暂不可用。' };
+  const isMember = Boolean(user?.is_member || user?.is_admin);
+
+  const openPurchase = () => {
+    if (playbackNeedsLogin && ready && !user) {
+      openLogin('login');
+      return;
     }
-    if (!playbackNeedsLogin) {
-      return { ...card, body: '视频可直接播放。登录后可在不同设备上同步收藏与观看记录。' };
-    }
-    return card;
-  });
+    setPurchaseOpen(true);
+  };
 
   return (
     <div className="vip-dest">
-      <section className="vip-hero-stage" aria-label="大会员精选">
+      <section className="vip-hero-stage" aria-label="大会员">
         {hero && !loading ? (
           <div className="vip-hero" aria-hidden>
             <img
@@ -99,37 +98,25 @@ export function VipPage() {
             />
             <div className="vip-hero-shade" />
           </div>
-        ) : null}
-
-        {loading ? (
-          <div className="vip-hero-body vip-hero-body--empty">加载中…</div>
-        ) : hero ? (
-          <div className="vip-hero-body">
-            <p className="vip-hero-kicker">{VIP_CHANNEL_NAME}</p>
-            <h1 className="vip-hero-title">{hero.title}</h1>
-            <p className="vip-hero-meta">
-              {[hero.year, hero.area, hero.duration_sec > 0 ? `${Math.round(hero.duration_sec / 60)} 分钟` : '']
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-            {hero.description ? <p className="vip-hero-desc">{hero.description}</p> : null}
-            <div className="vip-hero-actions">
-              <Link className="vip-cta" to={`/watch/${hero.id}`}>
-                立即观看
-              </Link>
-              <Link className="vip-cta vip-cta--ghost" to={`/?ch=${VIP_CHANNEL_SLUG}`}>
-                浏览频道
-              </Link>
-            </div>
-          </div>
         ) : (
-          <div className="vip-hero-body vip-hero-body--empty">
-            <p>暂无 VIP蓝光影院 内容</p>
-            <Link className="vip-cta" to="/">
-              返回首页
-            </Link>
+          <div className="vip-hero vip-hero--fallback" aria-hidden>
+            <div className="vip-hero-shade" />
           </div>
         )}
+
+        <div className="vip-hero-body">
+          <p className="vip-hero-kicker">{VIP_HERO_COPY.kicker}</p>
+          <h1 className="vip-hero-title">{VIP_HERO_COPY.title}</h1>
+          <p className="vip-hero-desc">{VIP_HERO_COPY.desc}</p>
+          <div className="vip-hero-actions">
+            <button type="button" className="vip-cta" onClick={openPurchase}>
+              开通大会员
+            </button>
+            <Link className="vip-cta vip-cta--ghost" to={`/?ch=${VIP_CHANNEL_SLUG}`}>
+              浏览频道
+            </Link>
+          </div>
+        </div>
 
         <aside
           className={`vip-status-card${statusMinimized ? ' is-minimized' : ''}`}
@@ -186,19 +173,17 @@ export function VipPage() {
                   <span className="banner-avatar vip-guest-avatar">客</span>
                   <div>
                     <strong>访客</strong>
-                    <p>
-                      {playbackNeedsLogin ? '登录后可完整观看' : '可直接观看本频道'}
-                    </p>
+                    <p>{playbackNeedsLogin ? '登录后可开通大会员' : '可浏览本频道'}</p>
                   </div>
                 </div>
               )}
               <p className="vip-status-label">{status.label}</p>
               <p className="vip-status-detail">{status.detail}</p>
-              {user?.is_member || user?.is_admin ? (
+              {isMember ? (
                 <p className="vip-status-detail">
-                  {user.is_admin
+                  {user?.is_admin
                     ? '已具备大会员权限（管理员）'
-                    : user.membership_days_remaining
+                    : user?.membership_days_remaining
                       ? `大会员剩余 ${user.membership_days_remaining} 天`
                       : '大会员已开通'}
                 </p>
@@ -213,25 +198,9 @@ export function VipPage() {
                   <dd>{loading ? '…' : `${total} 部`}</dd>
                 </div>
               </dl>
-              {playbackNeedsLogin && ready && !user ? (
-                <button type="button" className="vip-cta" onClick={() => openLogin('login')}>
-                  登录观看
-                </button>
-              ) : user?.is_member || user?.is_admin ? (
-                <Link
-                  className="vip-cta"
-                  to={hero ? `/watch/${hero.id}` : `/?ch=${VIP_CHANNEL_SLUG}`}
-                >
-                  开始观看
-                </Link>
-              ) : (
-                <a className="vip-cta" href="#vip-purchase-anchor" onClick={(e) => {
-                  e.preventDefault();
-                  document.querySelector('.vip-purchase')?.scrollIntoView({ behavior: 'smooth' });
-                }}>
-                  开通大会员
-                </a>
-              )}
+              <button type="button" className="vip-cta" onClick={openPurchase}>
+                {isMember ? '续费大会员' : '开通大会员'}
+              </button>
             </>
           )}
         </aside>
@@ -267,17 +236,6 @@ export function VipPage() {
           </p>
         ) : null}
 
-        <VipPurchasePanel />
-
-        <section className="vip-features" aria-label="功能说明">
-          {featureCards.map((card) => (
-            <article key={card.id} className={`vip-feature-card vip-feature-card--${card.id}`}>
-              <h2>{card.title}</h2>
-              <p>{card.body}</p>
-            </article>
-          ))}
-        </section>
-
         <section className="vip-catalog" aria-label={`${VIP_CHANNEL_NAME}片库`}>
           <div className="me-title-row">
             <h2>猜你喜欢</h2>
@@ -298,6 +256,8 @@ export function VipPage() {
           )}
         </section>
       </div>
+
+      <VipPurchaseModal open={purchaseOpen} onClose={() => setPurchaseOpen(false)} />
     </div>
   );
 }

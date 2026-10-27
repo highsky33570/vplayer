@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { Category, Video } from '../api.ts';
 import {
-  VIP_FEATURE_CARDS,
+  VIP_HERO_COPY,
   pickVipHero,
   resolveVipCategory,
   vipAccessStatus,
@@ -56,9 +56,10 @@ describe('vip page logic', () => {
     const guest = vipAccessStatus(false, false);
     assert.equal(guest.label.includes('登录'), false);
     assert.match(guest.detail, /升级大会员/);
-    assert.equal(VIP_FEATURE_CARDS.length, 4);
-    for (const phrase of ['4K', '免广告', '到期', '续费', '优惠券']) {
-      assert.equal(VIP_FEATURE_CARDS.some((c) => `${c.title}${c.body}`.includes(phrase)), false);
+    assert.match(VIP_HERO_COPY.title, /大会员/);
+    assert.match(VIP_HERO_COPY.desc, /USDT/);
+    for (const phrase of ['4K', '免广告', '优惠券']) {
+      assert.equal(`${VIP_HERO_COPY.title}${VIP_HERO_COPY.desc}`.includes(phrase), false);
     }
   });
 
