@@ -181,10 +181,12 @@ export function VipPage() {
               <p className="vip-status-detail">{status.detail}</p>
               {isMember ? (
                 <p className="vip-status-detail">
-                  {user?.is_admin
-                    ? '已具备大会员权限（管理员）'
-                    : user?.membership_days_remaining
+                  {user?.membership_expires_at || (user?.membership_days_remaining ?? 0) > 0
+                    ? user?.membership_days_remaining
                       ? `大会员剩余 ${user.membership_days_remaining} 天`
+                      : '大会员已开通'
+                    : user?.is_admin
+                      ? '已具备大会员权限（管理员）'
                       : '大会员已开通'}
                 </p>
               ) : null}

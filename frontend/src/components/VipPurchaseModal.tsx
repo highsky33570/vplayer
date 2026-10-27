@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { membershipModalActiveCopy } from '../account/accountLogic';
 import { createMembershipOrder, listMembershipPlans, type MembershipPlan } from '../api';
 import { useAuth } from '../auth/AuthContext';
 
@@ -40,7 +41,8 @@ export function VipPurchaseModal({ open, onClose }: Props) {
         if (cancelled) return;
         setPlans(rows);
         if (rows.length > 0) {
-          setSelected((prev) => prev || rows[0].slug);
+          const preferred = rows.find((p) => p.duration_days >= 365)?.slug ?? rows[0].slug;
+          setSelected((prev) => prev || preferred);
         }
       })
       .catch((e) => {
@@ -72,7 +74,7 @@ export function VipPurchaseModal({ open, onClose }: Props) {
   if (!open || typeof document === 'undefined') return null;
 
   const isMember = Boolean(user?.is_member || user?.is_admin);
-  const daysLeft = user?.membership_days_remaining ?? 0;
+  const activeCopy = membershipModalActiveCopy(user);
   const selectedPlan = plans.find((p) => p.slug === selected) ?? null;
 
   const onPay = async () => {
@@ -127,15 +129,7 @@ export function VipPurchaseModal({ open, onClose }: Props) {
           </button>
         </header>
 
-        {isMember ? (
-          <p className="vip-modal-active">
-            {user?.is_admin
-              ? '当前为管理员，已具备大会员权限。'
-              : daysLeft > 0
-                ? `你已是大会员，剩余 ${daysLeft} 天。续费将从现有到期日叠加。`
-                : '你已是大会员。续费将延长有效期。'}
-          </p>
-        ) : null}
+        {isMember && activeCopy ? <p className="vip-modal-active">{activeCopy}</p> : null}
 
         {loading ? <p className="vip-modal-status">正在加载套餐…</p> : null}
         {error ? (

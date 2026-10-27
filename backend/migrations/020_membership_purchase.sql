@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS membership_plans (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO membership_plans (slug, name, price_usd, duration_days, sort, is_active) VALUES
-  ('1m',  '1个月', 5.00,  30,  10, 1),
-  ('3m',  '3个月', 14.00, 90,  20, 1),
-  ('6m',  '6个月', 26.00, 180, 30, 1),
-  ('1y',  '1年',   50.00, 365, 40, 1)
+  ('1m',  '1个月', 4.99,  30,  10, 1),
+  ('3m',  '3个月', 13.99, 90,  20, 1),
+  ('6m',  '6个月', 25.99, 180, 30, 1),
+  ('1y',  '1年',   49.99, 365, 40, 1)
 ON DUPLICATE KEY UPDATE
   name=VALUES(name),
   price_usd=VALUES(price_usd),
