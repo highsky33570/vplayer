@@ -107,14 +107,23 @@ func (a *API) Me(c *gin.Context) {
 }
 
 func authUserJSON(user *model.User) gin.H {
-	return gin.H{
-		"id":         user.ID,
-		"email":      user.Email,
-		"nickname":   auth.DisplayName(user.Nickname, user.Email),
-		"avatar_hue": user.AvatarHue,
-		"is_admin":   user.IsAdmin,
-		"is_member":  user.IsMember || user.IsAdmin,
+	out := gin.H{
+		"id":                        user.ID,
+		"email":                     user.Email,
+		"nickname":                  auth.DisplayName(user.Nickname, user.Email),
+		"avatar_hue":                user.AvatarHue,
+		"is_admin":                  user.IsAdmin,
+		"is_member":                 user.IsMember || user.IsAdmin,
+		"membership_days_remaining": user.MembershipDaysRemaining,
 	}
+	if user.IsAdmin && user.MembershipDaysRemaining == 0 {
+		// Admins are always members; no expiry clock.
+		out["membership_days_remaining"] = 0
+	}
+	if user.MembershipExpiresAt != nil {
+		out["membership_expires_at"] = user.MembershipExpiresAt.UTC().Format(time.RFC3339)
+	}
+	return out
 }
 
 const (
@@ -195,6 +204,19 @@ func authUserIDFromContext(c *gin.Context) (uint64, bool) {
 		return 0, false
 	}
 	return uid, true
+}
+
+// optionalBearerUserID parses Authorization when middleware did not set ctx (e.g. public play).
+func (a *API) optionalBearerUserID(c *gin.Context) (uint64, bool) {
+	token := auth.BearerToken(c.GetHeader("Authorization"))
+	if token == "" {
+		return 0, false
+	}
+	claims, err := auth.ParseToken(a.authSecret(), token)
+	if err != nil || claims == nil || claims.UserID == 0 {
+		return 0, false
+	}
+	return claims.UserID, true
 }
 
 // AdminMe returns the authenticated admin user (RequireUser + RequireAdmin).

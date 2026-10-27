@@ -109,7 +109,12 @@ type User struct {
 	AvatarHue int       `json:"avatar_hue"`
 	IsAdmin   bool      `json:"is_admin"`
 	// IsMember grants access to membership_required catalog titles. Admins always count as members.
+	// For paid members, prefer MembershipExpiresAt; EffectiveMember() is the runtime check.
 	IsMember  bool      `json:"is_member"`
+	// MembershipExpiresAt is set for crypto purchases. Nil + IsMember means admin lifetime grant.
+	MembershipExpiresAt *time.Time `json:"membership_expires_at,omitempty"`
+	// MembershipDaysRemaining is computed for API responses (not persisted).
+	MembershipDaysRemaining int `json:"membership_days_remaining,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tycdn/vplayer/internal/config"
+	"github.com/tycdn/vplayer/internal/epusdt"
 	"github.com/tycdn/vplayer/internal/mail"
 	"github.com/tycdn/vplayer/internal/media"
 	"github.com/tycdn/vplayer/internal/model"
@@ -21,6 +22,8 @@ type API struct {
 	Cfg   config.Config
 	Store *store.MySQL
 	Users store.UserRepo
+	// Epusdt optionally overrides the EPUSDT client (tests).
+	Epusdt *epusdt.Client
 	// PendingRegs optionally overrides Store for pending registration (tests).
 	PendingRegs store.PendingRegistrationStore
 	Mailer      mail.Mailer
@@ -201,6 +204,8 @@ func (a *API) ResolvePlay(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "invalid id"})
 		return
 	}
+	var membershipVideo bool
+	var playUID uint64
 	if a.Store != nil {
 		v, gerr := a.Store.GetVideo(id)
 		if gerr != nil {
@@ -211,13 +216,25 @@ func (a *API) ResolvePlay(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "not found"})
 			return
 		}
-		if v.MembershipRequired && !a.viewerSeesMembership(c) {
+		membershipVideo = v.MembershipRequired
+		if membershipVideo && !a.viewerSeesMembership(c) {
 			c.JSON(http.StatusForbidden, gin.H{
 				"ok":      false,
 				"error":   "membership_required",
 				"message": membershipRequiredUserMessage,
 			})
 			return
+		}
+		if membershipVideo {
+			if uid, ok := authUserIDFromContext(c); ok {
+				playUID = uid
+			} else if uid, ok := a.optionalBearerUserID(c); ok {
+				playUID = uid
+			}
+			if playUID == 0 {
+				c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "message": "未登录"})
+				return
+			}
 		}
 	}
 	sid, _ := strconv.Atoi(c.DefaultQuery("sid", "0"))
@@ -240,7 +257,7 @@ func (a *API) ResolvePlay(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
-	if !a.protectPlaybackURL(c, info) {
+	if !a.protectPlaybackURLForUser(c, info, playUID, membershipVideo) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": info})

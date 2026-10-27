@@ -21,11 +21,16 @@ func (m *MySQL) SetVideoMembershipRequired(videoID uint64, required bool, catego
 }
 
 // SetUserIsMember toggles site membership for a user (admin-controlled).
+// Enabling clears expiry (lifetime grant). Disabling clears both flag and expiry.
 func (m *MySQL) SetUserIsMember(userID uint64, isMember bool) error {
 	if userID == 0 {
 		return fmt.Errorf("user id required")
 	}
-	_, err := m.DB.Exec(`UPDATE users SET is_member=? WHERE id=?`, boolToInt(isMember), userID)
+	if isMember {
+		_, err := m.DB.Exec(`UPDATE users SET is_member=1, membership_expires_at=NULL WHERE id=?`, userID)
+		return err
+	}
+	_, err := m.DB.Exec(`UPDATE users SET is_member=0, membership_expires_at=NULL WHERE id=?`, userID)
 	return err
 }
 

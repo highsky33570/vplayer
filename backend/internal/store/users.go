@@ -84,10 +84,11 @@ func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
 	var u model.User
 	var hash string
 	var isAdmin, isMember int
+	var exp sql.NullTime
 	err := m.DB.QueryRow(
-		`SELECT id, email, password_hash, COALESCE(nickname,''), COALESCE(avatar_hue,-1), COALESCE(is_admin,0), COALESCE(is_member,0), created_at FROM users WHERE email=? LIMIT 1`,
+		`SELECT id, email, password_hash, COALESCE(nickname,''), COALESCE(avatar_hue,-1), COALESCE(is_admin,0), COALESCE(is_member,0), membership_expires_at, created_at FROM users WHERE email=? LIMIT 1`,
 		email,
-	).Scan(&u.ID, &u.Email, &hash, &u.Nickname, &u.AvatarHue, &isAdmin, &isMember, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &hash, &u.Nickname, &u.AvatarHue, &isAdmin, &isMember, &exp, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrInvalidCredentials
 	}
@@ -96,6 +97,11 @@ func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
 	}
 	u.IsAdmin = isAdmin == 1
 	u.IsMember = isMember == 1
+	if exp.Valid {
+		t := exp.Time
+		u.MembershipExpiresAt = &t
+	}
+	applyEffectiveMembership(&u, time.Now())
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
 		return nil, ErrInvalidCredentials
 	}
@@ -105,10 +111,11 @@ func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
 func (m *MySQL) GetUserByID(id uint64) (*model.User, error) {
 	var u model.User
 	var isAdmin, isMember int
+	var exp sql.NullTime
 	err := m.DB.QueryRow(
-		`SELECT id, email, COALESCE(nickname,''), COALESCE(avatar_hue,-1), COALESCE(is_admin,0), COALESCE(is_member,0), created_at FROM users WHERE id=? LIMIT 1`,
+		`SELECT id, email, COALESCE(nickname,''), COALESCE(avatar_hue,-1), COALESCE(is_admin,0), COALESCE(is_member,0), membership_expires_at, created_at FROM users WHERE id=? LIMIT 1`,
 		id,
-	).Scan(&u.ID, &u.Email, &u.Nickname, &u.AvatarHue, &isAdmin, &isMember, &u.CreatedAt)
+	).Scan(&u.ID, &u.Email, &u.Nickname, &u.AvatarHue, &isAdmin, &isMember, &exp, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
@@ -117,7 +124,25 @@ func (m *MySQL) GetUserByID(id uint64) (*model.User, error) {
 	}
 	u.IsAdmin = isAdmin == 1
 	u.IsMember = isMember == 1
+	if exp.Valid {
+		t := exp.Time
+		u.MembershipExpiresAt = &t
+	}
+	applyEffectiveMembership(&u, time.Now())
 	return &u, nil
+}
+
+func applyEffectiveMembership(u *model.User, now time.Time) {
+	if u == nil {
+		return
+	}
+	active := EffectiveMember(u, now)
+	u.IsMember = active
+	if active && u.MembershipExpiresAt != nil {
+		u.MembershipDaysRemaining = MembershipDaysRemaining(u.MembershipExpiresAt, now)
+	} else {
+		u.MembershipDaysRemaining = 0
+	}
 }
 
 // MemoryUsers is used when MySQL is unavailable (local demo).

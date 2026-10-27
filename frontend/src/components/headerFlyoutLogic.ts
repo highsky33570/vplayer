@@ -54,19 +54,19 @@ export const OMITTED_HEADER_PREVIEWS = [
   { id: 'upload', reason: 'no member upload manager' },
 ] as const;
 
-/** 大会员 / VIP蓝光影院: truthful copy, no invented paid benefits. Click opens /vip. */
+/** 大会员 / VIP蓝光影院: paid membership unlocks VIP playback. Click opens /vip. */
 export const VIP_PANEL = {
   title: '大会员',
   subtitle: 'VIP蓝光影院',
-  body: '天涯欧乐 没有付费会员或会员等级。VIP蓝光影院是站内的高质量片库频道，登录后即可浏览观看。',
+  body: '开通大会员后可观看 VIP蓝光影院专属内容。支持 USDT 加密货币支付，按月 / 季 / 半年 / 年灵活选择。',
   bullets: [
     '站内精选的 VIP蓝光 片库频道',
-    '按分类集中浏览，随时进入观看',
-    '无需开通或付费，登录即可使用',
+    '支付成功后账户显示徽章与剩余天数',
+    '仅大会员可播放会员专属影片',
   ],
   href: '/vip',
   channelHref: '/?ch=vip-bluray',
-  cta: '进入大会员页',
+  cta: '开通 / 进入大会员',
 } as const;
 
 /** Guest mode must not tell visitors that login is required to watch this channel. */
@@ -74,11 +74,11 @@ export function vipPanelCopy(authRequired: boolean) {
   if (authRequired) return VIP_PANEL;
   return {
     ...VIP_PANEL,
-    body: '天涯欧乐 没有付费会员或会员等级。VIP蓝光影院是站内的高质量片库频道，可直接浏览。能否播放取决于片源本身。',
+    body: 'VIP蓝光影院为大会员专属片库。可先浏览封面与简介；播放会员片需开通大会员（USDT）。',
     bullets: [
       '站内精选的 VIP蓝光 片库频道',
-      '按分类集中浏览，随时进入观看',
-      '无需开通或付费；片源限制不会因此解除',
+      '支持 USDT 开通月 / 季 / 半年 / 年',
+      '开通后账户可见徽章与剩余天数',
     ],
   };
 }

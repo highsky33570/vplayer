@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { UserAvatar } from '../account/UserAvatar';
 import { VideoCard } from '../components/VideoCard';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
+import { VipPurchasePanel } from '../components/VipPurchasePanel';
 import {
   VIP_CHANNEL_NAME,
   VIP_CHANNEL_SLUG,
@@ -193,6 +194,15 @@ export function VipPage() {
               )}
               <p className="vip-status-label">{status.label}</p>
               <p className="vip-status-detail">{status.detail}</p>
+              {user?.is_member || user?.is_admin ? (
+                <p className="vip-status-detail">
+                  {user.is_admin
+                    ? '已具备大会员权限（管理员）'
+                    : user.membership_days_remaining
+                      ? `大会员剩余 ${user.membership_days_remaining} 天`
+                      : '大会员已开通'}
+                </p>
+              ) : null}
               <dl className="vip-status-stats">
                 <div>
                   <dt>片库</dt>
@@ -207,13 +217,20 @@ export function VipPage() {
                 <button type="button" className="vip-cta" onClick={() => openLogin('login')}>
                   登录观看
                 </button>
-              ) : (
+              ) : user?.is_member || user?.is_admin ? (
                 <Link
                   className="vip-cta"
                   to={hero ? `/watch/${hero.id}` : `/?ch=${VIP_CHANNEL_SLUG}`}
                 >
-                  开始浏览
+                  开始观看
                 </Link>
+              ) : (
+                <a className="vip-cta" href="#vip-purchase-anchor" onClick={(e) => {
+                  e.preventDefault();
+                  document.querySelector('.vip-purchase')?.scrollIntoView({ behavior: 'smooth' });
+                }}>
+                  开通大会员
+                </a>
               )}
             </>
           )}
@@ -249,6 +266,8 @@ export function VipPage() {
             {error}
           </p>
         ) : null}
+
+        <VipPurchasePanel />
 
         <section className="vip-features" aria-label="功能说明">
           {featureCards.map((card) => (

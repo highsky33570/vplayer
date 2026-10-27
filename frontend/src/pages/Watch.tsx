@@ -44,7 +44,16 @@ function attachPlayer(
   isHls: boolean,
   onPlaying: () => void,
   onError: () => void,
+  authToken?: string | null,
 ): Player {
+  const needsAuthHeader = Boolean(authToken && /[?&]uid=\d+/.test(url));
+  const hlsOpts = needsAuthHeader
+    ? {
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+        },
+      }
+    : undefined;
   const player = new Player({
     el,
     url,
@@ -54,6 +63,7 @@ function attachPlayer(
     lang: 'zh-cn',
     isLive: false,
     plugins: isHls ? [HlsPlugin] : [],
+    ...(hlsOpts ? { hls: hlsOpts } : {}),
   });
   player.on('playing', onPlaying);
   player.on('error', onError);
@@ -182,6 +192,7 @@ export function Watch() {
           destroyPlayer();
           setPlayError(PLAYBACK_GENERIC_ERROR);
         },
+        token,
       );
       playerRef.current = player;
     };

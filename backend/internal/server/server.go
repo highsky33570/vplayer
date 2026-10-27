@@ -88,6 +88,7 @@ func New(cfg config.Config) (*Server, error) {
 		SyncRunner: runner,
 		MediaBase:  cfg.OleHdTvMediaPublicBase,
 	}
+	api.StartMembershipReconcile()
 	// Mail is optional at process start so login/admin keep working if SMTP is unset.
 	// register/start and register/resend return a controlled 503 until configured.
 	if cfg.RegistrationMailConfigured() {
@@ -132,6 +133,10 @@ func New(cfg config.Config) (*Server, error) {
 		v1.POST("/auth/login", api.Login)
 		v1.GET("/auth/me", api.Me)
 		v1.PATCH("/auth/me", api.RequireUser, api.UpdateMe)
+		v1.GET("/membership/plans", api.ListMembershipPlans)
+		v1.POST("/membership/orders", api.RequireUser, api.CreateMembershipOrder)
+		v1.GET("/membership/orders/:orderNo", api.RequireUser, api.GetMembershipOrder)
+		v1.POST("/payments/epusdt/notify", api.EpusdtNotify)
 		v1.GET("/me/summary", api.RequireUser, api.MeSummary)
 		v1.GET("/me/favorites", api.RequireUser, api.ListFavorites)
 		v1.GET("/me/favorite-folders", api.RequireUser, api.ListFavoriteFolders)

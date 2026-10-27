@@ -7,8 +7,38 @@ export type AuthUser = {
   is_admin?: boolean;
   /** Site membership: can view membership_required catalog titles. */
   is_member?: boolean;
+  /** ISO expiry for paid membership; omitted for admin lifetime grants. */
+  membership_expires_at?: string;
+  /** Whole days remaining for paid membership. */
+  membership_days_remaining?: number;
   /** 0..359 custom hue; -1 (or missing) means derive from user id. */
   avatar_hue?: number;
+};
+
+export type MembershipPlan = {
+  slug: string;
+  name: string;
+  price_usd: number;
+  duration_days: number;
+  sort: number;
+};
+
+export type MembershipOrder = {
+  order_no: string;
+  plan_slug: string;
+  plan_name: string;
+  amount_usd: number;
+  duration_days: number;
+  status: string;
+  payment_url?: string;
+  receive_address?: string;
+  actual_amount?: number;
+  token?: string;
+  network?: string;
+  expire_at?: string;
+  paid_at?: string;
+  membership_granted_until?: string;
+  gateway_provider?: string;
 };
 
 export type AdminSyncRunSummary = {
@@ -1155,6 +1185,52 @@ export async function setAdminUserMembership(
     ok?: boolean;
     message?: string;
     data?: AdminUser;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function listMembershipPlans(): Promise<MembershipPlan[]> {
+  const res = await fetch(`${API_BASE}/api/v1/membership/plans`);
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: MembershipPlan[];
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return Array.isArray(json.data) ? json.data : [];
+}
+
+export async function createMembershipOrder(token: string, planSlug: string): Promise<MembershipOrder> {
+  const res = await fetch(`${API_BASE}/api/v1/membership/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...bearerAuthHeader(token) },
+    body: JSON.stringify({ plan_slug: planSlug }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: MembershipOrder;
+    error?: string;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status, json.error);
+  }
+  return json.data;
+}
+
+export async function getMembershipOrder(token: string, orderNo: string): Promise<MembershipOrder> {
+  const res = await fetch(`${API_BASE}/api/v1/membership/orders/${encodeURIComponent(orderNo)}`, {
+    headers: { ...bearerAuthHeader(token) },
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: MembershipOrder;
   };
   if (!res.ok || json.ok === false || !json.data) {
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);

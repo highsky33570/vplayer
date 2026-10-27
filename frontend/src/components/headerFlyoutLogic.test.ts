@@ -125,7 +125,7 @@ describe('wired flyouts', () => {
     assert.equal(omitted.has('feed'), false);
     assert.equal(omitted.has('creator'), true);
     assert.equal(omitted.has('upload'), true);
-    assert.match(VIP_PANEL.body, /没有付费会员/);
+    assert.match(VIP_PANEL.body, /USDT/);
     assert.equal(VIP_PANEL.href, '/vip');
     assert.equal(header.includes('动态'), false);
     assert.equal(header.includes('FeedIcon'), false);

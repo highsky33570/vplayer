@@ -123,6 +123,20 @@ type Config struct {
 	// play-page enrichment (OLEHDTV_AUTH_COOKIE). Empty = anonymous (default).
 	// Never log, never return via API, never store in MySQL, never commit.
 	OleHdTvAuthCookie string
+
+	// EPUSDT / GMPay crypto checkout for 大会员 purchases.
+	EpusdtBaseURL           string
+	EpusdtCreateOrderPath   string
+	EpusdtQueryOrderPath    string
+	EpusdtPID               string
+	EpusdtAPIToken          string
+	EpusdtNotifyURL         string
+	EpusdtRedirectURL       string
+	EpusdtDefaultCurrency   string
+	EpusdtDefaultToken      string
+	EpusdtDefaultNetwork    string
+	EpusdtOrderTTLMinutes   int
+	EpusdtReconcileMinutes  int
 }
 
 // loadEnvFiles applies dotenv files without overriding keys already present in
@@ -197,6 +211,19 @@ func Load() Config {
 		OleHdTvMaxConcurrency:    getenvInt("OLEHDTV_MAX_CONCURRENCY", 2),
 		OleHdTvMaxRetries:        getenvInt("OLEHDTV_MAX_RETRIES", 3),
 		OleHdTvAuthCookie:        strings.TrimSpace(os.Getenv("OLEHDTV_AUTH_COOKIE")),
+
+		EpusdtBaseURL:          strings.TrimRight(getenv("EPUSDT_BASE_URL", ""), "/"),
+		EpusdtCreateOrderPath:  getenv("EPUSDT_CREATE_ORDER_PATH", "/payments/gmpay/v1/order/create-transaction"),
+		EpusdtQueryOrderPath:   getenv("EPUSDT_QUERY_ORDER_PATH", ""),
+		EpusdtPID:              strings.TrimSpace(getenv("EPUSDT_PID", "")),
+		EpusdtAPIToken:         getenv("EPUSDT_API_TOKEN", ""),
+		EpusdtNotifyURL:        strings.TrimSpace(getenv("EPUSDT_NOTIFY_URL", "")),
+		EpusdtRedirectURL:      strings.TrimSpace(getenv("EPUSDT_REDIRECT_URL", "")),
+		EpusdtDefaultCurrency:  strings.ToLower(getenv("EPUSDT_DEFAULT_CURRENCY", "usd")),
+		EpusdtDefaultToken:     strings.ToLower(getenv("EPUSDT_DEFAULT_TOKEN", "usdt")),
+		EpusdtDefaultNetwork:   strings.ToLower(getenv("EPUSDT_DEFAULT_NETWORK", "tron")),
+		EpusdtOrderTTLMinutes:  getenvInt("EPUSDT_ORDER_TTL_MINUTES", 30),
+		EpusdtReconcileMinutes: getenvInt("EPUSDT_RECONCILE_MINUTES", 5),
 	}
 }
 

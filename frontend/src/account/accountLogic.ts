@@ -14,6 +14,29 @@ export function roleLabel(isAdmin: boolean | undefined): string {
   return isAdmin ? '管理员' : '普通用户';
 }
 
+/** Account membership badge / expiry copy. */
+export function membershipBadgeLabel(user: {
+  is_admin?: boolean;
+  is_member?: boolean;
+  membership_days_remaining?: number;
+  membership_expires_at?: string;
+} | null | undefined): { badge: string; detail: string } | null {
+  if (!user) return null;
+  if (user.is_admin) {
+    return { badge: '大会员', detail: '管理员权限 · 永久有效' };
+  }
+  if (!user.is_member) return null;
+  const days = user.membership_days_remaining ?? 0;
+  if (user.membership_expires_at) {
+    const until = new Date(user.membership_expires_at).toLocaleDateString();
+    return {
+      badge: '大会员',
+      detail: days > 0 ? `剩余 ${days} 天 · 有效至 ${until}` : `有效至 ${until}`,
+    };
+  }
+  return { badge: '大会员', detail: '已开通' };
+}
+
 /** Append a page of rows, skipping ids that are already present. */
 export function appendUnique<T extends { id: number }>(existing: T[], next: T[]): T[] {
   const seen = new Set(existing.map((row) => row.id));

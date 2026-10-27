@@ -12,7 +12,7 @@ import {
   type MeSummary,
   type Video,
 } from '../api';
-import { nicknameValidationMessage, roleLabel } from '../account/accountLogic';
+import { membershipBadgeLabel, nicknameValidationMessage, roleLabel } from '../account/accountLogic';
 import { AVATAR_HUE_CHOICES, avatarHue, avatarStyle } from '../account/avatar';
 import { UserAvatar } from '../account/UserAvatar';
 import { useAuth } from '../auth/AuthContext';
@@ -69,6 +69,7 @@ function AccountSpace({ token }: { token: string }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const membership = membershipBadgeLabel(user);
 
   if ((user?.nickname ?? '') !== nickSource) {
     setNickSource(user?.nickname ?? '');
@@ -164,7 +165,13 @@ function AccountSpace({ token }: { token: string }) {
           <h1 className="space-identity-name">{displayName}</h1>
           <p className="space-identity-role">
             <span className="me-role">{roleLabel(user.is_admin)}</span>
+            {membership ? (
+              <span className="me-member-badge" title={membership.detail}>
+                {membership.badge}
+              </span>
+            ) : null}
           </p>
+          {membership ? <p className="space-identity-member-detail">{membership.detail}</p> : null}
           <p className="space-identity-email-row">
             <span className="space-identity-email">{user.email}</span>
             <button
@@ -410,10 +417,19 @@ function AccountSpace({ token }: { token: string }) {
                 <dd>{roleLabel(user.is_admin)}</dd>
               </div>
               <div>
+                <dt>大会员</dt>
+                <dd>{membership ? membership.detail : '未开通'}</dd>
+              </div>
+              <div>
                 <dt>状态</dt>
                 <dd>已登录</dd>
               </div>
             </dl>
+            {!membership ? (
+              <Link className="me-btn" to="/vip">
+                开通大会员
+              </Link>
+            ) : null}
             <button
               type="button"
               className="me-btn"
