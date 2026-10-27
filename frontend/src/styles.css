@@ -361,6 +361,15 @@ img {
   min-width: 0;
 }
 
+.brand-logo {
+  display: block;
+  height: 32px;
+  width: auto;
+  max-width: min(140px, 36vw);
+  object-fit: contain;
+  object-position: left center;
+}
+
 .brand-mark {
   width: 34px;
   height: 34px;
@@ -1350,6 +1359,23 @@ img {
 .category-btn.entry-rec.is-active,
 .category-btn.entry-hot.is-active {
   box-shadow: 0 0 0 2px rgba(0, 174, 236, 0.22);
+}
+
+.category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+  opacity: 0.92;
+}
+
+.category-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .category-label {
@@ -3255,6 +3281,11 @@ html.dark .login-reminder-cta {
     box-shadow: none;
   }
 
+  .brand-logo {
+    height: 26px;
+    max-width: min(112px, 42vw);
+  }
+
   .brand-text {
     display: inline;
     color: var(--text);
@@ -3334,8 +3365,16 @@ html.dark .login-reminder-cta {
     position: sticky;
     top: calc(46px + env(safe-area-inset-top, 0px));
     z-index: 35;
+    margin: 0;
     padding: 0;
-    background: var(--bg);
+    background: var(--surface);
+    border-top: 0;
+  }
+
+  .banner-shell--home .discovery {
+    /* Keep navbar + category rail flush as one sticky chrome block. */
+    position: static;
+    top: auto;
   }
 
   .category-rail {
@@ -8104,6 +8143,7 @@ html.dark .login-reminder-cta,
 
 @media (max-width: 767px) {
   .banner-stage,
+  .banner-shell--home .banner-stage,
   .discovery-catalog-wrap,
   .feature-switch {
     display: none !important;
@@ -8116,27 +8156,20 @@ html.dark .login-reminder-cta,
   .banner-shell--home {
     display: flex;
     flex-direction: column;
+    gap: 0;
+    border-bottom: 0;
   }
 
-  .banner-shell--home .banner-stage {
-    display: block !important;
-    position: relative;
-    top: auto;
-    left: auto;
-    right: auto;
-    order: 2;
-    width: 100%;
-    height: auto;
-    aspect-ratio: 2171 / 224;
-    pointer-events: none;
-  }
-
-  .banner-shell--home .banner-stage .banner-shade {
-    display: none !important;
+  .banner-shell--home .banner-bar {
+    order: 1;
+    border-bottom: 0;
   }
 
   .banner-shell--home .discovery {
-    order: 3;
+    order: 2;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
   }
 
   .banner-shell:not(.banner-shell--app) {

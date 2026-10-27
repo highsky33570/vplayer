@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchUnreadCount } from '../api';
+import logoUrl from '../assets/logo.png';
 import { UserAvatar } from '../account/UserAvatar';
 import { subscribeUnreadCount } from '../account/unreadEvents';
 import { useAuth } from '../auth/AuthContext';
@@ -169,8 +170,8 @@ export function Header() {
       ) : null}
       <header className="banner-bar">
         <div className="banner-left">
-          <Link to="/" className="brand" onClick={() => setMenuOpen(false)}>
-            <span className="brand-text">天涯欧乐</span>
+          <Link to="/" className="brand" onClick={() => setMenuOpen(false)} aria-label="天涯欧乐">
+            <img className="brand-logo" src={logoUrl} alt="天涯欧乐" width={120} height={32} decoding="async" />
           </Link>
           <div className="banner-channels" ref={setChannelHost} />
         </div>
