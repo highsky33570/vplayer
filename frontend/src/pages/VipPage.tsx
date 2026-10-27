@@ -24,7 +24,20 @@ export function VipPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [statusMinimized, setStatusMinimized] = useState(false);
+  const [statusMinimized, setStatusMinimized] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023px)').matches : false,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const onChange = () => {
+      // Mobile default is minimized; expanding to desktop restores the full card.
+      if (!mq.matches) setStatusMinimized(false);
+      else setStatusMinimized(true);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
