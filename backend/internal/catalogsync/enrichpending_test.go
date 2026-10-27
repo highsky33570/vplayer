@@ -1256,36 +1256,36 @@ func TestEnrichPending_legacyUnavailable_notSelectedNormally(t *testing.T) {
 	}
 }
 
-func TestEnrichPending_legacyUnavailable_authAloneNotEnough(t *testing.T) {
-	// auth=true + catch-up (membership retry) without --retry-legacy-unavailable.
+func TestEnrichPending_legacyUnavailable_noAuthNotSelected(t *testing.T) {
+	// Default / no-auth: both retry flags stay false even if operator passes --catch-up.
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{}})
-	w.IncludeMembershipRetry = true
-	w.IncludeLegacyUnavailable = false
 	sum, err := w.Run(context.Background(), 5, true, 1, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if sum.Selected != 0 {
-		t.Fatalf("auth+catch-up without legacy flag must not select empty-reason: %+v", sum)
+		t.Fatalf("no-auth must not select empty-reason historical: %+v", sum)
 	}
 }
 
-func TestEnrichPending_legacyUnavailable_explicitFlagSelectsAndDryRunNoWrite(t *testing.T) {
+func TestEnrichPending_episode43393_authCatchUpSelectsEmptyReason(t *testing.T) {
+	// Regression: production episode 43393 shape + auth membership catch-up.
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: playHTML("https://cdn.example/32222.m3u8")}})
+	w.IncludeMembershipRetry = true
 	w.IncludeLegacyUnavailable = true
 	sum, err := w.Run(context.Background(), 5, true, 1, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if sum.Selected != 1 || sum.Enriched != 1 {
-		t.Fatalf("expected dry-run select+would_enrich: %+v", sum)
+		t.Fatalf("auth+catch-up must select 43393: %+v", sum)
 	}
-	if len(sum.Actions) != 1 || sum.Actions[0].Action != "WOULD_ENRICH" {
+	if len(sum.Actions) != 1 || sum.Actions[0].Action != "WOULD_ENRICH" || sum.Actions[0].EpisodeID != 43393 {
 		t.Fatalf("actions: %+v", sum.Actions)
 	}
 	if st.writes != 0 || st.episodes[43393].PlaybackStatus != "unavailable" {
@@ -1298,6 +1298,7 @@ func TestEnrichPending_legacyUnavailable_authorizedHTMLToOk(t *testing.T) {
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: playHTML("https://cdn.example/32222.m3u8")}})
+	w.IncludeMembershipRetry = true
 	w.IncludeLegacyUnavailable = true
 	sum, err := w.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
@@ -1321,6 +1322,7 @@ func TestEnrichPending_legacyUnavailable_denialBecomesSourceRestricted(t *testin
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: restricted}})
+	w.IncludeMembershipRetry = true
 	w.IncludeLegacyUnavailable = true
 	sum, err := w.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
@@ -1343,6 +1345,7 @@ func TestEnrichPending_legacyUnavailable_unknownDoesNotActivate(t *testing.T) {
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: `<html>broken page</html>`}})
+	w.IncludeMembershipRetry = true
 	w.IncludeLegacyUnavailable = true
 	sum, _ := w.Run(context.Background(), 5, false, 1, false)
 	if sum.StillPending != 1 || st.writes != 0 {
@@ -1365,6 +1368,7 @@ func TestEnrichPending_legacyUnavailable_excludesExistingPlaybackURL(t *testing.
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{
 		st.episodes[43393].PlayPageURL: playHTML("https://cdn.example/32222.m3u8"),
 	}})
+	w.IncludeMembershipRetry = true
 	w.IncludeLegacyUnavailable = true
 	sum, err := w.Run(context.Background(), 5, false, 1, false)
 	if err != nil {
@@ -1414,15 +1418,23 @@ func TestEnrichPending_sourceRestrictedStillSelectedWithMembershipRetry(t *testi
 	if len(candsOff) != 0 {
 		t.Fatalf("without membership retry must exclude: %d", len(candsOff))
 	}
-	// Membership retry alone must NOT pull empty-reason legacy rows.
+	// Auth catch-up enables both flags → empty-reason historical also selected.
 	st.episodes[2] = historicalEmptyUnavailable()
 	st.episodes[2].ID = 2
-	mixed, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, true, false)
+	mixed, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(mixed) != 1 || mixed[0].ID != 1 {
-		t.Fatalf("membership retry must not select empty-reason: %+v", mixed)
+	if len(mixed) != 2 {
+		t.Fatalf("auth catch-up must select source_restricted AND empty-reason: %+v", mixed)
+	}
+	// Membership flag alone still excludes empty-reason (legacy flag off).
+	membOnly, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(membOnly) != 1 || membOnly[0].ID != 1 {
+		t.Fatalf("membership-only must exclude empty-reason: %+v", membOnly)
 	}
 }
 
@@ -1484,6 +1496,7 @@ func TestRunOneTarget_sourceRefSelectsOnlyMatchingEpisode(t *testing.T) {
 		st.episodes[50001].PlayPageURL: playHTML("https://cdn.example/other.m3u8"),
 	}
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: pages})
+	w.IncludeMembershipRetry = true
 	w.IncludeLegacyUnavailable = true
 	sum, err := w.RunOneTarget(context.Background(), EnrichPendingTarget{
 		SourceVideoID: "32222", SID: 1, NID: 1,
@@ -1502,20 +1515,20 @@ func TestRunOneTarget_sourceRefSelectsOnlyMatchingEpisode(t *testing.T) {
 	}
 }
 
-func TestRunOneEpisode_historicalEmptyRequiresLegacyFlag(t *testing.T) {
+func TestRunOneEpisode_historicalEmptyRequiresAuthCatchUpGate(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
 	url := st.episodes[43393].PlayPageURL
 	f := &mapFetcher{pages: map[string]string{url: playHTML("https://cdn.example/32222.m3u8")}}
 
-	wMembershipOnly := NewEnrichPendingWorker(st, f)
-	wMembershipOnly.IncludeMembershipRetry = true
-	_, err := wMembershipOnly.RunOneEpisode(context.Background(), 43393, true)
+	wNoGate := NewEnrichPendingWorker(st, f)
+	_, err := wNoGate.RunOneEpisode(context.Background(), 43393, true)
 	if err == nil {
-		t.Fatal("empty-reason without --retry-legacy-unavailable must error")
+		t.Fatal("empty-reason without authenticated catch-up gate must error")
 	}
 
 	w := NewEnrichPendingWorker(st, f)
+	w.IncludeMembershipRetry = true
 	w.IncludeLegacyUnavailable = true
 	sum, err := w.RunOneEpisode(context.Background(), 43393, true)
 	if err != nil {
@@ -1537,6 +1550,7 @@ func TestRunOneEpisode_doesNotOverwriteExistingPlaybackURL(t *testing.T) {
 		PlayPageURL: "https://src/p", IsActive: true,
 	}
 	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{}})
+	w.IncludeMembershipRetry = true
 	w.IncludeLegacyUnavailable = true
 	_, err := w.RunOneEpisode(context.Background(), 10, false)
 	if err == nil {

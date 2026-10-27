@@ -19,9 +19,9 @@ import (
 
 func main() {
 	dryRun := flag.Bool("dry-run", false, "fetch/parse pending play pages but perform zero DB writes")
-	catchUp := flag.Bool("catch-up", false, "manual backlog catch-up: allow --limit up to 90; with auth, also retries source_restricted unavailable")
+	catchUp := flag.Bool("catch-up", false, "manual backlog catch-up: allow --limit up to 90; with auth, retries unavailable (source_restricted OR empty historical reason)")
 	drain := flag.Bool("drain", false, "with --catch-up: repeat bounded batches until empty or safety limits (manual only; not for timers)")
-	retryLegacy := flag.Bool("retry-legacy-unavailable", false, "manual only: with auth, also retry unavailable rows with empty restriction_reason (never timers)")
+	retryLegacy := flag.Bool("retry-legacy-unavailable", false, "alias: enable authenticated historical unavailable retry without --catch-up (still requires auth; never timers)")
 	limit := flag.Int("limit", catalogsync.EnrichPendingDefaultLim, "max pending episodes per batch (1–20; or 1–90 with --catch-up)")
 	concurrency := flag.Int("concurrency", 1, "HTTP concurrency (1–2; default 1)")
 	maxBatches := flag.Int("max-batches", catalogsync.EnrichPendingDrainMaxBatchesDefault, "drain only: max batches (1–100)")
@@ -92,10 +92,12 @@ func main() {
 	svc := catalogsync.NewEnrichPendingWorker(db, fetcher)
 	svc.TriggerType = trig
 	svc.RequestedByUserID = *requestedBy
-	// source_restricted retry: auth + catch-up/drain/target (not timers alone).
-	svc.IncludeMembershipRetry = authConfigured && (*catchUp || *drain || target.Active())
-	// empty-reason legacy retry: auth + explicit --retry-legacy-unavailable only.
-	svc.IncludeLegacyUnavailable = authConfigured && *retryLegacy
+	// Historical unavailable retry (source_restricted OR empty reason): auth +
+	// explicit manual path only (--catch-up/--drain/--retry-legacy-unavailable/target).
+	// Never enabled for timer/admin anonymous scheduled runs.
+	manualHistorical := *catchUp || *drain || *retryLegacy || target.Active()
+	svc.IncludeMembershipRetry = authConfigured && manualHistorical
+	svc.IncludeLegacyUnavailable = authConfigured && manualHistorical
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
