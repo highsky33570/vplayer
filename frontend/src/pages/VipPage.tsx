@@ -24,6 +24,7 @@ export function VipPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [statusMinimized, setStatusMinimized] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,49 +117,92 @@ export function VipPage() {
           </div>
         )}
 
-        <aside className="vip-status-card" aria-label="访问状态">
-          {user ? (
-            <div className="vip-status-user">
-              <UserAvatar user={user} className="me-avatar" />
-              <div>
-                <strong>{(user.nickname ?? '').trim() || '已登录'}</strong>
-                <p>{user.email}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="vip-status-user">
-              <span className="banner-avatar vip-guest-avatar">客</span>
-              <div>
-                <strong>访客</strong>
-                <p>
-                  {playbackNeedsLogin ? '登录后可完整观看' : '可直接观看本频道'}
-                </p>
-              </div>
-            </div>
-          )}
-          <p className="vip-status-label">{status.label}</p>
-          <p className="vip-status-detail">{status.detail}</p>
-          <dl className="vip-status-stats">
-            <div>
-              <dt>片库</dt>
-              <dd>{VIP_CHANNEL_NAME}</dd>
-            </div>
-            <div>
-              <dt>可浏览</dt>
-              <dd>{loading ? '…' : `${total} 部`}</dd>
-            </div>
-          </dl>
-          {playbackNeedsLogin && ready && !user ? (
-            <button type="button" className="vip-cta" onClick={() => openLogin('login')}>
-              登录观看
+        <aside
+          className={`vip-status-card${statusMinimized ? ' is-minimized' : ''}`}
+          aria-label="访问状态"
+        >
+          <button
+            type="button"
+            className="vip-status-toggle"
+            aria-expanded={!statusMinimized}
+            aria-label={statusMinimized ? '展开状态卡片' : '最小化状态卡片'}
+            title={statusMinimized ? '展开' : '最小化'}
+            onClick={() => setStatusMinimized((v) => !v)}
+          >
+            {statusMinimized ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
+
+          {statusMinimized ? (
+            <button
+              type="button"
+              className="vip-status-mini"
+              onClick={() => setStatusMinimized(false)}
+              aria-label="展开状态卡片"
+            >
+              {user ? (
+                <UserAvatar user={user} className="me-avatar vip-status-mini-avatar" />
+              ) : (
+                <span className="banner-avatar vip-guest-avatar vip-status-mini-avatar">客</span>
+              )}
+              <span className="vip-status-mini-text">
+                <strong>{user ? (user.nickname ?? '').trim() || '已登录' : '访客'}</strong>
+                <em>{loading ? '…' : `${total} 部`}</em>
+              </span>
             </button>
           ) : (
-            <Link
-              className="vip-cta"
-              to={hero ? `/watch/${hero.id}` : `/?ch=${VIP_CHANNEL_SLUG}`}
-            >
-              开始浏览
-            </Link>
+            <>
+              {user ? (
+                <div className="vip-status-user">
+                  <UserAvatar user={user} className="me-avatar" />
+                  <div>
+                    <strong>{(user.nickname ?? '').trim() || '已登录'}</strong>
+                    <p>{user.email}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="vip-status-user">
+                  <span className="banner-avatar vip-guest-avatar">客</span>
+                  <div>
+                    <strong>访客</strong>
+                    <p>
+                      {playbackNeedsLogin ? '登录后可完整观看' : '可直接观看本频道'}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <p className="vip-status-label">{status.label}</p>
+              <p className="vip-status-detail">{status.detail}</p>
+              <dl className="vip-status-stats">
+                <div>
+                  <dt>片库</dt>
+                  <dd>{VIP_CHANNEL_NAME}</dd>
+                </div>
+                <div>
+                  <dt>可浏览</dt>
+                  <dd>{loading ? '…' : `${total} 部`}</dd>
+                </div>
+              </dl>
+              {playbackNeedsLogin && ready && !user ? (
+                <button type="button" className="vip-cta" onClick={() => openLogin('login')}>
+                  登录观看
+                </button>
+              ) : (
+                <Link
+                  className="vip-cta"
+                  to={hero ? `/watch/${hero.id}` : `/?ch=${VIP_CHANNEL_SLUG}`}
+                >
+                  开始浏览
+                </Link>
+              )}
+            </>
           )}
         </aside>
 
