@@ -66,9 +66,9 @@ func PendingEnrichmentFetchLimit(finalLimit int) int {
 // zero-ok priority so a single huge series cannot fill the entire LIMIT alone.
 // finalLimit is the worker --limit (1–90 absolute store bound); fetch window is bounded.
 // When includeMembershipRetry is true (CLI must gate: auth configured AND
-// catch-up/drain/--episode-id), also includes empty-URL unavailable rows with
-// restriction_reason source_restricted OR empty/NULL historical state for
-// authorized re-evaluation. ClassifyPlayPage remains authority.
+// catch-up/drain/single-episode target), also includes empty-URL unavailable
+// rows with restriction_reason source_restricted OR empty/NULL historical
+// state for authorized re-evaluation. ClassifyPlayPage remains authority.
 func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]PendingEnrichmentEpisode, error) {
 	if finalLimit <= 0 {
 		finalLimit = PendingEnrichmentDefaultFinalLimit
@@ -186,6 +186,57 @@ func (m *MySQL) GetEnrichmentCandidateByID(system string, id uint64) (PendingEnr
 		    )
 		  )
 		LIMIT 1`, id, system, RestrictionReasonMembership).Scan(
+		&e.ID, &e.VideoID, &e.SourceSystem, &e.SourceVideoID,
+		&e.SID, &e.NID, &e.Title,
+		&e.PlaybackSource, &e.PlaybackURL, &e.PlayPageURL,
+		&e.PlaybackStatus, &e.RestrictionReason,
+		&e.HlsObjectKey, &e.StorageProvider, &e.MigrationStatus,
+		&active, &e.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return PendingEnrichmentEpisode{}, false, nil
+	}
+	if err != nil {
+		return PendingEnrichmentEpisode{}, false, err
+	}
+	e.IsActive = active == 1
+	return e, true, nil
+}
+
+// GetEnrichmentCandidateBySourceRef loads one OLEHDTV episode by source_video_id/sid/nid
+// for manual CLI targeting. Same eligibility as GetEnrichmentCandidateByID — never
+// invents playback URLs and never fetches arbitrary pages.
+func (m *MySQL) GetEnrichmentCandidateBySourceRef(system, sourceVideoID string, sid, nid int) (PendingEnrichmentEpisode, bool, error) {
+	sourceVideoID = strings.TrimSpace(sourceVideoID)
+	var e PendingEnrichmentEpisode
+	var active int
+	err := m.DB.QueryRow(`
+		SELECT id, video_id,
+		       COALESCE(source_system,''), COALESCE(source_video_id,''),
+		       sid, nid, COALESCE(title,''),
+		       COALESCE(playback_source,''), COALESCE(playback_url,''), COALESCE(play_page_url,''),
+		       COALESCE(playback_status,''), COALESCE(restriction_reason,''),
+		       COALESCE(hls_object_key,''), COALESCE(storage_provider,''), COALESCE(migration_status,''),
+		       is_active, created_at
+		FROM video_episodes
+		WHERE source_system = ?
+		  AND COALESCE(source_video_id,'') = ?
+		  AND sid = ?
+		  AND nid = ?
+		  AND COALESCE(playback_url,'') = ''
+		  AND COALESCE(play_page_url,'') <> ''
+		  AND (
+		    LOWER(COALESCE(playback_status,'')) = 'pending_enrichment'
+		    OR (
+		      LOWER(COALESCE(playback_status,'')) = 'unavailable'
+		      AND (
+		        COALESCE(restriction_reason,'') = ?
+		        OR COALESCE(restriction_reason,'') = ''
+		      )
+		    )
+		  )
+		ORDER BY id ASC
+		LIMIT 1`, system, sourceVideoID, sid, nid, RestrictionReasonMembership).Scan(
 		&e.ID, &e.VideoID, &e.SourceSystem, &e.SourceVideoID,
 		&e.SID, &e.NID, &e.Title,
 		&e.PlaybackSource, &e.PlaybackURL, &e.PlayPageURL,

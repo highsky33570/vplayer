@@ -30,10 +30,25 @@ type EnrichPendingStore interface {
 	AcquireAdvisoryLock(ctx context.Context, name string) (*store.AdvisoryHold, error)
 	ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]store.PendingEnrichmentEpisode, error)
 	GetEnrichmentCandidateByID(system string, id uint64) (store.PendingEnrichmentEpisode, bool, error)
+	GetEnrichmentCandidateBySourceRef(system, sourceVideoID string, sid, nid int) (store.PendingEnrichmentEpisode, bool, error)
 	ApplyPlaybackEnrichment(id uint64, playbackURL, playbackSource, status, restrictionReason string) (updated bool, err error)
 	StartOperationalRun(in store.StartOperationalRunInput) (uint64, error)
 	FinishOperationalRun(in store.FinishOperationalRunInput) error
 	RejectOperationalRun(in store.RejectOperationalRunInput) (uint64, error)
+}
+
+// EnrichPendingTarget selects exactly one DB episode for manual CLI verification.
+// Either EpisodeID or the full SourceVideoID+SID+NID triple must be set — never both.
+type EnrichPendingTarget struct {
+	EpisodeID     uint64
+	SourceVideoID string
+	SID           int
+	NID           int
+}
+
+// Active reports whether any single-episode targeting flag was provided.
+func (t EnrichPendingTarget) Active() bool {
+	return t.EpisodeID > 0 || strings.TrimSpace(t.SourceVideoID) != "" || t.SID != 0 || t.NID != 0
 }
 
 // PageFetcher fetches a single play page HTML body.
@@ -79,7 +94,8 @@ type EnrichPendingWorker struct {
 	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
 	// IncludeMembershipRetry also selects empty-URL unavailable rows with
 	// restriction_reason source_restricted OR empty historical state.
-	// CLI must set this only when auth is configured AND (--catch-up|--drain|--episode-id).
+	// CLI must set this only when auth is configured AND
+	// (--catch-up|--drain|single-episode target).
 	// Default false so anonymous/timer runs never sweep thousands of unavailable rows.
 	IncludeMembershipRetry bool
 }
@@ -435,13 +451,22 @@ func (w *EnrichPendingWorker) runBatchLocked(ctx context.Context, limit int, dry
 	return sum, nil
 }
 
-// ValidateEnrichPendingEpisodeIDFlags rejects unsafe combinations for --episode-id.
-func ValidateEnrichPendingEpisodeIDFlags(episodeID uint64, drain bool, trigger string) error {
-	if episodeID == 0 {
+// ValidateEnrichPendingTargetFlags rejects unsafe single-episode CLI combinations.
+func ValidateEnrichPendingTargetFlags(target EnrichPendingTarget, drain bool, trigger string) error {
+	if !target.Active() {
 		return nil
 	}
+	hasID := target.EpisodeID > 0
+	src := strings.TrimSpace(target.SourceVideoID)
+	hasSrcParts := src != "" || target.SID != 0 || target.NID != 0
+	if hasID && hasSrcParts {
+		return fmt.Errorf("enrichpending: --episode-id cannot be combined with --source-video-id/--sid/--nid")
+	}
+	if hasSrcParts && (src == "" || target.SID < 1 || target.NID < 1) {
+		return fmt.Errorf("enrichpending: --source-video-id, --sid, and --nid must all be set together (sid/nid >= 1)")
+	}
 	if drain {
-		return fmt.Errorf("enrichpending: --episode-id cannot be combined with --drain")
+		return fmt.Errorf("enrichpending: single-episode targeting cannot be combined with --drain")
 	}
 	trig := trigger
 	if trig == "" {
@@ -452,29 +477,39 @@ func ValidateEnrichPendingEpisodeIDFlags(episodeID uint64, drain bool, trigger s
 		return err
 	}
 	if trig != store.TriggerCLI {
-		return fmt.Errorf("enrichpending: --episode-id requires --trigger=cli (manual only)")
+		return fmt.Errorf("enrichpending: single-episode targeting requires --trigger=cli (manual only)")
 	}
 	return nil
 }
 
+// ValidateEnrichPendingEpisodeIDFlags rejects unsafe combinations for --episode-id.
+func ValidateEnrichPendingEpisodeIDFlags(episodeID uint64, drain bool, trigger string) error {
+	return ValidateEnrichPendingTargetFlags(EnrichPendingTarget{EpisodeID: episodeID}, drain, trigger)
+}
+
 // RunOneEpisode processes a single episode by id (manual --episode-id).
+func (w *EnrichPendingWorker) RunOneEpisode(ctx context.Context, episodeID uint64, dryRun bool) (EnrichPendingSummary, error) {
+	return w.RunOneTarget(ctx, EnrichPendingTarget{EpisodeID: episodeID}, dryRun)
+}
+
+// RunOneTarget processes exactly one eligible episode by id or source_video_id/sid/nid.
 // Unavailable historical rows require IncludeMembershipRetry (auth configured).
 // Does not overwrite non-empty playback_url; uses the same ClassifyPlayPage path.
-func (w *EnrichPendingWorker) RunOneEpisode(ctx context.Context, episodeID uint64, dryRun bool) (EnrichPendingSummary, error) {
+func (w *EnrichPendingWorker) RunOneTarget(ctx context.Context, target EnrichPendingTarget, dryRun bool) (EnrichPendingSummary, error) {
 	sum := EnrichPendingSummary{
 		DryRun:  dryRun,
 		Limit:   1,
 		Actions: make([]EnrichPendingAction, 0, 1),
 	}
-	if episodeID == 0 {
-		sum.Error = "episode id required"
+	if !target.Active() {
+		sum.Error = "single-episode target required"
 		return sum, fmt.Errorf("%s", sum.Error)
 	}
 	if w.Store == nil || w.Fetcher == nil {
 		sum.Error = "store and fetcher are required"
 		return sum, fmt.Errorf("%s", sum.Error)
 	}
-	if err := ValidateEnrichPendingEpisodeIDFlags(episodeID, false, w.TriggerType); err != nil {
+	if err := ValidateEnrichPendingTargetFlags(target, false, w.TriggerType); err != nil {
 		sum.Error = err.Error()
 		return sum, err
 	}
@@ -491,14 +526,26 @@ func (w *EnrichPendingWorker) RunOneEpisode(ctx context.Context, episodeID uint6
 	sum.LockAcquired = true
 	defer func() { _ = hold.Release() }()
 
-	ep, ok, err := w.Store.GetEnrichmentCandidateByID(olehdtv.SourceSystem, episodeID)
+	var ep store.PendingEnrichmentEpisode
+	var ok bool
+	if target.EpisodeID > 0 {
+		ep, ok, err = w.Store.GetEnrichmentCandidateByID(olehdtv.SourceSystem, target.EpisodeID)
+		if !ok && err == nil {
+			sum.Error = fmt.Sprintf("episode %d not found or not eligible (need empty playback_url, non-empty play_page_url, pending_enrichment|unavailable)", target.EpisodeID)
+		}
+	} else {
+		src := strings.TrimSpace(target.SourceVideoID)
+		ep, ok, err = w.Store.GetEnrichmentCandidateBySourceRef(olehdtv.SourceSystem, src, target.SID, target.NID)
+		if !ok && err == nil {
+			sum.Error = fmt.Sprintf("episode source_video_id=%s sid=%d nid=%d not found or not eligible (need empty playback_url, non-empty play_page_url, pending_enrichment|unavailable)", src, target.SID, target.NID)
+		}
+	}
 	if err != nil {
 		sum.Failures++
 		sum.Error = "load episode: " + err.Error()
 		return sum, err
 	}
 	if !ok {
-		sum.Error = fmt.Sprintf("episode %d not found or not eligible (need empty playback_url, non-empty play_page_url, pending_enrichment|unavailable)", episodeID)
 		return sum, fmt.Errorf("%s", sum.Error)
 	}
 	st := strings.ToLower(strings.TrimSpace(ep.PlaybackStatus))

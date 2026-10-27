@@ -98,30 +98,56 @@ func (m *enrichMemStore) RejectOperationalRun(in store.RejectOperationalRunInput
 	return id, nil
 }
 
+func enrichCandidateEligible(e *store.PendingEnrichmentEpisode, system string) bool {
+	if e == nil || e.SourceSystem != system {
+		return false
+	}
+	if strings.TrimSpace(e.PlaybackURL) != "" || strings.TrimSpace(e.PlayPageURL) == "" {
+		return false
+	}
+	st := strings.ToLower(e.PlaybackStatus)
+	if st == "pending_enrichment" {
+		return true
+	}
+	if st != "unavailable" {
+		return false
+	}
+	reason := strings.TrimSpace(e.RestrictionReason)
+	return reason == store.RestrictionReasonMembership || reason == ""
+}
+
 func (m *enrichMemStore) GetEnrichmentCandidateByID(system string, id uint64) (store.PendingEnrichmentEpisode, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	e := m.episodes[id]
-	if e == nil || e.SourceSystem != system {
-		return store.PendingEnrichmentEpisode{}, false, nil
-	}
-	if strings.TrimSpace(e.PlaybackURL) != "" || strings.TrimSpace(e.PlayPageURL) == "" {
-		return store.PendingEnrichmentEpisode{}, false, nil
-	}
-	st := strings.ToLower(e.PlaybackStatus)
-	if st == "pending_enrichment" {
-		cp := *e
-		return cp, true, nil
-	}
-	if st != "unavailable" {
-		return store.PendingEnrichmentEpisode{}, false, nil
-	}
-	reason := strings.TrimSpace(e.RestrictionReason)
-	if reason != store.RestrictionReasonMembership && reason != "" {
+	if !enrichCandidateEligible(e, system) {
 		return store.PendingEnrichmentEpisode{}, false, nil
 	}
 	cp := *e
 	return cp, true, nil
+}
+
+func (m *enrichMemStore) GetEnrichmentCandidateBySourceRef(system, sourceVideoID string, sid, nid int) (store.PendingEnrichmentEpisode, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	sourceVideoID = strings.TrimSpace(sourceVideoID)
+	var best *store.PendingEnrichmentEpisode
+	for _, e := range m.episodes {
+		if !enrichCandidateEligible(e, system) {
+			continue
+		}
+		if e.SourceVideoID != sourceVideoID || e.SID != sid || e.NID != nid {
+			continue
+		}
+		if best == nil || e.ID < best.ID {
+			cp := *e
+			best = &cp
+		}
+	}
+	if best == nil {
+		return store.PendingEnrichmentEpisode{}, false, nil
+	}
+	return *best, true, nil
 }
 
 func (m *enrichMemStore) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry bool) ([]store.PendingEnrichmentEpisode, error) {
@@ -1365,6 +1391,64 @@ func TestValidateEnrichPendingEpisodeIDFlags(t *testing.T) {
 	}
 	if err := ValidateEnrichPendingEpisodeIDFlags(43393, false, store.TriggerCLI); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestValidateEnrichPendingTargetFlags_sourceRef(t *testing.T) {
+	ok := EnrichPendingTarget{SourceVideoID: "32222", SID: 1, NID: 1}
+	if err := ValidateEnrichPendingTargetFlags(ok, false, store.TriggerCLI); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateEnrichPendingTargetFlags(EnrichPendingTarget{SourceVideoID: "32222", SID: 1}, false, store.TriggerCLI); err == nil {
+		t.Fatal("incomplete source triple must fail")
+	}
+	if err := ValidateEnrichPendingTargetFlags(EnrichPendingTarget{
+		EpisodeID: 43393, SourceVideoID: "32222", SID: 1, NID: 1,
+	}, false, store.TriggerCLI); err == nil {
+		t.Fatal("episode-id + source ref must fail")
+	}
+	if err := ValidateEnrichPendingTargetFlags(ok, true, store.TriggerCLI); err == nil {
+		t.Fatal("source ref + drain must fail")
+	}
+	if err := ValidateEnrichPendingTargetFlags(ok, false, store.TriggerTimer); err == nil {
+		t.Fatal("source ref + timer must fail")
+	}
+}
+
+func TestRunOneTarget_sourceRefSelectsOnlyMatchingEpisode(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[43393] = historicalEmptyUnavailable()
+	st.episodes[43394] = &store.PendingEnrichmentEpisode{
+		ID: 43394, VideoID: 10056, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "32222",
+		SID: 1, NID: 2, PlaybackStatus: "unavailable", PlayPageURL: "https://www.olehdtv.com/vod/play/32222-1-2.html",
+		RestrictionReason: "", IsActive: false,
+	}
+	st.episodes[50001] = &store.PendingEnrichmentEpisode{
+		ID: 50001, VideoID: 999, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "99999",
+		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlayPageURL: "https://www.olehdtv.com/vod/play/99999-1-1.html",
+		RestrictionReason: "", IsActive: false,
+	}
+	pages := map[string]string{
+		st.episodes[43393].PlayPageURL: playHTML("https://cdn.example/32222-1.m3u8"),
+		st.episodes[43394].PlayPageURL: playHTML("https://cdn.example/32222-2.m3u8"),
+		st.episodes[50001].PlayPageURL: playHTML("https://cdn.example/other.m3u8"),
+	}
+	w := NewEnrichPendingWorker(st, &mapFetcher{pages: pages})
+	w.IncludeMembershipRetry = true
+	sum, err := w.RunOneTarget(context.Background(), EnrichPendingTarget{
+		SourceVideoID: "32222", SID: 1, NID: 1,
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Selected != 1 || sum.Enriched != 1 || sum.Actions[0].EpisodeID != 43393 {
+		t.Fatalf("must process only 32222/1/1: %+v", sum)
+	}
+	if st.episodes[43393].PlaybackURL != "https://cdn.example/32222-1.m3u8" {
+		t.Fatalf("%+v", st.episodes[43393])
+	}
+	if st.episodes[43394].PlaybackURL != "" || st.episodes[50001].PlaybackURL != "" {
+		t.Fatalf("other rows must stay untouched: %+v %+v", st.episodes[43394], st.episodes[50001])
 	}
 }
 

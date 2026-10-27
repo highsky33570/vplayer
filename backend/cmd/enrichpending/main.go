@@ -27,13 +27,22 @@ func main() {
 	maxRuntime := flag.Duration("max-runtime", catalogsync.EnrichPendingDrainMaxRuntimeDefault, "drain only: overall runtime budget (hard max 3h)")
 	trigger := flag.String("trigger", store.TriggerCLI, "operational trigger: cli|timer|admin")
 	requestedBy := flag.Uint64("requested-by-user-id", 0, "admin user id when --trigger=admin; must be 0 for cli|timer")
-	episodeID := flag.Uint64("episode-id", 0, "manual only: process exactly one episode id (requires auth for unavailable rows)")
+	episodeID := flag.Uint64("episode-id", 0, "manual only: process exactly one episode by internal id")
+	sourceVideoID := flag.String("source-video-id", "", "manual only: with --sid/--nid, process exactly one OLEHDTV episode")
+	sid := flag.Int("sid", 0, "manual only: source play source id (requires --source-video-id and --nid)")
+	nid := flag.Int("nid", 0, "manual only: source episode nid (requires --source-video-id and --sid)")
 	flag.Parse()
 
-	if err := catalogsync.ValidateEnrichPendingEpisodeIDFlags(*episodeID, *drain, *trigger); err != nil {
+	target := catalogsync.EnrichPendingTarget{
+		EpisodeID:     *episodeID,
+		SourceVideoID: *sourceVideoID,
+		SID:           *sid,
+		NID:           *nid,
+	}
+	if err := catalogsync.ValidateEnrichPendingTargetFlags(target, *drain, *trigger); err != nil {
 		log.Fatal(err)
 	}
-	if *episodeID == 0 {
+	if !target.Active() {
 		if err := catalogsync.ValidateEnrichPendingDrainFlags(*catchUp, *drain, *dryRun); err != nil {
 			log.Fatal(err)
 		}
@@ -76,18 +85,23 @@ func main() {
 	svc := catalogsync.NewEnrichPendingWorker(db, fetcher)
 	svc.TriggerType = trig
 	svc.RequestedByUserID = *requestedBy
-	// Historical unavailable retry: auth + (catch-up/drain OR explicit --episode-id).
-	svc.IncludeMembershipRetry = authConfigured && (*catchUp || *drain || *episodeID > 0)
+	// Historical unavailable retry: auth + (catch-up/drain OR explicit single-episode target).
+	svc.IncludeMembershipRetry = authConfigured && (*catchUp || *drain || target.Active())
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 
-	if *episodeID > 0 {
+	if target.Active() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		fmt.Fprintf(os.Stderr, "enrichpending episode_id=%d dry_run=%v trigger=%s auth=%v\n",
-			*episodeID, *dryRun, trig, authConfigured)
-		sum, runErr := svc.RunOneEpisode(ctx, *episodeID, *dryRun)
+		if target.EpisodeID > 0 {
+			fmt.Fprintf(os.Stderr, "enrichpending episode_id=%d dry_run=%v trigger=%s auth=%v\n",
+				target.EpisodeID, *dryRun, trig, authConfigured)
+		} else {
+			fmt.Fprintf(os.Stderr, "enrichpending source_video_id=%s sid=%d nid=%d dry_run=%v trigger=%s auth=%v\n",
+				target.SourceVideoID, target.SID, target.NID, *dryRun, trig, authConfigured)
+		}
+		sum, runErr := svc.RunOneTarget(ctx, target, *dryRun)
 		_ = enc.Encode(sum)
 		if runErr != nil {
 			fmt.Fprintf(os.Stderr, "enrichpending: %v\n", runErr)
