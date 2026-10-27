@@ -93,11 +93,11 @@ type EnrichPendingWorker struct {
 	TriggerType       string // cli|timer|admin; empty defaults to cli
 	RequestedByUserID uint64 // required >0 when TriggerType=admin; must be 0 for cli|timer
 	// IncludeMembershipRetry selects unavailable + source_restricted.
-	// CLI: auth configured AND explicit manual catch-up/drain/target/legacy flag.
+	// CLI: auth configured AND (--catch-up|--drain|single-episode target).
 	IncludeMembershipRetry bool
 	// IncludeLegacyUnavailable selects unavailable + empty restriction_reason
-	// (historical pre-classification shape, e.g. episode 43393). Same CLI gate as
-	// IncludeMembershipRetry — never timers / never auth-alone.
+	// (historical pre-classification shape, e.g. episode 43393).
+	// CLI must set this ONLY for single-episode targeting — never catch-up/drain/timer.
 	IncludeLegacyUnavailable bool
 }
 
@@ -581,7 +581,7 @@ func (w *EnrichPendingWorker) RunOneTarget(ctx context.Context, target EnrichPen
 			}
 		case reason == "":
 			if !w.IncludeLegacyUnavailable {
-				sum.Error = "legacy unavailable (empty restriction_reason) requires authenticated manual catch-up"
+				sum.Error = "legacy unavailable (empty restriction_reason) requires authenticated --episode-id (or source ref) targeting"
 				return sum, fmt.Errorf("%s", sum.Error)
 			}
 		default:

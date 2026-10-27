@@ -19,9 +19,9 @@ import (
 
 func main() {
 	dryRun := flag.Bool("dry-run", false, "fetch/parse pending play pages but perform zero DB writes")
-	catchUp := flag.Bool("catch-up", false, "manual backlog catch-up: allow --limit up to 90; with auth, retries unavailable (source_restricted OR empty historical reason)")
+	catchUp := flag.Bool("catch-up", false, "manual backlog catch-up: allow --limit up to 90; with auth, also retries unavailable+source_restricted")
 	drain := flag.Bool("drain", false, "with --catch-up: repeat bounded batches until empty or safety limits (manual only; not for timers)")
-	retryLegacy := flag.Bool("retry-legacy-unavailable", false, "alias: enable authenticated historical unavailable retry without --catch-up (still requires auth; never timers)")
+	retryLegacy := flag.Bool("retry-legacy-unavailable", false, "unused for empty-reason bulk; empty historical rows require --episode-id / source ref (kept for CLI compatibility)")
 	limit := flag.Int("limit", catalogsync.EnrichPendingDefaultLim, "max pending episodes per batch (1–20; or 1–90 with --catch-up)")
 	concurrency := flag.Int("concurrency", 1, "HTTP concurrency (1–2; default 1)")
 	maxBatches := flag.Int("max-batches", catalogsync.EnrichPendingDrainMaxBatchesDefault, "drain only: max batches (1–100)")
@@ -80,8 +80,8 @@ func main() {
 	fetcher.SetAuthCookie(cfg.OleHdTvAuthCookie)
 	fetcher.TrustPublicBaseURL(cfg.OleHdTvPublicBaseURL)
 	authConfigured := cfg.OleHdTvAuthConfigured()
-	if *retryLegacy && !authConfigured {
-		log.Fatal("enrichpending: --retry-legacy-unavailable requires OLEHDTV_AUTH_COOKIE configured")
+	if *retryLegacy && !target.Active() {
+		log.Fatal("enrichpending: empty-reason historical rows are not bulk-selected; use --episode-id (or --source-video-id/--sid/--nid) for a single authenticated retry")
 	}
 	db, err := store.OpenMySQL(cfg.MySQLDSN)
 	if err != nil {
@@ -92,12 +92,11 @@ func main() {
 	svc := catalogsync.NewEnrichPendingWorker(db, fetcher)
 	svc.TriggerType = trig
 	svc.RequestedByUserID = *requestedBy
-	// Historical unavailable retry (source_restricted OR empty reason): auth +
-	// explicit manual path only (--catch-up/--drain/--retry-legacy-unavailable/target).
-	// Never enabled for timer/admin anonymous scheduled runs.
-	manualHistorical := *catchUp || *drain || *retryLegacy || target.Active()
-	svc.IncludeMembershipRetry = authConfigured && manualHistorical
-	svc.IncludeLegacyUnavailable = authConfigured && manualHistorical
+	// source_restricted: auth + catch-up/drain/single-episode (never timers alone).
+	svc.IncludeMembershipRetry = authConfigured && (*catchUp || *drain || target.Active())
+	// empty restriction_reason (pre-classification history): ONLY single-episode
+	// CLI targeting — never catch-up/drain/timer (avoids sweeping ~4k unclassified rows).
+	svc.IncludeLegacyUnavailable = authConfigured && target.Active()
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")

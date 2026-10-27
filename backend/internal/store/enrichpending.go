@@ -65,11 +65,11 @@ func PendingEnrichmentFetchLimit(finalLimit int) int {
 // At most 3 pending episodes per video are returned (pending_rank), then ordered by
 // zero-ok priority so a single huge series cannot fill the entire LIMIT alone.
 // finalLimit is the worker --limit (1–90 absolute store bound); fetch window is bounded.
-// includeMembershipRetry (CLI: auth + manual catch-up/drain/target) adds unavailable +
-// source_restricted. includeLegacyUnavailable (same CLI gate) adds unavailable +
-// empty restriction_reason historical rows. ClassifyPlayPage remains authority —
-// empty reason is never bulk-assumed to be membership. Non-empty playback_url
-// rows are never selected.
+// includeMembershipRetry (CLI: auth + catch-up/drain/target) adds unavailable +
+// source_restricted. includeLegacyUnavailable (CLI: auth + single-episode target
+// only) adds unavailable + empty restriction_reason historical rows — never via
+// catch-up alone. ClassifyPlayPage remains authority; empty reason is never
+// bulk-assumed to be membership. Non-empty playback_url rows are never selected.
 func (m *MySQL) ListPendingEnrichmentEpisodes(system string, finalLimit int, includeMembershipRetry, includeLegacyUnavailable bool) ([]PendingEnrichmentEpisode, error) {
 	if finalLimit <= 0 {
 		finalLimit = PendingEnrichmentDefaultFinalLimit

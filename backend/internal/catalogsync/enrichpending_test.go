@@ -1270,26 +1270,50 @@ func TestEnrichPending_legacyUnavailable_noAuthNotSelected(t *testing.T) {
 	}
 }
 
-func TestEnrichPending_episode43393_authCatchUpSelectsEmptyReason(t *testing.T) {
-	// Regression: production episode 43393 shape + auth membership catch-up.
+func TestEnrichPending_catchUpDoesNotBulkSelectEmptyReason(t *testing.T) {
+	// Catch-up + membership retry must NOT sweep unclassified empty-reason rows.
 	st := newEnrichMemStore()
 	st.episodes[43393] = historicalEmptyUnavailable()
-	url := st.episodes[43393].PlayPageURL
-	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{url: playHTML("https://cdn.example/32222.m3u8")}})
+	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{}})
 	w.IncludeMembershipRetry = true
-	w.IncludeLegacyUnavailable = true
+	w.IncludeLegacyUnavailable = false
 	sum, err := w.Run(context.Background(), 5, true, 1, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sum.Selected != 1 || sum.Enriched != 1 {
-		t.Fatalf("auth+catch-up must select 43393: %+v", sum)
+	if sum.Selected != 0 {
+		t.Fatalf("catch-up must not bulk-select empty-reason historical: %+v", sum)
 	}
-	if len(sum.Actions) != 1 || sum.Actions[0].Action != "WOULD_ENRICH" || sum.Actions[0].EpisodeID != 43393 {
+}
+
+func TestEnrichPending_episode43393_episodeIDSelectsEmptyReason(t *testing.T) {
+	// Preferred path: explicit --episode-id for historical empty-reason shape.
+	st := newEnrichMemStore()
+	st.episodes[43393] = historicalEmptyUnavailable()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "bulk",
+		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlayPageURL: "https://src/bulk",
+		RestrictionReason: "", IsActive: false,
+	}
+	url := st.episodes[43393].PlayPageURL
+	w := NewEnrichPendingWorker(st, &mapFetcher{pages: map[string]string{
+		url:              playHTML("https://cdn.example/32222.m3u8"),
+		"https://src/bulk": playHTML("https://cdn.example/bulk.m3u8"),
+	}})
+	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
+	sum, err := w.RunOneEpisode(context.Background(), 43393, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Selected != 1 || sum.Enriched != 1 || sum.Actions[0].EpisodeID != 43393 {
+		t.Fatalf("episode-id must select only 43393: %+v", sum)
+	}
+	if sum.Actions[0].Action != "WOULD_ENRICH" {
 		t.Fatalf("actions: %+v", sum.Actions)
 	}
-	if st.writes != 0 || st.episodes[43393].PlaybackStatus != "unavailable" {
-		t.Fatalf("dry-run must not write: writes=%d ep=%+v", st.writes, st.episodes[43393])
+	if st.writes != 0 || st.episodes[1].PlaybackURL != "" {
+		t.Fatalf("dry-run must not write or expand to other rows: writes=%d other=%+v", st.writes, st.episodes[1])
 	}
 }
 
@@ -1418,23 +1442,15 @@ func TestEnrichPending_sourceRestrictedStillSelectedWithMembershipRetry(t *testi
 	if len(candsOff) != 0 {
 		t.Fatalf("without membership retry must exclude: %d", len(candsOff))
 	}
-	// Auth catch-up enables both flags → empty-reason historical also selected.
+	// Catch-up membership flag alone must NOT pull empty-reason (no bulk expand).
 	st.episodes[2] = historicalEmptyUnavailable()
 	st.episodes[2].ID = 2
-	mixed, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, true, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(mixed) != 2 {
-		t.Fatalf("auth catch-up must select source_restricted AND empty-reason: %+v", mixed)
-	}
-	// Membership flag alone still excludes empty-reason (legacy flag off).
 	membOnly, err := st.ListPendingEnrichmentEpisodes(olehdtv.SourceSystem, 5, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(membOnly) != 1 || membOnly[0].ID != 1 {
-		t.Fatalf("membership-only must exclude empty-reason: %+v", membOnly)
+		t.Fatalf("membership catch-up must exclude empty-reason: %+v", membOnly)
 	}
 }
 
