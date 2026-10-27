@@ -3447,7 +3447,7 @@ html.dark .login-reminder-cta {
     overflow-x: auto;
     overflow-y: hidden;
     padding: 0 4px;
-    height: 38px;
+    height: 40px;
     scrollbar-width: none;
   }
 
@@ -3465,17 +3465,31 @@ html.dark .login-reminder-cta {
   }
 
   .category-btn--main {
-    height: 36px;
-    min-height: 36px;
+    height: 40px;
+    min-height: 40px;
     min-width: max-content;
     max-width: none;
-    padding: 0 9px;
+    padding: 0 10px;
+    gap: 6px;
     border: 0;
     border-radius: 0;
     background: transparent;
-    font-size: 13px;
-    font-weight: 500;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
     flex-shrink: 0;
+  }
+
+  .category-btn--main .category-icon {
+    width: 18px;
+    height: 18px;
+    opacity: 1;
+  }
+
+  .category-btn--main .category-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2.1;
   }
 
   .category-btn--main.is-active,
@@ -3483,7 +3497,7 @@ html.dark .login-reminder-cta {
     color: var(--brand);
     background: transparent;
     border: 0;
-    font-weight: 700;
+    font-weight: 800;
     box-shadow: inset 0 -2px 0 var(--brand);
   }
 
@@ -3491,6 +3505,7 @@ html.dark .login-reminder-cta {
     overflow: visible;
     text-overflow: clip;
     min-width: max-content;
+    font-weight: inherit;
   }
 
   .category-subrow {
@@ -7675,7 +7690,7 @@ html.dark .login-reminder-cta,
 
   .category-rail {
     width: 100%;
-    height: 36px;
+    height: 40px;
     padding: 0 4px;
   }
 
@@ -7686,12 +7701,20 @@ html.dark .login-reminder-cta,
   .category-btn--main,
   .category-btn--main.is-active,
   .category-btn--main.is-parent-of-active {
-    height: 36px;
+    height: 40px;
     padding: 0 10px;
-    font-size: 14px;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 700;
     background: transparent;
     border: 0;
     border-radius: 0;
+  }
+
+  .category-btn--main .category-icon,
+  .category-btn--main .category-icon svg {
+    width: 18px;
+    height: 18px;
   }
 
   .page,
