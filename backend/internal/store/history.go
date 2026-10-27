@@ -20,7 +20,7 @@ type HistoryRepo interface {
 	// UpsertHistory refreshes last_watched_at. progressSec < 0 leaves the stored progress unchanged
 	// (a new row starts at 0).
 	UpsertHistory(userID, videoID uint64, progressSec int, now time.Time) error
-	ListHistory(userID uint64, limit, offset int) ([]HistoryVideo, int, error)
+	ListHistory(userID uint64, limit, offset int, includeMembership bool) ([]HistoryVideo, int, error)
 	DeleteHistory(userID, videoID uint64) error
 	ClearHistory(userID uint64) error
 	CountHistory(userID uint64) (int, error)
@@ -52,9 +52,9 @@ func (m *MySQL) UpsertHistory(userID, videoID uint64, progressSec int, now time.
 	return err
 }
 
-func (m *MySQL) ListHistory(userID uint64, limit, offset int) ([]HistoryVideo, int, error) {
+func (m *MySQL) ListHistory(userID uint64, limit, offset int, includeMembership bool) ([]HistoryVideo, int, error) {
 	limit, offset = clampPage(limit, offset, historyDefaultLimit, historyMaxLimit)
-	where := `h.user_id=? AND ` + libraryVideoVisible
+	where := `h.user_id=? AND ` + libraryVideoVisible + libraryMembershipVisible(includeMembership)
 	var total int
 	if err := m.DB.QueryRow(`SELECT COUNT(*) FROM user_watch_history h JOIN videos v ON v.id = h.video_id WHERE `+where, userID).Scan(&total); err != nil {
 		return nil, 0, err

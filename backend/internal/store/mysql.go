@@ -192,10 +192,10 @@ func (m *MySQL) ListReadyVideos(limit, offset int) ([]model.Video, error) {
 }
 
 func (m *MySQL) ListReadyVideosByCategory(categoryID uint64, limit, offset int) ([]model.Video, error) {
-	return m.ListReadyVideosFiltered(categoryID, "", "", "", limit, offset)
+	return m.ListReadyVideosFiltered(categoryID, "", "", "", limit, offset, false)
 }
 
-func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug, sort string, limit, offset int) ([]model.Video, error) {
+func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug, sort string, limit, offset int, includeMembershipRequired bool) ([]model.Video, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 48
 	}
@@ -203,18 +203,11 @@ func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query, excludeCategor
 	if err != nil {
 		return nil, err
 	}
-	q := `
-		SELECT id, COALESCE(source_system,''), COALESCE(source_id,''), category_id, COALESCE(source_category_id,''),
-		       COALESCE(leaf_source_id,''),
-		       title, COALESCE(description,''), COALESCE(year,''), COALESCE(area,''), COALESCE(director,''),
-		       COALESCE(actors,''), COALESCE(rating,0), cover_key, COALESCE(cover_r2_key,''), COALESCE(poster_source_url,''),
-		       duration_sec, view_count, hls_master_key, COALESCE(playback_source,''), COALESCE(play_sid,1), COALESCE(play_nid,1),
-		       COALESCE(playback_url,''), source_updated_at, last_synced_at, COALESCE(sync_status,'ok'),
-		       COALESCE(is_active,1), status, created_at
+	q := `SELECT ` + videoScanSelect + `
 		FROM videos
 		WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
 	args := []any{}
-	q, args = AppendReadyVideosWhere(q, args, browse, query, excludeCategorySlug)
+	q, args = AppendReadyVideosWhere(q, args, browse, query, excludeCategorySlug, includeMembershipRequired)
 	// Exclusion (if any) is already in WHERE above — applied before ORDER BY/LIMIT/OFFSET.
 	q += ReadyVideoOrderSQL(sort) + ` LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
@@ -235,15 +228,7 @@ func (m *MySQL) ListReadyVideosFiltered(categoryID uint64, query, excludeCategor
 }
 
 func (m *MySQL) GetVideo(id uint64) (*model.Video, error) {
-	row := m.DB.QueryRow(`
-		SELECT id, COALESCE(source_system,''), COALESCE(source_id,''), category_id, COALESCE(source_category_id,''),
-		       COALESCE(leaf_source_id,''),
-		       title, COALESCE(description,''), COALESCE(year,''), COALESCE(area,''), COALESCE(director,''),
-		       COALESCE(actors,''), COALESCE(rating,0), cover_key, COALESCE(cover_r2_key,''), COALESCE(poster_source_url,''),
-		       duration_sec, view_count, hls_master_key, COALESCE(playback_source,''), COALESCE(play_sid,1), COALESCE(play_nid,1),
-		       COALESCE(playback_url,''), source_updated_at, last_synced_at, COALESCE(sync_status,'ok'),
-		       COALESCE(is_active,1), status, created_at
-		FROM videos WHERE id = ?`, id)
+	row := m.DB.QueryRow(`SELECT `+videoScanSelect+` FROM videos WHERE id = ?`, id)
 	return scanVideo(row)
 }
 

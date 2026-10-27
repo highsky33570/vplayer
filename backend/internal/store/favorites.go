@@ -49,7 +49,7 @@ type FavoriteRepo interface {
 	RemoveFavorite(userID, videoID uint64) error
 	IsFavorited(userID, videoID uint64) (bool, error)
 	// ListFavorites lists newest first. A nil folderID lists all folders.
-	ListFavorites(userID uint64, folderID *uint64, limit, offset int) ([]FavoriteVideo, int, error)
+	ListFavorites(userID uint64, folderID *uint64, limit, offset int, includeMembership bool) ([]FavoriteVideo, int, error)
 	CountFavorites(userID uint64) (int, error)
 }
 
@@ -179,9 +179,9 @@ func (m *MySQL) CountFavorites(userID uint64) (int, error) {
 	return n, err
 }
 
-func (m *MySQL) ListFavorites(userID uint64, folderID *uint64, limit, offset int) ([]FavoriteVideo, int, error) {
+func (m *MySQL) ListFavorites(userID uint64, folderID *uint64, limit, offset int, includeMembership bool) ([]FavoriteVideo, int, error) {
 	limit, offset = clampPage(limit, offset, favoriteDefaultLimit, favoriteMaxLimit)
-	where := `f.user_id=? AND ` + libraryVideoVisible
+	where := `f.user_id=? AND ` + libraryVideoVisible + libraryMembershipVisible(includeMembership)
 	args := []any{userID}
 	if folderID != nil {
 		where += ` AND f.folder_id=?`

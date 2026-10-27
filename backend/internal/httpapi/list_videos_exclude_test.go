@@ -32,7 +32,7 @@ type listCall struct {
 	offset              int
 }
 
-func (m *memPublicVideos) filter(categoryID uint64, query, excludeCategorySlug string) []model.Video {
+func (m *memPublicVideos) filter(categoryID uint64, query, excludeCategorySlug string, includeMembershipRequired bool) []model.Video {
 	q := strings.ToLower(strings.TrimSpace(query))
 	excl := store.NormalizeExcludeCategorySlug(excludeCategorySlug)
 	var out []model.Video
@@ -41,6 +41,9 @@ func (m *memPublicVideos) filter(categoryID uint64, query, excludeCategorySlug s
 			continue
 		}
 		if !v.IsActive {
+			continue
+		}
+		if !includeMembershipRequired && v.MembershipRequired {
 			continue
 		}
 		if categoryID > 0 && v.CategoryID != categoryID {
@@ -68,19 +71,19 @@ func (m *memPublicVideos) filter(categoryID uint64, query, excludeCategorySlug s
 	return out
 }
 
-func (m *memPublicVideos) CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string) (int, error) {
+func (m *memPublicVideos) CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string, includeMembershipRequired bool) (int, error) {
 	m.countCalls++
 	m.lastCount = listCall{categoryID: categoryID, query: query, excludeCategorySlug: excludeCategorySlug}
-	return len(m.filter(categoryID, query, excludeCategorySlug)), nil
+	return len(m.filter(categoryID, query, excludeCategorySlug, includeMembershipRequired)), nil
 }
 
-func (m *memPublicVideos) ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug, order string, limit, offset int) ([]model.Video, error) {
+func (m *memPublicVideos) ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug, order string, limit, offset int, includeMembershipRequired bool) ([]model.Video, error) {
 	m.listCalls++
 	m.lastList = listCall{
 		categoryID: categoryID, query: query, excludeCategorySlug: excludeCategorySlug,
 		limit: limit, offset: offset,
 	}
-	filtered := m.filter(categoryID, query, excludeCategorySlug)
+	filtered := m.filter(categoryID, query, excludeCategorySlug, includeMembershipRequired)
 	if order == "hot" {
 		sort.SliceStable(filtered, func(i, j int) bool {
 			if filtered[i].ViewCount != filtered[j].ViewCount {

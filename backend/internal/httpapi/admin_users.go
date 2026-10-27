@@ -33,6 +33,7 @@ type AdminUserDTO struct {
 	Email     string    `json:"email"`
 	Nickname  string    `json:"nickname"`
 	IsAdmin   bool      `json:"is_admin"`
+	IsMember  bool      `json:"is_member"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -42,6 +43,7 @@ func adminUserDTO(u store.AdminUser) AdminUserDTO {
 		Email:     u.Email,
 		Nickname:  u.Nickname,
 		IsAdmin:   u.IsAdmin,
+		IsMember:  u.IsMember,
 		CreatedAt: u.CreatedAt,
 	}
 }

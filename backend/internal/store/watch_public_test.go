@@ -79,7 +79,7 @@ func TestRankRelatedLimitClampedTo10(t *testing.T) {
 }
 
 func TestRelatedSQLShape(t *testing.T) {
-	sqlText := relatedVideosSQL
+	sqlText := relatedVideosSQL(false)
 	for _, needle := range []string{
 		"status IN ('ready','demo')",
 		"COALESCE(is_active,1)=1",
@@ -89,6 +89,7 @@ func TestRelatedSQLShape(t *testing.T) {
 		"created_at DESC, id DESC",
 		"LIMIT ?",
 		"restriction_reason = 'source_restricted'",
+		"COALESCE(membership_required,0)=0",
 	} {
 		if !strings.Contains(sqlText, needle) {
 			t.Fatalf("missing %s", needle)

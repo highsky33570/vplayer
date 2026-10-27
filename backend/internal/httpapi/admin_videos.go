@@ -29,20 +29,21 @@ func (a *API) adminVideoRepo() adminVideoRepo {
 
 // AdminVideoListItem is the allowlisted list DTO (never serialize model.Video).
 type AdminVideoListItem struct {
-	ID           uint64     `json:"id"`
-	Title        string     `json:"title"`
-	CategoryID   uint64     `json:"category_id"`
-	Status       string     `json:"status"`
-	IsActive     bool       `json:"is_active"`
-	SourceSystem string     `json:"source_system"`
-	SourceID     string     `json:"source_id"`
-	Year         string     `json:"year"`
-	SyncStatus   string     `json:"sync_status"`
-	CreatedAt    time.Time  `json:"created_at"`
-	LastSyncedAt *time.Time `json:"last_synced_at,omitempty"`
-	ViewCount    int64      `json:"view_count"`
-	DurationSec  int        `json:"duration_sec"`
-	CoverURL     string     `json:"cover_url"`
+	ID                 uint64     `json:"id"`
+	Title              string     `json:"title"`
+	CategoryID         uint64     `json:"category_id"`
+	Status             string     `json:"status"`
+	IsActive           bool       `json:"is_active"`
+	MembershipRequired bool       `json:"membership_required"`
+	SourceSystem       string     `json:"source_system"`
+	SourceID           string     `json:"source_id"`
+	Year               string     `json:"year"`
+	SyncStatus         string     `json:"sync_status"`
+	CreatedAt          time.Time  `json:"created_at"`
+	LastSyncedAt       *time.Time `json:"last_synced_at,omitempty"`
+	ViewCount          int64      `json:"view_count"`
+	DurationSec        int        `json:"duration_sec"`
+	CoverURL           string     `json:"cover_url"`
 }
 
 // AdminVideoDetail is the allowlisted detail DTO.
@@ -61,20 +62,21 @@ type AdminVideoDetail struct {
 
 func adminVideoListItemFrom(v model.Video) AdminVideoListItem {
 	return AdminVideoListItem{
-		ID:           v.ID,
-		Title:        v.Title,
-		CategoryID:   v.CategoryID,
-		Status:       v.Status,
-		IsActive:     v.IsActive,
-		SourceSystem: v.SourceSystem,
-		SourceID:     v.SourceID,
-		Year:         v.Year,
-		SyncStatus:   v.SyncStatus,
-		CreatedAt:    v.CreatedAt,
-		LastSyncedAt: v.LastSyncedAt,
-		ViewCount:    v.ViewCount,
-		DurationSec:  v.DurationSec,
-		CoverURL:     v.CoverURL,
+		ID:                 v.ID,
+		Title:              v.Title,
+		CategoryID:         v.CategoryID,
+		Status:             v.Status,
+		IsActive:           v.IsActive,
+		MembershipRequired: v.MembershipRequired,
+		SourceSystem:       v.SourceSystem,
+		SourceID:           v.SourceID,
+		Year:               v.Year,
+		SyncStatus:         v.SyncStatus,
+		CreatedAt:          v.CreatedAt,
+		LastSyncedAt:       v.LastSyncedAt,
+		ViewCount:          v.ViewCount,
+		DurationSec:        v.DurationSec,
+		CoverURL:           v.CoverURL,
 	}
 }
 

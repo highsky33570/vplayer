@@ -66,8 +66,8 @@ type API struct {
 
 // publicVideoRepo is the store surface used by GET /api/v1/videos.
 type publicVideoRepo interface {
-	CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string) (int, error)
-	ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug, sort string, limit, offset int) ([]model.Video, error)
+	CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string, includeMembershipRequired bool) (int, error)
+	ListReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug, sort string, limit, offset int, includeMembershipRequired bool) ([]model.Video, error)
 }
 
 func (a *API) publicVideoRepo() publicVideoRepo {
@@ -121,6 +121,7 @@ func (a *API) ListVideos(c *gin.Context) {
 		offset = 0
 	}
 	repo := a.publicVideoRepo()
+	seesMembership := a.viewerSeesMembership(c)
 	if repo == nil {
 		rows := demoVideos()
 		if q != "" {
@@ -136,12 +137,12 @@ func (a *API) ListVideos(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "data": rows, "total": len(rows), "limit": limit, "offset": offset, "has_more": false})
 		return
 	}
-	total, err := repo.CountReadyVideosFiltered(catID, q, excludeSlug)
+	total, err := repo.CountReadyVideosFiltered(catID, q, excludeSlug, seesMembership)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
-	rows, err := repo.ListReadyVideosFiltered(catID, q, excludeSlug, sortKey, limit, offset)
+	rows, err := repo.ListReadyVideosFiltered(catID, q, excludeSlug, sortKey, limit, offset, seesMembership)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
@@ -187,6 +188,10 @@ func (a *API) GetVideo(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "not found"})
 		return
 	}
+	if !videoVisibleToViewer(v, a.viewerSeesMembership(c)) {
+		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "not found"})
+		return
+	}
 	out := a.withCoverURL(*v)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": out})
 }
@@ -197,6 +202,17 @@ func (a *API) ResolvePlay(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "invalid id"})
 		return
+	}
+	if a.Store != nil {
+		v, gerr := a.Store.GetVideo(id)
+		if gerr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": gerr.Error()})
+			return
+		}
+		if v == nil || !videoVisibleToViewer(v, a.viewerSeesMembership(c)) {
+			c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "not found"})
+			return
+		}
 	}
 	sid, _ := strconv.Atoi(c.DefaultQuery("sid", "0"))
 	nid, _ := strconv.Atoi(c.DefaultQuery("nid", "0"))

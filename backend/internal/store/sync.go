@@ -253,15 +253,10 @@ func parentIDEqual(a, b *uint64) bool {
 }
 
 func (m *MySQL) GetVideoBySource(system, sourceID string) (*model.Video, error) {
-	row := m.DB.QueryRow(`
-		SELECT id, COALESCE(source_system,''), COALESCE(source_id,''), category_id, COALESCE(source_category_id,''),
-		       COALESCE(leaf_source_id,''),
-		       title, COALESCE(description,''), COALESCE(year,''), COALESCE(area,''), COALESCE(director,''),
-		       COALESCE(actors,''), COALESCE(rating,0), cover_key, COALESCE(cover_r2_key,''), COALESCE(poster_source_url,''),
-		       duration_sec, view_count, hls_master_key, COALESCE(playback_source,''), play_sid, play_nid,
-		       COALESCE(playback_url,''), source_updated_at, last_synced_at, COALESCE(sync_status,'ok'),
-		       is_active, status, created_at
-		FROM videos WHERE source_system = ? AND source_id = ?`, system, sourceID)
+	row := m.DB.QueryRow(
+		`SELECT `+videoScanSelect+` FROM videos WHERE source_system = ? AND source_id = ?`,
+		system, sourceID,
+	)
 	return scanVideo(row)
 }
 
@@ -393,17 +388,17 @@ func (m *MySQL) TouchVideoSeen(id uint64) error {
 }
 
 func (m *MySQL) CountReadyVideos(categoryID uint64) (int, error) {
-	return m.CountReadyVideosFiltered(categoryID, "", "")
+	return m.CountReadyVideosFiltered(categoryID, "", "", false)
 }
 
-func (m *MySQL) CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string) (int, error) {
+func (m *MySQL) CountReadyVideosFiltered(categoryID uint64, query, excludeCategorySlug string, includeMembershipRequired bool) (int, error) {
 	browse, err := m.resolveCategoryBrowse(categoryID)
 	if err != nil {
 		return 0, err
 	}
 	q := `SELECT COUNT(*) FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
 	args := []any{}
-	q, args = AppendReadyVideosWhere(q, args, browse, query, excludeCategorySlug)
+	q, args = AppendReadyVideosWhere(q, args, browse, query, excludeCategorySlug, includeMembershipRequired)
 	var n int
 	err = m.DB.QueryRow(q, args...).Scan(&n)
 	return n, err
@@ -639,13 +634,14 @@ func scanVideo(row scannable) (*model.Video, error) {
 	var v model.Video
 	var srcUp, last sql.NullTime
 	var active int
+	var membershipRequired int
 	var actors sql.NullString
 	err := row.Scan(
 		&v.ID, &v.SourceSystem, &v.SourceID, &v.CategoryID, &v.SourceCategoryID, &v.LeafSourceID,
 		&v.Title, &v.Description, &v.Year, &v.Area, &v.Director, &actors, &v.Rating,
 		&v.CoverKey, &v.CoverR2Key, &v.PosterSourceURL,
 		&v.DurationSec, &v.ViewCount, &v.HLSMasterKey, &v.PlaybackSource, &v.PlaySID, &v.PlayNID,
-		&v.PlaybackURL, &srcUp, &last, &v.SyncStatus, &active, &v.Status, &v.CreatedAt,
+		&v.PlaybackURL, &srcUp, &last, &v.SyncStatus, &active, &v.Status, &membershipRequired, &v.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -657,6 +653,7 @@ func scanVideo(row scannable) (*model.Video, error) {
 		v.Actors = actors.String
 	}
 	v.IsActive = active == 1
+	v.MembershipRequired = membershipRequired == 1
 	if srcUp.Valid {
 		t := srcUp.Time
 		v.SourceUpdatedAt = &t

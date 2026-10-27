@@ -5,6 +5,7 @@ import {
   createAdminVideo,
   fetchAdminVideos,
   listCategories,
+  setAdminVideoMembership,
   type AdminVideoListItem,
   type Category,
 } from '../api';
@@ -46,6 +47,7 @@ export function AdminVideos() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [createOK, setCreateOK] = useState<string | null>(null);
   const [listTick, setListTick] = useState(0);
+  const [membershipBusyId, setMembershipBusyId] = useState<number | null>(null);
 
   useEffect(() => {
     setQInput(parsed.q);
@@ -170,6 +172,38 @@ export function AdminVideos() {
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault();
     applyFilters({ q: qInput, page: 1 });
+  }
+
+  async function onToggleMembership(row: AdminVideoListItem, next: boolean) {
+    setMembershipBusyId(row.id);
+    setError(null);
+    try {
+      const updated = await setAdminVideoMembership(token, row.id, next);
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === row.id
+            ? {
+                ...r,
+                membership_required: updated.membership_required,
+                category_id: updated.category_id,
+              }
+            : r,
+        ),
+      );
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          logout();
+          navigate(loginWithNext('/admin/videos'), { replace: true });
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : '更新失败');
+      }
+    } finally {
+      setMembershipBusyId(null);
+    }
   }
 
   return (
@@ -319,6 +353,7 @@ export function AdminVideos() {
                   <th>来源</th>
                   <th>状态</th>
                   <th>启用状态</th>
+                  <th>会员专属</th>
                   <th>同步</th>
                   <th>创建</th>
                 </tr>
@@ -352,6 +387,17 @@ export function AdminVideos() {
                         {activeLabel(row.is_active)}
                       </span>
                     </td>
+                    <td>
+                      <label className="admin-filter-check">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(row.membership_required)}
+                          disabled={membershipBusyId === row.id}
+                          onChange={(e) => void onToggleMembership(row, e.target.checked)}
+                        />
+                        <span>会员可见</span>
+                      </label>
+                    </td>
                     <td>{syncStatusLabel(row.sync_status)}</td>
                     <td>{formatTime(row.created_at)}</td>
                   </tr>
@@ -375,8 +421,25 @@ export function AdminVideos() {
                   <p>
                     {categoryName(row.category_id)} · {videoStatusLabel(row.status)} ·{' '}
                     {activeLabel(row.is_active)}
+                    {row.membership_required ? ' · 会员专属' : ''}
                   </p>
                   <p className="admin-muted">{formatTime(row.created_at)}</p>
+                  <label
+                    className="admin-filter-check"
+                    onClick={(e) => e.preventDefault()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(row.membership_required)}
+                      disabled={membershipBusyId === row.id}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        void onToggleMembership(row, e.target.checked);
+                      }}
+                    />
+                    <span>会员专属</span>
+                  </label>
                 </div>
               </Link>
             ))}

@@ -38,7 +38,7 @@ func TestAppendReadyVideosWhere_excludeOleHdTv(t *testing.T) {
 	q, _ := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{
 		CanonicalCategoryID:  17,
 		ExcludeOleHdTvSource: true,
-	}, "", "")
+	}, "", "", false)
 	if !strings.Contains(q, `COALESCE(source_system,'') <> 'olehdtv'`) {
 		t.Fatalf("missing olehdtv exclusion: %s", q)
 	}
@@ -116,7 +116,7 @@ func TestVideoMatchesBrowse_matrix(t *testing.T) {
 
 	// D. Homepage midnight exclusion still by category_id slug (canonical midnight)
 	base := `SELECT id FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`
-	q, args := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{}, "", "midnight")
+	q, args := AppendReadyVideosWhere(base, nil, CategoryBrowseFilter{}, "", "midnight", false)
 	if !strings.Contains(q, `category_id NOT IN (SELECT id FROM categories WHERE slug=?)`) {
 		t.Fatalf("exclude SQL: %s", q)
 	}

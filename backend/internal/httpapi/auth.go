@@ -108,11 +108,12 @@ func (a *API) Me(c *gin.Context) {
 
 func authUserJSON(user *model.User) gin.H {
 	return gin.H{
-		"id":       user.ID,
-		"email":    user.Email,
+		"id":         user.ID,
+		"email":      user.Email,
 		"nickname":   auth.DisplayName(user.Nickname, user.Email),
 		"avatar_hue": user.AvatarHue,
 		"is_admin":   user.IsAdmin,
+		"is_member":  user.IsMember || user.IsAdmin,
 	}
 }
 

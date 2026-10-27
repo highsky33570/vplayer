@@ -12,11 +12,12 @@ type AdminUser struct {
 	Email     string
 	Nickname  string
 	IsAdmin   bool
+	IsMember  bool
 	CreatedAt time.Time
 }
 
 const adminUserSelect = `
-		SELECT id, email, COALESCE(nickname,''), COALESCE(is_admin,0), created_at
+		SELECT id, email, COALESCE(nickname,''), COALESCE(is_admin,0), COALESCE(is_member,0), created_at
 		FROM users`
 
 // ListAdminUsersFiltered lists users for admin with optional q / is_admin filters.
@@ -102,11 +103,12 @@ type adminUserScannable interface {
 
 func scanAdminUser(row adminUserScannable) (*AdminUser, error) {
 	var u AdminUser
-	var isAdmin int
-	err := row.Scan(&u.ID, &u.Email, &u.Nickname, &isAdmin, &u.CreatedAt)
+	var isAdmin, isMember int
+	err := row.Scan(&u.ID, &u.Email, &u.Nickname, &isAdmin, &isMember, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	u.IsAdmin = isAdmin == 1
+	u.IsMember = isMember == 1
 	return &u, nil
 }

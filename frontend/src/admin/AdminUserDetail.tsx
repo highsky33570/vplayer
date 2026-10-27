@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ApiError,
   fetchAdminUser,
+  setAdminUserMembership,
   type AdminUser,
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
@@ -25,6 +26,7 @@ export function AdminUserDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [membershipBusy, setMembershipBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +76,7 @@ export function AdminUserDetail() {
           <Link to="/admin/users">用户管理</Link> / 详情
         </p>
         <h1>{data?.email ?? '用户详情'}</h1>
-        <p className="admin-muted">只读详情 · 不含密码、会话与凭证</p>
+        <p className="admin-muted">用户详情 · 可设置大会员；不含密码、会话与凭证</p>
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}
@@ -109,6 +111,39 @@ export function AdminUserDetail() {
               <span className={data.is_admin ? 'admin-badge is-ok' : 'admin-badge is-off'}>
                 {roleLabel(data.is_admin)}
               </span>
+            </dd>
+          </div>
+          <div>
+            <dt>大会员</dt>
+            <dd>
+              <label className="admin-filter-check">
+                <input
+                  type="checkbox"
+                  checked={Boolean(data.is_member || data.is_admin)}
+                  disabled={membershipBusy || data.is_admin}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setMembershipBusy(true);
+                    setError(null);
+                    void setAdminUserMembership(token, data.id, next)
+                      .then((updated) => setData(updated))
+                      .catch((err) => {
+                        if (err instanceof ApiError) {
+                          if (err.status === 401) {
+                            logout();
+                            navigate(loginWithNext(`/admin/users/${id}`), { replace: true });
+                            return;
+                          }
+                          setError(err.message);
+                          return;
+                        }
+                        setError(err instanceof Error ? err.message : '更新失败');
+                      })
+                      .finally(() => setMembershipBusy(false));
+                  }}
+                />
+                <span>{data.is_admin ? '管理员默认可用' : '会员升级（可看会员专属片）'}</span>
+              </label>
             </dd>
           </div>
           <div>

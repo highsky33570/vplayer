@@ -157,7 +157,7 @@ func (a *API) ListFavorites(c *gin.Context) {
 		folderID = &id
 	}
 	limit, offset := pageQuery(c, libraryListDefault, libraryListMax)
-	rows, total, err := repo.ListFavorites(uid, folderID, limit, offset)
+	rows, total, err := repo.ListFavorites(uid, folderID, limit, offset, a.viewerSeesMembership(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return
@@ -293,7 +293,7 @@ func (a *API) ListHistory(c *gin.Context) {
 		return
 	}
 	limit, offset := pageQuery(c, libraryListDefault, libraryListMax)
-	rows, total, err := repo.ListHistory(uid, limit, offset)
+	rows, total, err := repo.ListHistory(uid, limit, offset, a.viewerSeesMembership(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": err.Error()})
 		return

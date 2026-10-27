@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { listCategories, listVideosPage, type Category, type Video } from '../api';
+import { useAuth } from '../auth/AuthContext';
 import { ContentSection } from '../components/ContentSection';
 import { resolveNavCategories } from '../components/DiscoveryNav';
 import { FeaturedGrid } from '../components/FeaturedGrid';
@@ -31,6 +32,7 @@ type HomeSectionsData = {
 
 export function Home() {
   const [params] = useSearchParams();
+  const { token } = useAuth();
   const [cats, setCats] = useState<Category[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [homeSections, setHomeSections] = useState<HomeSectionsData | null>(null);
@@ -86,7 +88,7 @@ export function Home() {
       const categoryFetches = HOME_SECTIONS.filter((s) => s.slug).map((s) => {
         const cat = slugToCat.get(s.slug!);
         return cat
-          ? listVideosPage({ categoryId: cat.id, limit: HOME_SECTION_LIMIT, offset: 0 })
+          ? listVideosPage({ categoryId: cat.id, limit: HOME_SECTION_LIMIT, offset: 0, token })
           : Promise.resolve({ data: [] as Video[], total: 0, limit: HOME_SECTION_LIMIT, offset: 0, has_more: false });
       });
 
@@ -95,6 +97,7 @@ export function Home() {
           limit: FEATURED_POOL_LIMIT,
           offset: 0,
           excludeCategorySlug: 'midnight',
+          token,
         }),
         ...categoryFetches,
       ])
@@ -136,6 +139,7 @@ export function Home() {
       sort: rankHot ? 'hot' : undefined,
       limit: PAGE_SIZE,
       offset: 0,
+      token,
     })
       .then((page) => {
         if (cancelled) return;
@@ -153,7 +157,7 @@ export function Home() {
     return () => {
       cancelled = true;
     };
-  }, [active, categoryId, cats, searchQ, isHomeLanding, rankHot]);
+  }, [active, categoryId, cats, searchQ, isHomeLanding, rankHot, token]);
 
   async function loadMore() {
     setLoadingMore(true);
@@ -164,6 +168,7 @@ export function Home() {
         sort: rankHot ? 'hot' : undefined,
         limit: PAGE_SIZE,
         offset: offsetRef.current,
+        token,
       });
       setVideos((prev) => [...prev, ...page.data]);
       setTotal(page.total);

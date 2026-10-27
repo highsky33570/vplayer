@@ -17,7 +17,7 @@ import {
 } from './vipPageLogic';
 
 export function VipPage() {
-  const { user, ready, openLogin, authRequired, playbackAuthRequired } = useAuth();
+  const { user, token, ready, openLogin, authRequired, playbackAuthRequired } = useAuth();
   const playbackNeedsLogin = authRequired && playbackAuthRequired;
   const [categories, setCategories] = useState<Category[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -39,7 +39,7 @@ export function VipPage() {
           setTotal(0);
           return;
         }
-        const page = await listVideosPage({ categoryId: vip.id, limit: 48, offset: 0 });
+        const page = await listVideosPage({ categoryId: vip.id, limit: 48, offset: 0, token });
         if (cancelled) return;
         setVideos(page.data);
         setTotal(page.total);
@@ -53,7 +53,7 @@ export function VipPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [token]);
 
   const vipCat = resolveVipCategory(categories);
   const hero = pickVipHero(videos);

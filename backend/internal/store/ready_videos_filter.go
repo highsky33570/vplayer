@@ -89,7 +89,8 @@ func CategoryBrowseFromRow(requestedID uint64, cat *model.Category) CategoryBrow
 // AppendReadyVideosWhere adds shared public list filters to a SQL fragment that
 // already contains WHERE … ready/active predicates. Exclusion is applied here
 // (before any ORDER BY / LIMIT / OFFSET the caller appends).
-func AppendReadyVideosWhere(q string, args []any, browse CategoryBrowseFilter, query, excludeCategorySlug string) (string, []any) {
+// includeMembershipRequired: when false, hide admin-gated membership titles.
+func AppendReadyVideosWhere(q string, args []any, browse CategoryBrowseFilter, query, excludeCategorySlug string, includeMembershipRequired bool) (string, []any) {
 	if browse.FailClosed {
 		q += ` AND 1=0`
 	} else if browse.LeafSourceID != "" {
@@ -111,6 +112,9 @@ func AppendReadyVideosWhere(q string, args []any, browse CategoryBrowseFilter, q
 	}
 	if browse.ExcludeOleHdTvSource {
 		q += ` AND COALESCE(source_system,'') <> 'olehdtv'`
+	}
+	if !includeMembershipRequired {
+		q += ` AND COALESCE(membership_required,0)=0`
 	}
 	// Membership-only exclusion is part of the shared WHERE, before the caller
 	// appends ORDER BY / LIMIT / OFFSET. Count and list use this same function.

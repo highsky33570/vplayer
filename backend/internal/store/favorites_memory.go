@@ -115,11 +115,11 @@ func (m *MemoryFavorites) IsFavorited(userID, videoID uint64) (bool, error) {
 }
 
 func (m *MemoryFavorites) CountFavorites(userID uint64) (int, error) {
-	_, total, err := m.ListFavorites(userID, nil, 1, 0)
+	_, total, err := m.ListFavorites(userID, nil, 1, 0, true)
 	return total, err
 }
 
-func (m *MemoryFavorites) ListFavorites(userID uint64, folderID *uint64, limit, offset int) ([]FavoriteVideo, int, error) {
+func (m *MemoryFavorites) ListFavorites(userID uint64, folderID *uint64, limit, offset int, includeMembership bool) ([]FavoriteVideo, int, error) {
 	limit, offset = clampPage(limit, offset, favoriteDefaultLimit, favoriteMaxLimit)
 	m.mu.Lock()
 	var rows []Favorite
@@ -130,7 +130,11 @@ func (m *MemoryFavorites) ListFavorites(userID uint64, folderID *uint64, limit, 
 		if folderID != nil && (f.FolderID == nil || *f.FolderID != *folderID) {
 			continue
 		}
-		if _, ok := m.Videos.Visible(f.VideoID); !ok {
+		v, ok := m.Videos.Visible(f.VideoID)
+		if !ok {
+			continue
+		}
+		if !includeMembership && v.MembershipRequired {
 			continue
 		}
 		rows = append(rows, f)

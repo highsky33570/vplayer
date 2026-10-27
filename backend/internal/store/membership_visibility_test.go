@@ -20,15 +20,19 @@ func TestMembershipExclusion_confirmedOnlyHidden(t *testing.T) {
 func TestMembershipExclusion_searchCategoryRelatedSharePredicate(t *testing.T) {
 	list, listArgs := AppendReadyVideosWhere(
 		`SELECT id FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`,
-		nil, CategoryBrowseFilter{CanonicalCategoryID: 2}, "登山", "",
+		nil, CategoryBrowseFilter{CanonicalCategoryID: 2}, "登山", "", false,
 	)
 	count, countArgs := AppendReadyVideosWhere(
 		`SELECT COUNT(*) FROM videos WHERE status IN ('ready','demo') AND COALESCE(is_active,1)=1`,
-		nil, CategoryBrowseFilter{CanonicalCategoryID: 2}, "登山", "",
+		nil, CategoryBrowseFilter{CanonicalCategoryID: 2}, "登山", "", false,
 	)
 	pred := "restriction_reason = '" + RestrictionReasonMembership + "'"
-	if !strings.Contains(list, pred) || !strings.Contains(count, pred) || !strings.Contains(relatedVideosSQL, pred) {
+	related := relatedVideosSQL(false)
+	if !strings.Contains(list, pred) || !strings.Contains(count, pred) || !strings.Contains(related, pred) {
 		t.Fatal("list, count, and related must share the membership predicate")
+	}
+	if !strings.Contains(list, `COALESCE(membership_required,0)=0`) {
+		t.Fatal("non-member list must exclude membership_required titles")
 	}
 	if strings.Contains(list, "ORDER BY") || strings.Contains(count, "LIMIT") {
 		t.Fatal("predicate is WHERE-only; pagination is appended by the caller")

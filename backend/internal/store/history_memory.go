@@ -82,9 +82,18 @@ func (m *MemoryHistory) visibleRows(userID uint64) []memHistoryRow {
 	return rows
 }
 
-func (m *MemoryHistory) ListHistory(userID uint64, limit, offset int) ([]HistoryVideo, int, error) {
+func (m *MemoryHistory) ListHistory(userID uint64, limit, offset int, includeMembership bool) ([]HistoryVideo, int, error) {
 	limit, offset = clampPage(limit, offset, historyDefaultLimit, historyMaxLimit)
 	rows := m.visibleRows(userID)
+	if !includeMembership {
+		filtered := rows[:0]
+		for _, r := range rows {
+			if v, ok := m.Videos.Visible(r.videoID); ok && !v.MembershipRequired {
+				filtered = append(filtered, r)
+			}
+		}
+		rows = filtered
+	}
 	// Most recent first; touch breaks same-second ties the way a later auto-increment id cannot for upserts.
 	sort.Slice(rows, func(i, j int) bool {
 		if !rows[i].lastWatchedAt.Equal(rows[j].lastWatchedAt) {

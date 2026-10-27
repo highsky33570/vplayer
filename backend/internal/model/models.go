@@ -51,7 +51,9 @@ type Video struct {
 	SyncStatus       string     `json:"sync_status,omitempty"`
 	IsActive         bool       `json:"is_active"`
 	Status           string     `json:"status"` // draft|ready|disabled|demo
-	CreatedAt        time.Time  `json:"created_at"`
+	// MembershipRequired gates public discovery/play to site members (users.is_member).
+	MembershipRequired bool `json:"membership_required,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 type Episode struct {
@@ -106,6 +108,8 @@ type User struct {
 	// AvatarHue is 0..359 for a chosen avatar color, or -1 for the automatic default.
 	AvatarHue int       `json:"avatar_hue"`
 	IsAdmin   bool      `json:"is_admin"`
+	// IsMember grants access to membership_required catalog titles. Admins always count as members.
+	IsMember  bool      `json:"is_member"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

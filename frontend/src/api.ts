@@ -5,6 +5,8 @@ export type AuthUser = {
   email: string;
   nickname: string;
   is_admin?: boolean;
+  /** Site membership: can view membership_required catalog titles. */
+  is_member?: boolean;
   /** 0..359 custom hue; -1 (or missing) means derive from user id. */
   avatar_hue?: number;
 };
@@ -39,6 +41,7 @@ export type AdminVideoListItem = {
   category_id: number;
   status: string;
   is_active: boolean;
+  membership_required: boolean;
   source_system: string;
   source_id: string;
   year: string;
@@ -185,6 +188,8 @@ export async function listVideosPage(opts?: {
   excludeCategorySlug?: string;
   /** "hot" lists most-played titles. Omitted keeps newest-added order. */
   sort?: 'hot';
+  /** When set, members receive membership_required titles. */
+  token?: string | null;
 }): Promise<VideoPage> {
   const limit = opts?.limit ?? 48;
   const offset = opts?.offset ?? 0;
@@ -198,7 +203,9 @@ export async function listVideosPage(opts?: {
   const excludeSlug = opts?.excludeCategorySlug?.trim();
   if (excludeSlug) params.set('exclude_category_slug', excludeSlug);
   if (opts?.sort === 'hot') params.set('sort', 'hot');
-  const res = await fetch(`${API_BASE}/api/v1/videos?${params}`);
+  const headers: Record<string, string> = {};
+  if (opts?.token) headers.Authorization = `Bearer ${opts.token}`;
+  const res = await fetch(`${API_BASE}/api/v1/videos?${params}`, { headers });
   const json = (await res.json().catch(() => ({}))) as {
     ok?: boolean;
     message?: string;
@@ -225,8 +232,8 @@ export async function listVideos(categoryId?: number) {
   return page.data;
 }
 
-export function getVideo(id: number) {
-  return getJSON<Video>(`/api/v1/videos/${id}`);
+export function getVideo(id: number, token?: string | null) {
+  return getJSON<Video>(`/api/v1/videos/${id}`, token);
 }
 
 /** Build Authorization header value for authenticated API calls. */
@@ -964,6 +971,7 @@ export type AdminUser = {
   email: string;
   nickname: string;
   is_admin: boolean;
+  is_member: boolean;
   created_at: string;
 };
 
@@ -1099,6 +1107,52 @@ export async function createAdminVideo(
     ok?: boolean;
     message?: string;
     data?: AdminVideoDetail;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function setAdminVideoMembership(
+  token: string | null | undefined,
+  id: number,
+  membershipRequired: boolean,
+): Promise<AdminVideoDetail> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/videos/${id}/membership`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ membership_required: membershipRequired }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminVideoDetail;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function setAdminUserMembership(
+  token: string | null | undefined,
+  id: number,
+  isMember: boolean,
+): Promise<AdminUser> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/users/${id}/membership`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ is_member: isMember }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminUser;
   };
   if (!res.ok || json.ok === false || !json.data) {
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);

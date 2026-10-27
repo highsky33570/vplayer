@@ -174,6 +174,10 @@ func (a *API) AdminCreateVideo(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "视频已创建但剧集写入失败"})
 		return
 	}
+	// VIP placements are membership-gated by default (membership box).
+	if adminCreateAsVIP(req) {
+		_ = a.Store.SetVideoMembershipRequired(videoID, true, categoryID)
+	}
 
 	v, err := a.Store.GetVideo(videoID)
 	if err != nil || v == nil {
