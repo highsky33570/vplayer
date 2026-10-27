@@ -27,12 +27,16 @@ func TestMembershipExclusion_searchCategoryRelatedSharePredicate(t *testing.T) {
 		nil, CategoryBrowseFilter{CanonicalCategoryID: 2}, "登山", "", false,
 	)
 	pred := "restriction_reason = '" + RestrictionReasonMembership + "'"
+	keep := "membership_keep.membership_required"
 	related := relatedVideosSQL(false)
 	if !strings.Contains(list, pred) || !strings.Contains(count, pred) || !strings.Contains(related, pred) {
 		t.Fatal("list, count, and related must share the membership predicate")
 	}
+	if !strings.Contains(list, keep) || !strings.Contains(related, keep) {
+		t.Fatal("admin membership_required titles must stay visible in catalog SQL")
+	}
 	if !strings.Contains(list, `COALESCE(membership_required,0)=0`) {
-		t.Fatal("non-member list must exclude membership_required titles")
+		t.Fatal("non-member list must exclude membership_required titles when includeMembership=false")
 	}
 	if strings.Contains(list, "ORDER BY") || strings.Contains(count, "LIMIT") {
 		t.Fatal("predicate is WHERE-only; pagination is appended by the caller")

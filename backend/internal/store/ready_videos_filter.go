@@ -111,7 +111,9 @@ func AppendReadyVideosWhere(q string, args []any, browse CategoryBrowseFilter, q
 		args = append(args, slug)
 	}
 	if browse.ExcludeOleHdTvSource {
-		q += ` AND COALESCE(source_system,'') <> 'olehdtv'`
+		// Hide OLEHDTV-synced leftovers in VIP, but keep titles the admin marked
+		// membership_required (会员可见) — those are the VIP box showcase.
+		q += ` AND (COALESCE(source_system,'') <> 'olehdtv' OR COALESCE(membership_required,0)=1)`
 	}
 	if !includeMembershipRequired {
 		q += ` AND COALESCE(membership_required,0)=0`

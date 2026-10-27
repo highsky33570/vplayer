@@ -11,6 +11,9 @@ const RestrictionReasonMembership = "source_restricted"
 // every episode is resolved and at least one is explicitly membership-restricted,
 // and none has a playback URL or an unresolved/retryable state.
 //
+// Admin-gated titles (videos.membership_required=1) stay visible so the VIP
+// channel can showcase them; playback is still blocked for non-members.
+//
 // videoIDExpr must be the outer videos primary key (unaliased queries use videos.id).
 // Callers append this inside WHERE, before ORDER BY / LIMIT / OFFSET.
 func MembershipOnlyCatalogExclusionSQL(videoIDExpr string) string {
@@ -29,6 +32,11 @@ AND NOT (
         OR LOWER(TRIM(COALESCE(membership_open.playback_status,''))) IN ('','pending_enrichment','pending_player_parse','observed')
         OR LOWER(TRIM(COALESCE(membership_open.sync_status,'ok'))) IN ('error','failed')
       )
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM videos membership_keep
+    WHERE membership_keep.id = ` + videoIDExpr + `
+      AND COALESCE(membership_keep.membership_required,0)=1
   )
 )`
 }
