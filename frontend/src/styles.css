@@ -8588,6 +8588,34 @@ html.dark .login-reminder-cta,
 }
 
 @media (max-width: 767px) {
+  /* Cream corner tab — flush to top-right of cover (matches reference badge). */
+  .thumb {
+    overflow: hidden;
+    border-radius: 8px;
+  }
+
+  .thumb-hot {
+    top: 0;
+    right: 0;
+    left: auto;
+    bottom: auto;
+    z-index: 3;
+    height: 22px;
+    padding: 0 9px 0 11px;
+    border: 0;
+    /* Left end fully rounded; top-right clipped by .thumb radius */
+    border-radius: 999px 0 0 999px;
+    background: #fdefc3;
+    color: #2c2416;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 22px;
+    white-space: nowrap;
+    box-shadow: none;
+    text-shadow: none;
+  }
+
   .mobile-corner-dock {
     position: fixed;
     right: 10px;
