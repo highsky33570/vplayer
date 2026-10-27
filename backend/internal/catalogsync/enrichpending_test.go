@@ -1542,6 +1542,82 @@ func TestRunOneEpisode_historicalEmptyRequiresAuthCatchUpGate(t *testing.T) {
 	}
 }
 
+func TestRunOneEpisode_exactID_selectsOnly43393(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[43393] = historicalEmptyUnavailable()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "oldest",
+		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlayPageURL: "https://src/oldest",
+		RestrictionReason: "", IsActive: false,
+	}
+	st.episodes[2] = &store.PendingEnrichmentEpisode{
+		ID: 2, VideoID: 2, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "other",
+		SID: 1, NID: 1, PlaybackStatus: "unavailable", PlayPageURL: "https://src/other",
+		RestrictionReason: "", IsActive: false,
+	}
+	pages := map[string]string{
+		st.episodes[43393].PlayPageURL: playHTML("https://cdn.example/32222.m3u8"),
+		"https://src/oldest":           playHTML("https://cdn.example/oldest.m3u8"),
+		"https://src/other":            playHTML("https://cdn.example/other.m3u8"),
+	}
+	w := NewEnrichPendingWorker(st, &mapFetcher{pages: pages})
+	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
+
+	sum, err := w.RunOneEpisode(context.Background(), 43393, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Selected != 1 || sum.Attempted != 1 || sum.RequestsMade != 1 {
+		t.Fatalf("%+v", sum)
+	}
+	if len(sum.Actions) != 1 || sum.Actions[0].EpisodeID != 43393 || sum.Actions[0].Action != "WOULD_ENRICH" {
+		t.Fatalf("must process only 43393: %+v", sum.Actions)
+	}
+	if sum.Actions[0].SourceVideoID != "32222" || sum.Actions[0].SID != 1 || sum.Actions[0].NID != 1 {
+		t.Fatalf("target identity: %+v", sum.Actions[0])
+	}
+	if st.writes != 0 {
+		t.Fatal("dry-run must perform zero DB writes")
+	}
+	if st.episodes[1].PlaybackURL != "" || st.episodes[2].PlaybackURL != "" {
+		t.Fatal("other episodes must never be processed")
+	}
+	if st.episodes[43393].PlaybackStatus != "unavailable" || st.episodes[43393].PlaybackURL != "" {
+		t.Fatalf("dry-run must leave 43393 unchanged: %+v", st.episodes[43393])
+	}
+}
+
+func TestRunOneEpisode_nonexistentID_noFallback(t *testing.T) {
+	st := newEnrichMemStore()
+	st.episodes[43393] = historicalEmptyUnavailable()
+	st.episodes[1] = &store.PendingEnrichmentEpisode{
+		ID: 1, VideoID: 1, SourceSystem: olehdtv.SourceSystem, SourceVideoID: "fallback",
+		SID: 1, NID: 1, PlaybackStatus: "pending_enrichment", PlayPageURL: "https://src/fallback",
+	}
+	f := &mapFetcher{pages: map[string]string{
+		st.episodes[43393].PlayPageURL: playHTML("https://cdn.example/32222.m3u8"),
+		"https://src/fallback":         playHTML("https://cdn.example/fallback.m3u8"),
+	}}
+	w := NewEnrichPendingWorker(st, f)
+	w.IncludeMembershipRetry = true
+	w.IncludeLegacyUnavailable = true
+
+	sum, err := w.RunOneEpisode(context.Background(), 999999, true)
+	if err == nil {
+		t.Fatal("nonexistent episode-id must error (no silent fallback)")
+	}
+	if sum.Selected != 0 || sum.Attempted != 0 || sum.RequestsMade != 0 || len(sum.Actions) != 0 {
+		t.Fatalf("must select zero and not fall back: %+v", sum)
+	}
+	if f.hits != 0 {
+		t.Fatalf("must not fetch any play page on miss: hits=%d", f.hits)
+	}
+	if st.writes != 0 || st.episodes[1].PlaybackURL != "" || st.episodes[43393].PlaybackURL != "" {
+		t.Fatal("must not write or process other episodes")
+	}
+}
+
 func TestRunOneEpisode_doesNotOverwriteExistingPlaybackURL(t *testing.T) {
 	st := newEnrichMemStore()
 	st.episodes[10] = &store.PendingEnrichmentEpisode{
