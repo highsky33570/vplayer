@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,9 +50,16 @@ func VerifySignature(apiToken, pid string, params map[string]string) bool {
 	return hmac.Equal([]byte(strings.ToLower(sig)), []byte(expect))
 }
 
-// FormatAmount formats a USD amount with two decimal places for the gateway.
+// FormatAmount formats a USD amount with two decimal places (display / DB).
 func FormatAmount(amount float64) string {
 	return strconv.FormatFloat(amount, 'f', 2, 64)
+}
+
+// FormatAmountCanonical matches PHP (string)(round($amount, 2)) used by GMPay
+// when building the HMAC canonical string (e.g. 5 → "5", 5.1 → "5.1", 14 → "14").
+func FormatAmountCanonical(amount float64) string {
+	rounded := math.Round(amount*100) / 100
+	return strconv.FormatFloat(rounded, 'f', -1, 64)
 }
 
 // ParseFloatAmount parses a gateway numeric field.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -91,10 +92,20 @@ func (c *Client) CreateTransaction(p CreateParams) (CreateResult, error) {
 	if notify == "" {
 		notify = c.cfg.NotifyURL
 	}
-	payload := map[string]string{
+	// Sign with PHP-compatible amount string; JSON body sends amount as a number
+	// (same shape CDN/Laravel Http::asJson uses against GMPay).
+	amount := roundAmount2(p.AmountUSD)
+	signParams := map[string]string{
 		"pid":        c.cfg.PID,
 		"order_id":   p.OrderID,
-		"amount":     FormatAmount(p.AmountUSD),
+		"amount":     FormatAmountCanonical(amount),
+		"currency":   currency,
+		"notify_url": notify,
+	}
+	bodyObj := map[string]any{
+		"pid":        c.cfg.PID,
+		"order_id":   p.OrderID,
+		"amount":     amount,
 		"currency":   currency,
 		"notify_url": notify,
 	}
@@ -104,16 +115,19 @@ func (c *Client) CreateTransaction(p CreateParams) (CreateResult, error) {
 		return CreateResult{}, fmt.Errorf("epusdt token and network must both be set or both empty")
 	}
 	if token != "" {
-		payload["token"] = token
-		payload["network"] = network
+		signParams["token"] = token
+		signParams["network"] = network
+		bodyObj["token"] = token
+		bodyObj["network"] = network
 	}
 	redirect := strings.TrimSpace(firstNonEmpty(p.RedirectURL, c.cfg.RedirectURL))
 	if redirect != "" {
-		payload["redirect_url"] = redirect
+		signParams["redirect_url"] = redirect
+		bodyObj["redirect_url"] = redirect
 	}
-	payload["signature"] = Sign(c.cfg.APIToken, payload)
+	bodyObj["signature"] = Sign(c.cfg.APIToken, signParams)
 
-	body, err := json.Marshal(payload)
+	body, err := json.Marshal(bodyObj)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -137,12 +151,16 @@ func (c *Client) QueryTransaction(orderNo string) (CreateResult, error) {
 	if path == "" {
 		return CreateResult{}, fmt.Errorf("epusdt query path not configured")
 	}
-	payload := map[string]string{
+	signParams := map[string]string{
 		"pid":      c.cfg.PID,
 		"order_id": orderNo,
 	}
-	payload["signature"] = Sign(c.cfg.APIToken, payload)
-	body, err := json.Marshal(payload)
+	bodyObj := map[string]any{
+		"pid":       c.cfg.PID,
+		"order_id":  orderNo,
+		"signature": Sign(c.cfg.APIToken, signParams),
+	}
+	body, err := json.Marshal(bodyObj)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -241,4 +259,8 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func roundAmount2(amount float64) float64 {
+	return math.Round(amount*100) / 100
 }
