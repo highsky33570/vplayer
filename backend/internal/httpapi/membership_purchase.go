@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -130,6 +131,7 @@ func (a *API) CreateMembershipOrder(c *gin.Context) {
 		RedirectURL: redirect,
 	})
 	if err != nil {
+		log.Printf("membership order %s epusdt create failed (base=%s): %v", orderNo, a.Cfg.EpusdtBaseURL, err)
 		_ = a.Store.MarkMembershipOrderExpired(orderNo)
 		c.JSON(http.StatusBadGateway, gin.H{"ok": false, "message": "支付网关暂不可用，请稍后重试"})
 		return
