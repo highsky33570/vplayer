@@ -103,11 +103,20 @@ func FilterRecentCategories(cats []NavCategory) []NavCategory {
 	return out
 }
 
-// CrawlRecent discovers up to `limit` videos using page-1 listings only.
+// RecentListingURL builds MacCMS page-1 "sort by update time" listing for a type id.
+// Default /vod/type/ pages are often hit/hot ordered and keep returning the same
+// already-synced titles; /vod/show/.../by/time surfaces newly updated content.
+func RecentListingURL(baseURL, typeID string) string {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	id := strings.TrimSpace(typeID)
+	return fmt.Sprintf("%s/index.php/vod/show/id/%s/by/time.html", base, id)
+}
+
+// CrawlRecent discovers up to `limit` videos using page-1 time-sorted listings only.
 // It MUST NOT call Crawl() and never requests /page/2 or beyond.
 func (e *Engine) CrawlRecent(ctx context.Context, limit int) (RecentCrawlResult, error) {
 	var out RecentCrawlResult
-	out.OrderingNote = "best_effort_listing_order: page-1 cards interleaved across allowed categories; no reliable listing timestamp"
+	out.OrderingNote = "time_sorted_page1: interleaved /vod/show/id/{type}/by/time.html across allowed categories"
 	if err := ValidateRecentLimit(limit); err != nil {
 		return out, err
 	}
@@ -155,24 +164,33 @@ func (e *Engine) CrawlRecent(ctx context.Context, limit int) (RecentCrawlResult,
 		return out, fmt.Errorf("maccms recent: no allowed categories found in navigation")
 	}
 
-	// Page-1 listings only (RecentListingPagesPerCat == 1).
+	// Page-1 time-sorted listings only (RecentListingPagesPerCat == 1).
 	perCat := make([][]CatalogItem, len(cats))
 	for i, cat := range cats {
 		if err := ctx.Err(); err != nil {
 			return out, err
 		}
-		start := cat.URL
-		if start == "" {
-			start = fmt.Sprintf("%s/index.php/vod/type/id/%s.html", strings.TrimRight(e.BaseURL, "/"), cat.SourceID)
-		}
+		start := RecentListingURL(e.BaseURL, cat.SourceID)
 		// Refuse any URL that already points at page>=2.
 		if ExtractPageNumber(start) > 1 || strings.Contains(strings.ToLower(start), "/page/2") {
 			return out, fmt.Errorf("maccms recent: refusing non-page-1 listing URL %s", start)
 		}
 		body, ferr := fetch(start, "listing")
 		if ferr != nil {
-			e.Log.Warn("listing fetch failed", "category", cat.Name, "err", ferr)
-			continue
+			e.Log.Warn("time listing fetch failed; falling back to type URL", "category", cat.Name, "err", ferr)
+			fallback := cat.URL
+			if fallback == "" {
+				fallback = fmt.Sprintf("%s/index.php/vod/type/id/%s.html", strings.TrimRight(e.BaseURL, "/"), cat.SourceID)
+			}
+			if ExtractPageNumber(fallback) > 1 || strings.Contains(strings.ToLower(fallback), "/page/2") {
+				continue
+			}
+			body, ferr = fetch(fallback, "listing")
+			if ferr != nil {
+				e.Log.Warn("listing fetch failed", "category", cat.Name, "err", ferr)
+				continue
+			}
+			start = fallback
 		}
 		cards, _ := ParseCatalogPage(body, start, cat.SourceID)
 		// Defensive: never follow pagination — ignore NextURL entirely.

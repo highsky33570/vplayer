@@ -111,6 +111,14 @@ func buildRecentMock(t *testing.T) *mockFetcher {
 	m := &mockFetcher{byURL: map[string]string{
 		"/":           recentHomeHTML(),
 		"/index.html": recentHomeHTML(),
+		// Incremental discovery prefers MacCMS time-sorted show pages.
+		"/index.php/vod/show/id/1/by/time.html": listingHTML("101", "102", "dup"),
+		"/index.php/vod/show/id/2/by/time.html": listingHTML("201", "dup", "202"),
+		"/index.php/vod/show/id/3/by/time.html": listingHTML("301"),
+		"/index.php/vod/show/id/4/by/time.html": listingHTML("401"),
+		"/index.php/vod/show/id/5/by/time.html": listingHTML("501"),
+		"/index.php/vod/show/id/6/by/time.html": listingHTML("601"),
+		// Fallback type URLs (used only if time listing fails).
 		"/index.php/vod/type/id/1.html": listingHTML("101", "102", "dup"),
 		"/index.php/vod/type/id/2.html": listingHTML("201", "dup", "202"),
 		"/index.php/vod/type/id/3.html": listingHTML("301"),
@@ -222,14 +230,26 @@ func TestCrawlRecent_noPage2_andBounds(t *testing.T) {
 			}
 		}
 	}
-	if !strings.Contains(res.OrderingNote, "best_effort") {
+	if !strings.Contains(res.OrderingNote, "time_sorted_page1") {
 		t.Fatalf("ordering note: %s", res.OrderingNote)
+	}
+	if !mock.hasPathSubstring("/vod/show/id/1/by/time.html") {
+		t.Fatalf("expected time-sorted listing request: %v", mock.requested())
 	}
 	// Rejected categories must not be listed.
 	for _, u := range mock.requested() {
-		if strings.Contains(u, "/type/id/7.html") || strings.Contains(u, "/type/id/8.html") {
+		if strings.Contains(u, "/type/id/7.html") || strings.Contains(u, "/type/id/8.html") ||
+			strings.Contains(u, "/show/id/7/") || strings.Contains(u, "/show/id/8/") {
 			t.Fatalf("excluded category listed: %s", u)
 		}
+	}
+}
+
+func TestRecentListingURL(t *testing.T) {
+	got := maccms.RecentListingURL("https://www.olehdtv.com/", "2")
+	want := "https://www.olehdtv.com/index.php/vod/show/id/2/by/time.html"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
 	}
 }
 

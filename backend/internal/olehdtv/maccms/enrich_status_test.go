@@ -11,12 +11,12 @@ import (
 func TestEnrichEpisodesBounded_parseMissIsRetryable(t *testing.T) {
 	mock := &mockFetcher{byURL: map[string]string{
 		"/": recentHomeHTML(),
-		"/index.php/vod/type/id/1.html": listingHTML("9001"),
-		"/index.php/vod/type/id/2.html": listingHTML(),
-		"/index.php/vod/type/id/3.html": listingHTML(),
-		"/index.php/vod/type/id/4.html": listingHTML(),
-		"/index.php/vod/type/id/5.html": listingHTML(),
-		"/index.php/vod/type/id/6.html": listingHTML(),
+		"/index.php/vod/show/id/1/by/time.html": listingHTML("9001"),
+		"/index.php/vod/show/id/2/by/time.html": listingHTML(),
+		"/index.php/vod/show/id/3/by/time.html": listingHTML(),
+		"/index.php/vod/show/id/4/by/time.html": listingHTML(),
+		"/index.php/vod/show/id/5/by/time.html": listingHTML(),
+		"/index.php/vod/show/id/6/by/time.html": listingHTML(),
 		"/index.php/vod/detail/id/9001.html": `
 <html><body><div class="myui-content__detail"><h1 class="title">T</h1>
 <img data-original="https://static.olelive.com/upload/vod/9001.jpg"/>
@@ -47,12 +47,12 @@ func TestEnrichEpisodesBounded_parseMissIsRetryable(t *testing.T) {
 func TestEnrichEpisodesBounded_fetchFailPendingNotUnavailable(t *testing.T) {
 	mock := &mockFetcher{byURL: map[string]string{
 		"/":                                 recentHomeHTML(),
-		"/index.php/vod/type/id/1.html":     listingHTML("9002"),
-		"/index.php/vod/type/id/2.html":     listingHTML(),
-		"/index.php/vod/type/id/3.html":     listingHTML(),
-		"/index.php/vod/type/id/4.html":     listingHTML(),
-		"/index.php/vod/type/id/5.html":     listingHTML(),
-		"/index.php/vod/type/id/6.html":     listingHTML(),
+		"/index.php/vod/show/id/1/by/time.html": listingHTML("9002"),
+		"/index.php/vod/show/id/2/by/time.html": listingHTML(),
+		"/index.php/vod/show/id/3/by/time.html": listingHTML(),
+		"/index.php/vod/show/id/4/by/time.html": listingHTML(),
+		"/index.php/vod/show/id/5/by/time.html": listingHTML(),
+		"/index.php/vod/show/id/6/by/time.html": listingHTML(),
 		"/index.php/vod/detail/id/9002.html": detailHTML("9002", 1),
 		// play URL intentionally missing from mock → fetch error
 	}}
