@@ -100,7 +100,11 @@ type Config struct {
 	SMTPPassword             string
 	SMTPFromEmail            string
 	SMTPFromName             string
-	EmailCodePepper          string
+	// SMTPTLSServerName overrides TLS SNI/verify name (empty = SMTPHost).
+	SMTPTLSServerName string
+	// SMTPTLSInsecureSkipVerify allows self-hosted SMTP with a mismatched cert.
+	SMTPTLSInsecureSkipVerify bool
+	EmailCodePepper            string
 
 	AdminAPIToken string
 
@@ -184,14 +188,16 @@ func Load() Config {
 		MediaURLTTLSeconds:   clampMediaTTL(getenvInt("MEDIA_URL_TTL_SECONDS", 600)),
 		MediaPublicBase:      strings.TrimRight(getenv("MEDIA_PUBLIC_BASE", ""), "/"),
 
-		EmailVerificationEnabled: getenvBool("EMAIL_VERIFICATION_ENABLED", false),
-		SMTPHost:                 getenv("SMTP_HOST", ""),
-		SMTPPort:                 getenvInt("SMTP_PORT", 587),
-		SMTPUsername:             getenv("SMTP_USERNAME", ""),
-		SMTPPassword:             getenv("SMTP_PASSWORD", ""),
-		SMTPFromEmail:            getenv("SMTP_FROM_EMAIL", ""),
-		SMTPFromName:             getenv("SMTP_FROM_NAME", "天涯欧乐"),
-		EmailCodePepper:          getenv("EMAIL_CODE_PEPPER", ""),
+		EmailVerificationEnabled:   getenvBool("EMAIL_VERIFICATION_ENABLED", false),
+		SMTPHost:                   getenv("SMTP_HOST", ""),
+		SMTPPort:                   getenvInt("SMTP_PORT", 587),
+		SMTPUsername:               getenv("SMTP_USERNAME", ""),
+		SMTPPassword:               getenv("SMTP_PASSWORD", ""),
+		SMTPFromEmail:              getenv("SMTP_FROM_EMAIL", ""),
+		SMTPFromName:               getenv("SMTP_FROM_NAME", "天涯欧乐"),
+		SMTPTLSServerName:         getenv("SMTP_TLS_SERVER_NAME", ""),
+		SMTPTLSInsecureSkipVerify: getenvBool("SMTP_TLS_INSECURE_SKIP_VERIFY", false),
+		EmailCodePepper:            getenv("EMAIL_CODE_PEPPER", ""),
 
 		AdminAPIToken: getenv("ADMIN_API_TOKEN", "dev-admin-token"),
 

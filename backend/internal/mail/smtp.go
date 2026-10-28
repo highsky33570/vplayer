@@ -19,6 +19,12 @@ type SMTPConfig struct {
 	Password  string
 	FromEmail string
 	FromName  string
+	// TLSServerName overrides the name used for SNI / cert verification.
+	// Empty uses Host.
+	TLSServerName string
+	// TLSInsecureSkipVerify disables certificate verification (self-hosted
+	// mail with a mismatched cert). Prefer fixing the cert when possible.
+	TLSInsecureSkipVerify bool
 }
 
 // SMTPMailer sends mail via SMTP (STARTTLS on 587, implicit TLS on 465).
@@ -57,7 +63,15 @@ func (m *SMTPMailer) Send(ctx context.Context, msg Message) error {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 
 	dialer := &net.Dialer{Timeout: m.timeout()}
-	tlsCfg := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
+	serverName := strings.TrimSpace(m.Cfg.TLSServerName)
+	if serverName == "" {
+		serverName = host
+	}
+	tlsCfg := &tls.Config{
+		ServerName:         serverName,
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: m.Cfg.TLSInsecureSkipVerify, //nolint:gosec // optional for broken self-hosted SMTP certs
+	}
 	var (
 		conn net.Conn
 		err  error

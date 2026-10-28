@@ -93,12 +93,14 @@ func New(cfg config.Config) (*Server, error) {
 	// register/start and register/resend return a controlled 503 until configured.
 	if cfg.RegistrationMailConfigured() {
 		api.Mailer = &mail.SMTPMailer{Cfg: mail.SMTPConfig{
-			Host:      cfg.SMTPHost,
-			Port:      cfg.SMTPPort,
-			Username:  cfg.SMTPUsername,
-			Password:  cfg.SMTPPassword,
-			FromEmail: cfg.SMTPFromEmail,
-			FromName:  cfg.SMTPFromName,
+			Host:                  cfg.SMTPHost,
+			Port:                  cfg.SMTPPort,
+			Username:              cfg.SMTPUsername,
+			Password:              cfg.SMTPPassword,
+			FromEmail:             cfg.SMTPFromEmail,
+			FromName:              cfg.SMTPFromName,
+			TLSServerName:         cfg.SMTPTLSServerName,
+			TLSInsecureSkipVerify: cfg.SMTPTLSInsecureSkipVerify,
 		}}
 	} else if cfg.AppEnv != "local" {
 		slog.Warn("registration email verification mailer not configured; register/start will return unavailable until SMTP_* and EMAIL_CODE_PEPPER are set")
