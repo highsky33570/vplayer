@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { membershipModalActiveCopy } from '../account/accountLogic';
+import { membershipModalActiveCopy, membershipPurchaseLocked } from '../account/accountLogic';
 import { createMembershipOrder, listMembershipPlans, type MembershipPlan } from '../api';
 import { useAuth } from '../auth/AuthContext';
 
@@ -76,12 +76,17 @@ export function VipPurchaseModal({ open, onClose }: Props) {
   if (!open || typeof document === 'undefined') return null;
 
   const isMember = Boolean(user?.is_member || user?.is_admin);
+  const purchaseLocked = membershipPurchaseLocked(user);
   const activeCopy = membershipModalActiveCopy(user);
   const selectedPlan = plans.find((p) => p.slug === selected) ?? null;
 
   const onPay = async () => {
     setError('');
     if (!ready) return;
+    if (purchaseLocked) {
+      setError('大会员仍在有效期内，到期后再购买');
+      return;
+    }
     if (!user || !token) {
       onClose();
       openLogin('login');
@@ -154,8 +159,12 @@ export function VipPurchaseModal({ open, onClose }: Props) {
                   type="button"
                   role="radio"
                   aria-checked={active}
-                  className={`vip-modal-plan${active ? ' is-selected' : ''}`}
-                  onClick={() => setSelected(plan.slug)}
+                  aria-disabled={purchaseLocked}
+                  disabled={purchaseLocked}
+                  className={`vip-modal-plan${active ? ' is-selected' : ''}${purchaseLocked ? ' is-disabled' : ''}`}
+                  onClick={() => {
+                    if (!purchaseLocked) setSelected(plan.slug);
+                  }}
                 >
                   <span className="vip-modal-plan-top">
                     <span className="vip-modal-plan-name">{plan.name}</span>
@@ -187,12 +196,22 @@ export function VipPurchaseModal({ open, onClose }: Props) {
           <button
             type="button"
             className="vip-modal-pay"
-            disabled={busy || loading || !selected}
+            disabled={busy || loading || !selected || purchaseLocked}
             onClick={() => void onPay()}
           >
-            {busy ? '正在跳转支付…' : user ? '去支付（USDT）' : '登录后开通'}
+            {busy
+              ? '正在跳转支付…'
+              : purchaseLocked
+                ? '有效期内无需购买'
+                : user
+                  ? '去支付（USDT）'
+                  : '登录后开通'}
           </button>
-          <p className="vip-modal-note">支付页将显示收款二维码与地址，确认后返回本站自动开通。</p>
+          <p className="vip-modal-note">
+            {purchaseLocked
+              ? '到期后可再次选择套餐开通。'
+              : '支付页将显示收款二维码与地址，确认后返回本站自动开通。'}
+          </p>
         </footer>
       </div>
     </div>,

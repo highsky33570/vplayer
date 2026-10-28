@@ -5136,8 +5136,15 @@ html.dark .login-reminder-cta {
   transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
 }
 
-.vip-modal-plan:hover {
+.vip-modal-plan:hover:not(:disabled):not(.is-disabled) {
   background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+
+.vip-modal-plan:disabled,
+.vip-modal-plan.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .vip-modal-plan.is-selected {

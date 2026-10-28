@@ -201,7 +201,11 @@ export function VipPage() {
                 </div>
               </dl>
               <button type="button" className="vip-cta" onClick={openPurchase}>
-                {isMember ? '续费大会员' : '开通大会员'}
+                {user?.membership_days_remaining
+                  ? '查看大会员'
+                  : isMember
+                    ? '续费大会员'
+                    : '开通大会员'}
               </button>
             </>
           )}

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { membershipBadgeLabel, membershipModalActiveCopy } from './accountLogic.ts';
+import {
+  membershipBadgeLabel,
+  membershipModalActiveCopy,
+  membershipPurchaseLocked,
+} from './accountLogic.ts';
 
 describe('membershipBadgeLabel', () => {
   it('prefers paid expiry copy over admin lifetime when expires_at is set', () => {
@@ -21,15 +25,28 @@ describe('membershipBadgeLabel', () => {
   });
 });
 
+describe('membershipPurchaseLocked', () => {
+  it('locks while days remain', () => {
+    assert.equal(
+      membershipPurchaseLocked({
+        membership_days_remaining: 10,
+        membership_expires_at: '2027-10-28T00:00:00Z',
+      }),
+      true,
+    );
+    assert.equal(membershipPurchaseLocked({ membership_days_remaining: 0 }), false);
+  });
+});
+
 describe('membershipModalActiveCopy', () => {
-  it('shows remaining days for a paid member (including admin with expiry)', () => {
+  it('shows remaining days and no-repurchase copy for a paid member', () => {
     const copy = membershipModalActiveCopy({
       is_admin: true,
       membership_days_remaining: 360,
       membership_expires_at: '2027-10-28T00:00:00Z',
     });
     assert.match(copy ?? '', /剩余 360 天/);
-    assert.match(copy ?? '', /续费/);
+    assert.match(copy ?? '', /无需重复购买/);
   });
 
   it('shows admin copy only when there is no paid clock', () => {

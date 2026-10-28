@@ -38,6 +38,19 @@ export function membershipBadgeLabel(user: {
   return { badge: '大会员', detail: '已开通' };
 }
 
+/** True when paid membership still has remaining days — purchase UI should lock. */
+export function membershipPurchaseLocked(user: {
+  membership_days_remaining?: number;
+  membership_expires_at?: string;
+} | null | undefined): boolean {
+  if (!user) return false;
+  const days = user.membership_days_remaining ?? 0;
+  if (days > 0) return true;
+  if (!user.membership_expires_at) return false;
+  const until = Date.parse(user.membership_expires_at);
+  return Number.isFinite(until) && until > Date.now();
+}
+
 /** Status line inside the VIP purchase modal for an already-active member. */
 export function membershipModalActiveCopy(user: {
   is_admin?: boolean;
@@ -46,10 +59,10 @@ export function membershipModalActiveCopy(user: {
 } | null | undefined): string | null {
   if (!user) return null;
   const days = user.membership_days_remaining ?? 0;
-  if (user.membership_expires_at || days > 0) {
+  if (membershipPurchaseLocked(user)) {
     return days > 0
-      ? `你已是大会员，剩余 ${days} 天。续费将从现有到期日叠加。`
-      : '你已是大会员。续费将延长有效期。';
+      ? `你已是大会员，剩余 ${days} 天。有效期内无需重复购买。`
+      : '你已是大会员，有效期内无需重复购买。';
   }
   if (user.is_admin) {
     return '当前为管理员，已具备大会员权限。';
