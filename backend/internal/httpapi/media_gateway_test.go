@@ -208,6 +208,54 @@ func TestPlayReturnsSignedURLForAnonymousPlayback(t *testing.T) {
 	}
 }
 
+func TestProtectPlaybackVIPAllowsExternalSourceURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	api := &API{Cfg: config.Config{
+		MediaSigningEnabled: true,
+		MediaSigningSecret:  gatewaySecret,
+		MediaURLTTLSeconds:  600,
+		MediaPublicBase:     "https://play.example",
+		MediaCDNBaseURL:     "https://cdn.example",
+		CDNBaseURL:          "https://cdn.example",
+		R2Bucket:            "dongman",
+		MediaCDNPathMode:    media.CDNPathModeBucketPrefix,
+	}}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/videos/1/play", nil)
+	info := &model.PlaybackInfo{URL: "https://oleh.example/vip/brain.m3u8", Type: "hls"}
+	if !api.protectPlaybackURLForUser(c, info, 42, true) {
+		t.Fatalf("expected VIP external URL to pass through, got %d %s", w.Code, w.Body.String())
+	}
+	if info.URL != "https://oleh.example/vip/brain.m3u8" {
+		t.Fatalf("url rewritten unexpectedly: %s", info.URL)
+	}
+}
+
+func TestProtectPlaybackVIPSignsOurCDNURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	api := &API{Cfg: config.Config{
+		MediaSigningEnabled: true,
+		MediaSigningSecret:  gatewaySecret,
+		MediaURLTTLSeconds:  600,
+		MediaPublicBase:     "https://play.example",
+		MediaCDNBaseURL:     "https://cdn.example",
+		CDNBaseURL:          "https://cdn.example",
+		R2Bucket:            "dongman",
+		MediaCDNPathMode:    media.CDNPathModeBucketPrefix,
+	}}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/videos/1/play", nil)
+	info := &model.PlaybackInfo{URL: "https://cdn.example/dongman/videos/9/8/index.m3u8", Type: "hls"}
+	if !api.protectPlaybackURLForUser(c, info, 42, true) {
+		t.Fatalf("expected VIP CDN URL to sign, got %d %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(info.URL, "https://play.example/api/v1/media/") || !strings.Contains(info.URL, "uid=42") {
+		t.Fatalf("expected uid-bound signed media URL, got %s", info.URL)
+	}
+}
+
 type parsedSig struct {
 	exp int64
 	sig string

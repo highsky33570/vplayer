@@ -132,28 +132,28 @@ func (a *API) protectPlaybackURL(c *gin.Context, info *model.PlaybackInfo) bool 
 }
 
 // protectPlaybackURLForUser rewrites CDN URLs to signed media URLs.
-// When bindUser is true (VIP titles), the signature includes uid and media
-// requests must present a matching Bearer token — copied stream links fail elsewhere.
+// When forceVIP is true and the URL is on our media CDN, the signature includes
+// uid so media requests must present a matching Bearer token.
+// External source URLs (OLEHDTV etc.) are passed through after the membership
+// gate — they are not on our CDN and cannot be user-bound via mediasign.
 func (a *API) protectPlaybackURLForUser(c *gin.Context, info *model.PlaybackInfo, uid uint64, forceVIP bool) bool {
 	if info == nil {
-		return true
-	}
-	secret, ttl, allowed := a.mediaSignSecret(uid, forceVIP)
-	if !allowed {
-		if forceVIP {
-			c.JSON(http.StatusBadGateway, gin.H{"ok": false, "message": "media unavailable"})
-			return false
-		}
 		return true
 	}
 	cdn := media.OptionsFromEnv(a.Cfg.MediaCDNBaseURL, a.Cfg.CDNBaseURL, a.Cfg.R2Bucket, a.Cfg.MediaCDNPathMode)
 	key, err := mediasign.ObjectKeyFromCDNURL(info.URL, cdn)
 	if err != nil {
-		if forceVIP {
+		// Our CDN host but unparseable path → broken delivery.
+		if sameHost(info.URL, cdn.BaseURL) {
 			c.JSON(http.StatusBadGateway, gin.H{"ok": false, "message": "media unavailable"})
 			return false
 		}
-		if sameHost(info.URL, cdn.BaseURL) {
+		// Off-CDN / source URL: membership already checked for VIP titles.
+		return true
+	}
+	secret, ttl, allowed := a.mediaSignSecret(uid, forceVIP)
+	if !allowed {
+		if forceVIP {
 			c.JSON(http.StatusBadGateway, gin.H{"ok": false, "message": "media unavailable"})
 			return false
 		}
