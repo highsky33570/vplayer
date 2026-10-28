@@ -42,6 +42,7 @@ export function AdminVideoDetail() {
   const [isActive, setIsActive] = useState(true);
   const [status, setStatus] = useState('ready');
   const [membershipRequired, setMembershipRequired] = useState(false);
+  const [isHot, setIsHot] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +83,7 @@ export function AdminVideoDetail() {
         setIsActive(Boolean(next.is_active));
         setStatus(next.status || 'ready');
         setMembershipRequired(Boolean(next.membership_required));
+        setIsHot(Boolean(next.is_hot));
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError) {
@@ -127,6 +129,7 @@ export function AdminVideoDetail() {
         status,
         cover_url: coverURL.trim(),
         membership_required: membershipRequired,
+        is_hot: isHot,
       });
       setData(updated);
       setCoverURL(updated.cover_url ?? coverURL);
@@ -246,6 +249,17 @@ export function AdminVideoDetail() {
                   className="admin-input"
                   value={membershipRequired ? '1' : '0'}
                   onChange={(e) => setMembershipRequired(e.target.value === '1')}
+                >
+                  <option value="0">否</option>
+                  <option value="1">是</option>
+                </select>
+              </label>
+              <label className="admin-filter-field">
+                <span>热门推荐</span>
+                <select
+                  className="admin-input"
+                  value={isHot ? '1' : '0'}
+                  onChange={(e) => setIsHot(e.target.value === '1')}
                 >
                   <option value="0">否</option>
                   <option value="1">是</option>

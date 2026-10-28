@@ -46,7 +46,7 @@ export function VideoCard({ video, compact, categoryName }: Props) {
         durationSec={video.duration_sec}
         className="thumb"
       >
-        <span className="thumb-hot">热门推荐</span>
+        {video.is_hot ? <span className="thumb-hot">热门推荐</span> : null}
         {showViews || showDuration ? (
           <div className="thumb-stats">
             {showViews ? (

@@ -2,8 +2,38 @@ package store
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
+
+// SetVideosIsHot sets is_hot (热门推荐) for many videos in one statement.
+// Empty ids is a no-op. Returns the number of rows matched by the UPDATE.
+func (m *MySQL) SetVideosIsHot(ids []uint64, isHot bool) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, 0, len(ids))
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, boolToInt(isHot))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		placeholders = append(placeholders, "?")
+		args = append(args, id)
+	}
+	if len(placeholders) == 0 {
+		return 0, nil
+	}
+	res, err := m.DB.Exec(
+		`UPDATE videos SET is_hot=? WHERE id IN (`+strings.Join(placeholders, ",")+`)`,
+		args...,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
 
 // SetVideoMembershipRequired toggles the admin membership gate on a video.
 // When enabling, categoryID>0 moves the title into the membership box category.

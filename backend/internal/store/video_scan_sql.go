@@ -8,4 +8,4 @@ const videoScanSelect = `
 		COALESCE(actors,''), COALESCE(rating,0), cover_key, COALESCE(cover_r2_key,''), COALESCE(poster_source_url,''),
 		duration_sec, view_count, hls_master_key, COALESCE(playback_source,''), COALESCE(play_sid,1), COALESCE(play_nid,1),
 		COALESCE(playback_url,''), source_updated_at, last_synced_at, COALESCE(sync_status,'ok'),
-		COALESCE(is_active,1), status, COALESCE(membership_required,0), created_at`
+		COALESCE(is_active,1), status, COALESCE(membership_required,0), COALESCE(is_hot,0), created_at`

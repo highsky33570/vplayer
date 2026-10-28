@@ -10,8 +10,8 @@ import (
 const adminVideoSelect = `SELECT ` + videoScanSelect + ` FROM videos`
 
 // ListAdminVideosFiltered lists videos for admin regardless of status.
-// active=nil means all; true/false filters is_active. limit is clamped to 1..100.
-func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active *bool, limit, offset int) ([]model.Video, error) {
+// active/isHot=nil means all; true/false filters the column. limit is clamped to 1..100.
+func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool, limit, offset int) ([]model.Video, error) {
 	if limit <= 0 {
 		limit = 24
 	}
@@ -30,6 +30,10 @@ func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active 
 	if active != nil {
 		q += ` AND COALESCE(is_active,1)=?`
 		args = append(args, boolToInt(*active))
+	}
+	if isHot != nil {
+		q += ` AND COALESCE(is_hot,0)=?`
+		args = append(args, boolToInt(*isHot))
 	}
 	if query = strings.TrimSpace(query); query != "" {
 		like := "%" + query + "%"
@@ -56,7 +60,7 @@ func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active 
 }
 
 // CountAdminVideosFiltered counts videos matching the same filters as ListAdminVideosFiltered.
-func (m *MySQL) CountAdminVideosFiltered(categoryID uint64, query string, active *bool) (int, error) {
+func (m *MySQL) CountAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool) (int, error) {
 	q := `SELECT COUNT(*) FROM videos WHERE 1=1`
 	args := []any{}
 	if categoryID > 0 {
@@ -66,6 +70,10 @@ func (m *MySQL) CountAdminVideosFiltered(categoryID uint64, query string, active
 	if active != nil {
 		q += ` AND COALESCE(is_active,1)=?`
 		args = append(args, boolToInt(*active))
+	}
+	if isHot != nil {
+		q += ` AND COALESCE(is_hot,0)=?`
+		args = append(args, boolToInt(*isHot))
 	}
 	if query = strings.TrimSpace(query); query != "" {
 		like := "%" + query + "%"
@@ -91,6 +99,7 @@ type AdminVideoUpdate struct {
 	Status             *string
 	PosterSourceURL    *string
 	MembershipRequired *bool
+	IsHot              *bool
 }
 
 // AdminUpdateVideoFields updates only the editable catalog columns present in u.
@@ -139,6 +148,9 @@ func (m *MySQL) AdminUpdateVideoFields(id uint64, u AdminVideoUpdate) (bool, err
 	}
 	if u.MembershipRequired != nil {
 		add("membership_required", boolToInt(*u.MembershipRequired))
+	}
+	if u.IsHot != nil {
+		add("is_hot", boolToInt(*u.IsHot))
 	}
 	if len(sets) == 0 {
 		var n int

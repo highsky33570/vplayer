@@ -24,6 +24,7 @@ type adminUpdateVideoReq struct {
 	PosterSourceURL    *string `json:"poster_source_url"`
 	CoverURL           *string `json:"cover_url"`
 	MembershipRequired *bool   `json:"membership_required"`
+	IsHot              *bool   `json:"is_hot"`
 }
 
 var adminVideoStatuses = map[string]bool{"draft": true, "ready": true, "disabled": true, "demo": true}
@@ -71,6 +72,7 @@ func (a *API) AdminUpdateVideo(c *gin.Context) {
 		Actors:             req.Actors,
 		IsActive:           req.IsActive,
 		MembershipRequired: req.MembershipRequired,
+		IsHot:              req.IsHot,
 	}
 	if req.Title != nil {
 		title := strings.TrimSpace(*req.Title)

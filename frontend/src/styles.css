@@ -8853,21 +8853,30 @@ html.dark .login-reminder-cta,
   border-radius: 8px;
 }
 
+/* Cream corner tab — flush to top-right of cover (desktop + mobile). */
 .thumb-hot {
   display: inline-flex;
   align-items: center;
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 0;
+  right: 0;
+  left: auto;
+  bottom: auto;
   z-index: 3;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
+  height: 22px;
+  padding: 0 9px 0 11px;
+  border: 0;
+  /* Left end fully rounded; top-right clipped by .thumb radius */
+  border-radius: 999px 0 0 999px;
+  background: #fdefc3;
+  color: #2c2416;
   font-size: 11px;
-  font-weight: 500;
-  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 22px;
+  white-space: nowrap;
+  box-shadow: none;
+  text-shadow: none;
   pointer-events: none;
 }
 
@@ -8887,34 +8896,6 @@ html.dark .login-reminder-cta,
 }
 
 @media (max-width: 767px) {
-  /* Cream corner tab — flush to top-right of cover (matches reference badge). */
-  .thumb {
-    overflow: hidden;
-    border-radius: 8px;
-  }
-
-  .thumb-hot {
-    top: 0;
-    right: 0;
-    left: auto;
-    bottom: auto;
-    z-index: 3;
-    height: 22px;
-    padding: 0 9px 0 11px;
-    border: 0;
-    /* Left end fully rounded; top-right clipped by .thumb radius */
-    border-radius: 999px 0 0 999px;
-    background: #fdefc3;
-    color: #2c2416;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    line-height: 22px;
-    white-space: nowrap;
-    box-shadow: none;
-    text-shadow: none;
-  }
-
   .mobile-corner-dock {
     position: fixed;
     right: 10px;

@@ -53,7 +53,9 @@ type Video struct {
 	Status           string     `json:"status"` // draft|ready|disabled|demo
 	// MembershipRequired gates playback to site members (users.is_member). Catalog cards stay visible.
 	MembershipRequired bool `json:"membership_required"`
-	CreatedAt          time.Time `json:"created_at"`
+	// IsHot marks a title for the 热门推荐 cover badge (admin-controlled).
+	IsHot     bool      `json:"is_hot"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Episode struct {

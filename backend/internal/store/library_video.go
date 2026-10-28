@@ -16,7 +16,7 @@ const libraryVideoColumns = `
 		COALESCE(v.actors,''), COALESCE(v.rating,0), v.cover_key, COALESCE(v.cover_r2_key,''), COALESCE(v.poster_source_url,''),
 		v.duration_sec, v.view_count, v.hls_master_key, COALESCE(v.playback_source,''), COALESCE(v.play_sid,1), COALESCE(v.play_nid,1),
 		COALESCE(v.playback_url,''), v.source_updated_at, v.last_synced_at, COALESCE(v.sync_status,'ok'),
-		COALESCE(v.is_active,1), v.status, COALESCE(v.membership_required,0), v.created_at`
+		COALESCE(v.is_active,1), v.status, COALESCE(v.membership_required,0), COALESCE(v.is_hot,0), v.created_at`
 
 // libraryVideoVisible limits library lists to videos the public site can show
 // (ready/active and playable, same gate as AppendReadyVideosWhere).

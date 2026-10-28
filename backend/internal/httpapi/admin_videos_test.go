@@ -19,8 +19,8 @@ type memAdminVideos struct {
 	videos []model.Video
 }
 
-func (m *memAdminVideos) ListAdminVideosFiltered(categoryID uint64, query string, active *bool, limit, offset int) ([]model.Video, error) {
-	filtered := m.filter(categoryID, query, active)
+func (m *memAdminVideos) ListAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool, limit, offset int) ([]model.Video, error) {
+	filtered := m.filter(categoryID, query, active, isHot)
 	if offset > len(filtered) {
 		return nil, nil
 	}
@@ -33,8 +33,8 @@ func (m *memAdminVideos) ListAdminVideosFiltered(categoryID uint64, query string
 	return out, nil
 }
 
-func (m *memAdminVideos) CountAdminVideosFiltered(categoryID uint64, query string, active *bool) (int, error) {
-	return len(m.filter(categoryID, query, active)), nil
+func (m *memAdminVideos) CountAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool) (int, error) {
+	return len(m.filter(categoryID, query, active, isHot)), nil
 }
 
 func (m *memAdminVideos) GetVideo(id uint64) (*model.Video, error) {
@@ -47,7 +47,7 @@ func (m *memAdminVideos) GetVideo(id uint64) (*model.Video, error) {
 	return nil, nil
 }
 
-func (m *memAdminVideos) filter(categoryID uint64, query string, active *bool) []model.Video {
+func (m *memAdminVideos) filter(categoryID uint64, query string, active, isHot *bool) []model.Video {
 	q := strings.ToLower(strings.TrimSpace(query))
 	var out []model.Video
 	for _, v := range m.videos {
@@ -55,6 +55,9 @@ func (m *memAdminVideos) filter(categoryID uint64, query string, active *bool) [
 			continue
 		}
 		if active != nil && v.IsActive != *active {
+			continue
+		}
+		if isHot != nil && v.IsHot != *isHot {
 			continue
 		}
 		if q != "" && !strings.Contains(strings.ToLower(v.Title), q) {

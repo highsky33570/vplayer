@@ -12,8 +12,8 @@ import (
 
 // adminVideoRepo is the store surface used by admin video read APIs.
 type adminVideoRepo interface {
-	ListAdminVideosFiltered(categoryID uint64, query string, active *bool, limit, offset int) ([]model.Video, error)
-	CountAdminVideosFiltered(categoryID uint64, query string, active *bool) (int, error)
+	ListAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool, limit, offset int) ([]model.Video, error)
+	CountAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool) (int, error)
 	GetVideo(id uint64) (*model.Video, error)
 }
 
@@ -35,6 +35,7 @@ type AdminVideoListItem struct {
 	Status             string     `json:"status"`
 	IsActive           bool       `json:"is_active"`
 	MembershipRequired bool       `json:"membership_required"`
+	IsHot              bool       `json:"is_hot"`
 	SourceSystem       string     `json:"source_system"`
 	SourceID           string     `json:"source_id"`
 	Year               string     `json:"year"`
@@ -68,6 +69,7 @@ func adminVideoListItemFrom(v model.Video) AdminVideoListItem {
 		Status:             v.Status,
 		IsActive:           v.IsActive,
 		MembershipRequired: v.MembershipRequired,
+		IsHot:              v.IsHot,
 		SourceSystem:       v.SourceSystem,
 		SourceID:           v.SourceID,
 		Year:               v.Year,
@@ -101,6 +103,7 @@ type adminVideoListQuery struct {
 	Query      string
 	CategoryID uint64
 	Active     *bool
+	IsHot      *bool
 }
 
 func parseAdminVideoListQuery(c *gin.Context) (adminVideoListQuery, string, bool) {
@@ -148,6 +151,19 @@ func parseAdminVideoListQuery(c *gin.Context) (adminVideoListQuery, string, bool
 		}
 	}
 
+	if raw := strings.TrimSpace(c.Query("is_hot")); raw != "" {
+		switch raw {
+		case "1", "true", "True":
+			v := true
+			out.IsHot = &v
+		case "0", "false", "False":
+			v := false
+			out.IsHot = &v
+		default:
+			return out, "invalid is_hot", false
+		}
+	}
+
 	out.Query = strings.TrimSpace(c.Query("q"))
 	return out, "", true
 }
@@ -167,12 +183,12 @@ func (a *API) AdminListVideos(c *gin.Context) {
 		})
 		return
 	}
-	total, err := repo.CountAdminVideosFiltered(q.CategoryID, q.Query, q.Active)
+	total, err := repo.CountAdminVideosFiltered(q.CategoryID, q.Query, q.Active, q.IsHot)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "无法加载视频列表"})
 		return
 	}
-	rows, err := repo.ListAdminVideosFiltered(q.CategoryID, q.Query, q.Active, q.Limit, q.Offset)
+	rows, err := repo.ListAdminVideosFiltered(q.CategoryID, q.Query, q.Active, q.IsHot, q.Limit, q.Offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "无法加载视频列表"})
 		return

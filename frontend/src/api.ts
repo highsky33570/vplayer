@@ -75,6 +75,7 @@ export type AdminVideoListItem = {
   status: string;
   is_active: boolean;
   membership_required: boolean;
+  is_hot: boolean;
   source_system: string;
   source_id: string;
   year: string;
@@ -145,6 +146,8 @@ export type Video = {
   play_nid?: number;
   /** When true, playback requires site membership (is_member / admin). */
   membership_required?: boolean;
+  /** When true, show the 热门推荐 cover badge. */
+  is_hot?: boolean;
 };
 
 export type PlaybackInfo = {
@@ -1034,6 +1037,7 @@ export type AdminUpdateVideoInput = {
   status?: string;
   cover_url?: string;
   membership_required?: boolean;
+  is_hot?: boolean;
 };
 
 export type AdminUpdateUserInput = {
@@ -1136,6 +1140,7 @@ export async function fetchAdminVideos(
     q?: string;
     categoryId?: number;
     isActive?: 'all' | '1' | '0';
+    isHot?: 'all' | '1' | '0';
   },
 ): Promise<AdminVideoPage> {
   const limit = opts?.limit ?? 24;
@@ -1151,6 +1156,9 @@ export async function fetchAdminVideos(
   }
   if (opts?.isActive === '1' || opts?.isActive === '0') {
     params.set('is_active', opts.isActive);
+  }
+  if (opts?.isHot === '1' || opts?.isHot === '0') {
+    params.set('is_hot', opts.isHot);
   }
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -1363,6 +1371,33 @@ export async function createAdminVideo(
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return json.data;
+}
+
+export async function batchSetAdminVideoHot(
+  token: string | null | undefined,
+  ids: number[],
+  isHot: boolean,
+): Promise<{ updated: number; is_hot: boolean; ids: number[] }> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/videos/hot`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ ids, is_hot: isHot }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: { updated?: number; is_hot?: boolean; ids?: number[] };
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    updated: Number(json.data.updated ?? 0),
+    is_hot: Boolean(json.data.is_hot),
+    ids: Array.isArray(json.data.ids) ? json.data.ids.map(Number) : ids,
+  };
 }
 
 export async function setAdminVideoMembership(

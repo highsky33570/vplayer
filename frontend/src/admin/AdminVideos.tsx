@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError,
+  batchSetAdminVideoHot,
   createAdminVideo,
   fetchAdminCategories,
   fetchAdminVideos,
   setAdminVideoMembership,
+  updateAdminVideo,
   type AdminCategory,
   type AdminVideoListItem,
 } from '../api';
@@ -15,6 +17,7 @@ import {
   buildAdminVideosSearch,
   parseAdminVideosSearch,
   type AdminVideosActiveFilter,
+  type AdminVideosHotFilter,
 } from './adminVideosQuery';
 import { activeLabel, syncStatusLabel, videoStatusLabel } from './adminLabels';
 
@@ -48,11 +51,18 @@ export function AdminVideos() {
   const [createOK, setCreateOK] = useState<string | null>(null);
   const [listTick, setListTick] = useState(0);
   const [membershipBusyId, setMembershipBusyId] = useState<number | null>(null);
+  const [hotBusyId, setHotBusyId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+  const [batchHotBusy, setBatchHotBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     setQInput(parsed.q);
   }, [parsed.q]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [parsed.page, parsed.q, parsed.categoryId, parsed.isActive, parsed.isHot, listTick]);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,10 +93,12 @@ export function AdminVideos() {
           q: parsed.q,
           categoryId: parsed.categoryId || undefined,
           isActive: parsed.isActive,
+          isHot: parsed.isHot,
         });
         if (!cancelled) {
           setRows(page.data);
           setTotal(page.total);
+          setSelectedIds(new Set());
         }
       } catch (e) {
         if (cancelled) return;
@@ -161,6 +173,7 @@ export function AdminVideos() {
     q?: string;
     categoryId?: number;
     isActive?: AdminVideosActiveFilter;
+    isHot?: AdminVideosHotFilter;
     page?: number;
   }) {
     const categoryId = Object.prototype.hasOwnProperty.call(next, 'categoryId')
@@ -169,10 +182,14 @@ export function AdminVideos() {
     const isActive = Object.prototype.hasOwnProperty.call(next, 'isActive')
       ? (next.isActive as AdminVideosActiveFilter)
       : parsed.isActive;
+    const isHot = Object.prototype.hasOwnProperty.call(next, 'isHot')
+      ? (next.isHot as AdminVideosHotFilter)
+      : parsed.isHot;
     const qs = buildAdminVideosSearch({
       q: next.q ?? parsed.q,
       categoryId,
       isActive,
+      isHot,
       page: next.page ?? 1,
     });
     setParams(qs ? new URLSearchParams(qs.slice(1)) : new URLSearchParams(), { replace: false });
@@ -215,6 +232,91 @@ export function AdminVideos() {
       }
     } finally {
       setMembershipBusyId(null);
+    }
+  }
+
+  async function onToggleHot(row: AdminVideoListItem, next: boolean) {
+    setHotBusyId(row.id);
+    setError(null);
+    try {
+      const updated = await updateAdminVideo(token, row.id, { is_hot: next });
+      setRows((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, is_hot: updated.is_hot } : r)),
+      );
+      const msg = next ? '已设为热门推荐' : '已取消热门推荐';
+      setToast(msg);
+      window.setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 1000);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          logout();
+          navigate(loginWithNext('/admin/videos'), { replace: true });
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : '更新失败');
+      }
+    } finally {
+      setHotBusyId(null);
+    }
+  }
+
+  const pageIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const selectedCount = selectedIds.size;
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = pageIds.some((id) => selectedIds.has(id));
+
+  function toggleSelectOne(id: number, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllPage(checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        for (const id of pageIds) next.add(id);
+      } else {
+        for (const id of pageIds) next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  async function onBatchHot(next: boolean) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBatchHotBusy(true);
+    setError(null);
+    try {
+      await batchSetAdminVideoHot(token, ids, next);
+      setRows((prev) =>
+        prev.map((r) => (selectedIds.has(r.id) ? { ...r, is_hot: next } : r)),
+      );
+      setSelectedIds(new Set());
+      const msg = next
+        ? `已将 ${ids.length} 部设为热门推荐`
+        : `已取消 ${ids.length} 部热门推荐`;
+      setToast(msg);
+      window.setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 1600);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          logout();
+          navigate(loginWithNext('/admin/videos'), { replace: true });
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : '批量更新失败');
+      }
+    } finally {
+      setBatchHotBusy(false);
     }
   }
 
@@ -339,6 +441,22 @@ export function AdminVideos() {
             <option value="0">停用</option>
           </select>
         </label>
+        <label className="admin-filter-field">
+          <span>热门推荐</span>
+          <select
+            value={parsed.isHot}
+            onChange={(e) =>
+              applyFilters({
+                isHot: e.target.value as AdminVideosHotFilter,
+                page: 1,
+              })
+            }
+          >
+            <option value="all">全部</option>
+            <option value="1">是</option>
+            <option value="0">否</option>
+          </select>
+        </label>
         <button type="submit" className="admin-btn-primary">
           搜索
         </button>
@@ -361,10 +479,52 @@ export function AdminVideos() {
 
       {!loading && !forbidden && !error && rows.length > 0 ? (
         <>
+          <div className="admin-batch-bar" role="region" aria-label="本页批量操作">
+            <label className="admin-filter-check">
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = somePageSelected && !allPageSelected;
+                }}
+                onChange={(e) => toggleSelectAllPage(e.target.checked)}
+              />
+              <span>全选本页（{rows.length}）</span>
+            </label>
+            <span className="admin-muted">已选 {selectedCount} 部</span>
+            <div className="admin-pager-actions">
+              <button
+                type="button"
+                className="admin-btn-primary"
+                disabled={selectedCount === 0 || batchHotBusy}
+                onClick={() => void onBatchHot(true)}
+              >
+                {batchHotBusy ? '处理中…' : '设为热门推荐'}
+              </button>
+              <button
+                type="button"
+                className="admin-btn-ghost"
+                disabled={selectedCount === 0 || batchHotBusy}
+                onClick={() => void onBatchHot(false)}
+              >
+                取消热门推荐
+              </button>
+              <button
+                type="button"
+                className="admin-btn-ghost"
+                disabled={selectedCount === 0 || batchHotBusy}
+                onClick={() => setSelectedIds(new Set())}
+              >
+                清空选择
+              </button>
+            </div>
+          </div>
+
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
+                  <th aria-label="选择" />
                   <th>ID</th>
                   <th>封面</th>
                   <th>标题</th>
@@ -373,13 +533,22 @@ export function AdminVideos() {
                   <th>状态</th>
                   <th>启用状态</th>
                   <th>会员专属</th>
+                  <th>热门推荐</th>
                   <th>同步</th>
                   <th>创建</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id}>
+                  <tr key={row.id} className={selectedIds.has(row.id) ? 'admin-row-selected' : undefined}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(row.id)}
+                        aria-label={`选择 #${row.id}`}
+                        onChange={(e) => toggleSelectOne(row.id, e.target.checked)}
+                      />
+                    </td>
                     <td>{row.id}</td>
                     <td>
                       {row.cover_url ? (
@@ -417,6 +586,17 @@ export function AdminVideos() {
                         <span>会员可见</span>
                       </label>
                     </td>
+                    <td>
+                      <label className="admin-filter-check">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(row.is_hot)}
+                          disabled={hotBusyId === row.id}
+                          onChange={(e) => void onToggleHot(row, e.target.checked)}
+                        />
+                        <span>热门推荐</span>
+                      </label>
+                    </td>
                     <td>{syncStatusLabel(row.sync_status)}</td>
                     <td>{formatTime(row.created_at)}</td>
                   </tr>
@@ -427,40 +607,58 @@ export function AdminVideos() {
 
           <div className="admin-card-list" aria-label="视频列表（移动端）">
             {rows.map((row) => (
-              <Link key={row.id} className="admin-card-item" to={`/admin/videos/${row.id}`}>
-                {row.cover_url ? (
-                  <img className="admin-thumb" src={row.cover_url} alt="" loading="lazy" />
-                ) : (
-                  <span className="admin-thumb is-empty" />
-                )}
-                <div>
-                  <strong>
-                    #{row.id} {row.title}
-                  </strong>
-                  <p>
-                    {categoryName(row.category_id)} · {videoStatusLabel(row.status)} ·{' '}
-                    {activeLabel(row.is_active)}
-                    {row.membership_required ? ' · 会员专属' : ''}
-                  </p>
-                  <p className="admin-muted">{formatTime(row.created_at)}</p>
-                  <label
-                    className="admin-filter-check"
-                    onClick={(e) => e.preventDefault()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                  >
+              <div
+                key={row.id}
+                className={`admin-card-item${selectedIds.has(row.id) ? ' is-selected' : ''}`}
+              >
+                <label className="admin-filter-check" style={{ alignSelf: 'flex-start' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(row.id)}
+                    aria-label={`选择 #${row.id}`}
+                    onChange={(e) => toggleSelectOne(row.id, e.target.checked)}
+                  />
+                </label>
+                <Link className="admin-card-item-link" to={`/admin/videos/${row.id}`}>
+                  {row.cover_url ? (
+                    <img className="admin-thumb" src={row.cover_url} alt="" loading="lazy" />
+                  ) : (
+                    <span className="admin-thumb is-empty" />
+                  )}
+                  <div>
+                    <strong>
+                      #{row.id} {row.title}
+                    </strong>
+                    <p>
+                      {categoryName(row.category_id)} · {videoStatusLabel(row.status)} ·{' '}
+                      {activeLabel(row.is_active)}
+                      {row.membership_required ? ' · 会员专属' : ''}
+                      {row.is_hot ? ' · 热门推荐' : ''}
+                    </p>
+                    <p className="admin-muted">{formatTime(row.created_at)}</p>
+                  </div>
+                </Link>
+                <div className="admin-card-item-actions">
+                  <label className="admin-filter-check">
                     <input
                       type="checkbox"
                       checked={Boolean(row.membership_required)}
                       disabled={membershipBusyId === row.id}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        void onToggleMembership(row, e.target.checked);
-                      }}
+                      onChange={(e) => void onToggleMembership(row, e.target.checked)}
                     />
                     <span>会员专属</span>
                   </label>
+                  <label className="admin-filter-check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(row.is_hot)}
+                      disabled={hotBusyId === row.id}
+                      onChange={(e) => void onToggleHot(row, e.target.checked)}
+                    />
+                    <span>热门推荐</span>
+                  </label>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
 

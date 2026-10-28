@@ -635,13 +635,14 @@ func scanVideo(row scannable) (*model.Video, error) {
 	var srcUp, last sql.NullTime
 	var active int
 	var membershipRequired int
+	var isHot int
 	var actors sql.NullString
 	err := row.Scan(
 		&v.ID, &v.SourceSystem, &v.SourceID, &v.CategoryID, &v.SourceCategoryID, &v.LeafSourceID,
 		&v.Title, &v.Description, &v.Year, &v.Area, &v.Director, &actors, &v.Rating,
 		&v.CoverKey, &v.CoverR2Key, &v.PosterSourceURL,
 		&v.DurationSec, &v.ViewCount, &v.HLSMasterKey, &v.PlaybackSource, &v.PlaySID, &v.PlayNID,
-		&v.PlaybackURL, &srcUp, &last, &v.SyncStatus, &active, &v.Status, &membershipRequired, &v.CreatedAt,
+		&v.PlaybackURL, &srcUp, &last, &v.SyncStatus, &active, &v.Status, &membershipRequired, &isHot, &v.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -654,6 +655,7 @@ func scanVideo(row scannable) (*model.Video, error) {
 	}
 	v.IsActive = active == 1
 	v.MembershipRequired = membershipRequired == 1
+	v.IsHot = isHot == 1
 	if srcUp.Valid {
 		t := srcUp.Time
 		v.SourceUpdatedAt = &t
