@@ -47,8 +47,8 @@ export function MobileTabBar() {
 
 function TabIcon({ id }: { id: (typeof TABS)[number]['id'] }) {
   const common = {
-    width: 22,
-    height: 22,
+    width: 26,
+    height: 26,
     viewBox: '0 0 24 24',
     fill: 'none',
     'aria-hidden': true as const,
@@ -56,18 +56,18 @@ function TabIcon({ id }: { id: (typeof TABS)[number]['id'] }) {
   const icons: Record<(typeof TABS)[number]['id'], ReactNode> = {
     home: (
       <svg {...common}>
-        <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
       </svg>
     ),
     favorites: (
       <svg {...common}>
-        <path d="m12 4 2.2 4.6 5 .7-3.6 3.5.9 5.1L12 15.8 7.5 18l.9-5.1L4.8 9.3l5-.7L12 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="m12 4 2.2 4.6 5 .7-3.6 3.5.9 5.1L12 15.8 7.5 18l.9-5.1L4.8 9.3l5-.7L12 4z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
       </svg>
     ),
     history: (
       <svg {...common}>
-        <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.7" />
-        <path d="M12 8v4.5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.9" />
+        <path d="M12 8v4.5l3 2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
       </svg>
     ),
     vip: (
@@ -75,12 +75,12 @@ function TabIcon({ id }: { id: (typeof TABS)[number]['id'] }) {
         <path
           d="M5 16.5 7.2 8.2a1 1 0 0 1 1.9-.1L12 13l2.9-4.9a1 1 0 0 1 1.9.1L19 16.5"
           stroke="currentColor"
-          strokeWidth="1.7"
+          strokeWidth="1.9"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path d="M4.5 16.5h15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-        <path d="M8.2 19h7.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        <path d="M4.5 16.5h15" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+        <path d="M8.2 19h7.6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
       </svg>
     ),
   };

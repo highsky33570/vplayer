@@ -3219,11 +3219,11 @@ html.dark .login-reminder-cta {
   }
 
   .shell {
-    padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }
 
   .shell:has(.login-reminder) {
-    padding-bottom: calc(52px + 48px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(60px + 48px + env(safe-area-inset-bottom, 0px));
   }
 
   .banner-carousel,
@@ -3792,11 +3792,11 @@ html.dark .login-reminder-cta {
 
   .dock {
     right: 12px;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
   }
 
   .shell:has(.login-reminder) .dock {
-    bottom: calc(108px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(116px + env(safe-area-inset-bottom, 0px));
   }
 
   .mobile-tabbar {
@@ -3806,8 +3806,8 @@ html.dark .login-reminder-cta {
     right: 0;
     bottom: 0;
     z-index: 50;
-    height: calc(52px + env(safe-area-inset-bottom, 0px));
-    padding: 2px 4px env(safe-area-inset-bottom, 0px);
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding: 4px 4px env(safe-area-inset-bottom, 0px);
     background: var(--bg);
     border-top: 1px solid var(--line);
     box-shadow: none;
@@ -3820,17 +3820,17 @@ html.dark .login-reminder-cta {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
+    gap: 3px;
     color: var(--muted);
-    font-size: 10px;
-    font-weight: 500;
-    line-height: 1;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.1;
     text-decoration: none;
   }
 
   .mobile-tabbar a svg {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
   }
 
   .mobile-tabbar a.is-active {
@@ -3841,7 +3841,7 @@ html.dark .login-reminder-cta {
   .login-reminder {
     left: 8px;
     right: 8px;
-    bottom: calc(52px + 8px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(60px + 8px + env(safe-area-inset-bottom, 0px));
     z-index: 44;
     width: auto;
     max-height: 44px;
@@ -8076,15 +8076,15 @@ html.dark .login-reminder-cta,
   }
 
   .shell {
-    padding-bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }
 
   .shell:has(.login-reminder) {
-    padding-bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }
 
   .mobile-tabbar {
-    height: calc(50px + env(safe-area-inset-bottom, 0px));
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--surface);
     border-top: 1px solid var(--line);
@@ -8093,17 +8093,22 @@ html.dark .login-reminder-cta,
   }
 
   .mobile-tabbar a {
-    gap: 2px;
+    gap: 3px;
     border-radius: 0;
     background: transparent;
     color: var(--muted);
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .mobile-tabbar a svg {
+    width: 24px;
+    height: 24px;
   }
 
   .mobile-tabbar a.is-active {
     color: var(--brand);
-    font-weight: 600;
+    font-weight: 700;
     background: transparent;
   }
 }
@@ -8899,7 +8904,7 @@ html.dark .login-reminder-cta,
   .mobile-corner-dock {
     position: fixed;
     right: 10px;
-    bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
     z-index: 40;
     display: flex;
     flex-direction: column;
