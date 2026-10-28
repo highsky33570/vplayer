@@ -51,9 +51,15 @@ function VipPaymentResultInner({ token }: { token: string }) {
     };
   }, [orderNo, token]);
 
+  const payUrl = (order?.payment_url ?? '').trim();
+  const pending = order?.status === 'pending';
+
   return (
     <div className="page vip-pay-result">
       <h1>支付结果</h1>
+      <p className="vip-pay-hint">
+        支付在 GM Pay 页面完成。可随时关闭支付页，回到本站查看开通状态。
+      </p>
       {!orderNo ? <p className="me-feedback is-error">缺少订单号，请从大会员页重新发起支付。</p> : null}
       {error ? (
         <p className="me-feedback is-error" role="alert">
@@ -90,7 +96,12 @@ function VipPaymentResultInner({ token }: { token: string }) {
         <p className="me-status">正在查询订单…</p>
       ) : null}
       <div className="vip-purchase-actions">
-        <Link className="vip-cta" to="/vip">
+        {pending && payUrl ? (
+          <a className="vip-cta" href={payUrl} target="_blank" rel="noopener noreferrer">
+            打开支付页面
+          </a>
+        ) : null}
+        <Link className="vip-cta vip-cta--ghost" to="/vip">
           返回大会员
         </Link>
         <Link className="vip-cta vip-cta--ghost" to="/account">

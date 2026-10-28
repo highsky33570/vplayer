@@ -5249,6 +5249,13 @@ html.dark .login-reminder-cta {
   padding: 24px 16px 48px;
 }
 
+.vip-pay-hint {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
 .vip-pay-card {
   margin: 16px 0 20px;
   padding: 16px 18px;

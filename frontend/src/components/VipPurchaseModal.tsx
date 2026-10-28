@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { membershipModalActiveCopy } from '../account/accountLogic';
 import { createMembershipOrder, listMembershipPlans, type MembershipPlan } from '../api';
 import { useAuth } from '../auth/AuthContext';
@@ -23,6 +24,7 @@ type Props = {
 
 export function VipPurchaseModal({ open, onClose }: Props) {
   const { user, token, ready, openLogin } = useAuth();
+  const navigate = useNavigate();
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
@@ -93,7 +95,11 @@ export function VipPurchaseModal({ open, onClose }: Props) {
     try {
       const order = await createMembershipOrder(token, selected);
       if (!order.payment_url) throw new Error('未返回支付链接');
-      window.location.assign(order.payment_url);
+      // Stay on our site (with 返回) — open GM Pay in a new tab when possible.
+      // Popup blockers fall back to the result page CTA.
+      window.open(order.payment_url, '_blank', 'noopener,noreferrer');
+      onClose();
+      navigate(`/vip/payment/result?order=${encodeURIComponent(order.order_no)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : '创建订单失败');
       setBusy(false);
