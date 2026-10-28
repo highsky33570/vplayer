@@ -123,11 +123,11 @@ export function AdminMedia() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>媒体管理</h1>
-        <p className="admin-muted">只读媒体迁移观测 · 不含播放地址与对象密钥</p>
+        <p className="admin-muted">分集迁移观测与筛选 · 不含播放地址与对象密钥</p>
       </div>
 
       <div className="admin-alert is-info" role="note">
-        应用尚未记录媒体迁移的运行历史。可迁移数量反映的是当前数据库中的迁移资格规则。
+        可迁移数量按当前数据库迁移资格规则统计。列表不暴露源地址与 R2 对象路径。
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}
@@ -180,8 +180,8 @@ export function AdminMedia() {
             <p className="admin-muted">分页列表 · 不含源地址与 R2 对象路径</p>
           </div>
 
-          <form className="admin-filters" onSubmit={onSearchSubmit}>
-            <label className="admin-filter-field">
+          <form className="admin-filters admin-panel" onSubmit={onSearchSubmit}>
+            <label className="admin-filter-field admin-filter-grow">
               <span>搜索</span>
               <input
                 value={qInput}

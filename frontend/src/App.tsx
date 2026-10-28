@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { AdminBilling } from './admin/AdminBilling';
 import { AdminCategories } from './admin/AdminCategories';
 import { AdminCategoryDetail } from './admin/AdminCategoryDetail';
 import { AdminDashboard } from './admin/AdminDashboard';
@@ -68,6 +69,7 @@ export default function App() {
                 <Route path="categories/:id" element={<AdminCategoryDetail />} />
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="users/:id" element={<AdminUserDetail />} />
+                <Route path="billing" element={<AdminBilling />} />
                 <Route path="sync" element={<AdminSync />} />
                 <Route path="sync/runs/:id" element={<AdminSyncRunDetail />} />
                 <Route path="sync/operations/:id" element={<AdminOperationalRunDetail />} />

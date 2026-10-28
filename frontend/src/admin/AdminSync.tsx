@@ -322,34 +322,39 @@ export function AdminSync() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>同步 / 采集</h1>
-        <p className="admin-muted">同步观测与有界管理操作 · 基于已记录的数据库状态</p>
+        <p className="admin-muted">片库同步观测、运行审计与有界管理操作</p>
       </div>
 
       <div className="admin-alert is-info" role="note">
-        这里不查询 systemd 或定时器的实时状态。同步历史来自片库表{' '}
-        <span className="admin-mono">sync_runs</span>。运行记录来自工作进程审计表{' '}
-        <span className="admin-mono">operational_runs</span>
-        。“运行中”只表示工作进程曾写入一条运行记录，并不代表已经查询过 systemd。待补全只出现在运行记录中。管理操作会启动固定上限的工作进程；重启 API 仍可能中断由后台拉起的子进程。
+        状态来自数据库记录，不查询 systemd。同步历史：
+        <span className="admin-mono"> sync_runs</span>；运行审计：
+        <span className="admin-mono"> operational_runs</span>
+        。管理操作会启动固定上限的工作进程。
       </div>
 
       {!loading && !forbidden ? (
-        <div className="admin-filters" style={{ marginTop: 16, gap: 12, alignItems: 'center' }}>
-          <button
-            type="button"
-            className="admin-btn-primary"
-            disabled={incSubmitting || enSubmitting}
-            onClick={() => void runIncremental()}
-          >
-            {incSubmitting ? '提交中…' : '运行增量同步'}
-          </button>
-          <button
-            type="button"
-            className="admin-btn-primary"
-            disabled={incSubmitting || enSubmitting}
-            onClick={() => void runEnrichment()}
-          >
-            {enSubmitting ? '提交中…' : '运行待补全'}
-          </button>
+        <div className="admin-panel" style={{ marginBottom: 14 }}>
+          <div className="admin-panel-head">
+            <h2>快捷操作</h2>
+          </div>
+          <div className="admin-filters" style={{ marginBottom: 0, gap: 12, alignItems: 'center' }}>
+            <button
+              type="button"
+              className="admin-btn-primary"
+              disabled={incSubmitting || enSubmitting}
+              onClick={() => void runIncremental()}
+            >
+              {incSubmitting ? '提交中…' : '运行增量同步'}
+            </button>
+            <button
+              type="button"
+              className="admin-btn-primary"
+              disabled={incSubmitting || enSubmitting}
+              onClick={() => void runEnrichment()}
+            >
+              {enSubmitting ? '提交中…' : '运行待补全'}
+            </button>
+          </div>
         </div>
       ) : null}
       {actionMessage ? (

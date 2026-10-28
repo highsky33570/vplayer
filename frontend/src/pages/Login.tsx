@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import logoUrl from '../assets/logo.png';
 import { AuthForm } from '../components/AuthForm';
 import { useAuth } from '../auth/AuthContext';
 import { resolvePostLoginPath } from '../auth/paths';
@@ -43,7 +44,7 @@ export function LoginPage() {
     <div className="page auth-page">
       <div className="auth-page-card">
         <div className="auth-modal-brand">
-          <span className="brand-mark">天</span>
+          <img className="auth-modal-logo" src={logoUrl} alt="天涯欧乐" width={140} height={36} decoding="async" />
           <div>
             <h2>登录 天涯欧乐</h2>
             <p>高清点播 · 畅享精彩影视</p>

@@ -26,11 +26,15 @@ type AdminSyncRunSummary struct {
 
 // AdminDashboardStats is lightweight operational counts for the admin home.
 type AdminDashboardStats struct {
-	UsersTotal      int                  `json:"users_total"`
-	VideosTotal     int                  `json:"videos_total"`
-	VideosActive    int                  `json:"videos_active"`
-	CategoriesTotal int                  `json:"categories_total"`
-	LatestSync      *AdminSyncRunSummary `json:"latest_sync"`
+	UsersTotal      int `json:"users_total"`
+	VideosTotal     int `json:"videos_total"`
+	VideosActive    int `json:"videos_active"`
+	CategoriesTotal int `json:"categories_total"`
+	// MembersTotal counts effective members: unexpired expires_at, or lifetime is_member with no expiry.
+	MembersTotal     int                  `json:"members_total"`
+	VideosMembership int                  `json:"videos_membership"`
+	OrdersPaidTotal  int                  `json:"orders_paid_total"`
+	LatestSync       *AdminSyncRunSummary `json:"latest_sync"`
 }
 
 func (m *MySQL) AdminDashboardStats() (*AdminDashboardStats, error) {
@@ -45,6 +49,18 @@ func (m *MySQL) AdminDashboardStats() (*AdminDashboardStats, error) {
 		return nil, err
 	}
 	if err := m.DB.QueryRow(`SELECT COUNT(*) FROM categories`).Scan(&out.CategoriesTotal); err != nil {
+		return nil, err
+	}
+	if err := m.DB.QueryRow(`
+		SELECT COUNT(*) FROM users
+		WHERE (membership_expires_at IS NOT NULL AND membership_expires_at > ?)
+		   OR (membership_expires_at IS NULL AND COALESCE(is_member,0)=1)`, time.Now()).Scan(&out.MembersTotal); err != nil {
+		return nil, err
+	}
+	if err := m.DB.QueryRow(`SELECT COUNT(*) FROM videos WHERE COALESCE(membership_required,0)=1`).Scan(&out.VideosMembership); err != nil {
+		return nil, err
+	}
+	if err := m.DB.QueryRow(`SELECT COUNT(*) FROM membership_orders WHERE status=?`, MembershipOrderPaid).Scan(&out.OrdersPaidTotal); err != nil {
 		return nil, err
 	}
 	sync, err := m.latestSyncRunSummary()

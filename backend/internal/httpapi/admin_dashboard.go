@@ -11,12 +11,15 @@ import (
 // Protected by RequireUser + RequireAdmin. Never exposes secrets or credentials.
 func (a *API) AdminDashboard(c *gin.Context) {
 	data := gin.H{
-		"status":           "ok",
-		"users_total":      0,
-		"videos_total":     0,
-		"videos_active":    0,
-		"categories_total": 0,
-		"latest_sync":      nil,
+		"status":            "ok",
+		"users_total":       0,
+		"videos_total":      0,
+		"videos_active":     0,
+		"categories_total":  0,
+		"members_total":     0,
+		"videos_membership": 0,
+		"orders_paid_total": 0,
+		"latest_sync":       nil,
 	}
 	if a.Store != nil {
 		stats, err := a.Store.AdminDashboardStats()
@@ -28,6 +31,9 @@ func (a *API) AdminDashboard(c *gin.Context) {
 		data["videos_total"] = stats.VideosTotal
 		data["videos_active"] = stats.VideosActive
 		data["categories_total"] = stats.CategoriesTotal
+		data["members_total"] = stats.MembersTotal
+		data["videos_membership"] = stats.VideosMembership
+		data["orders_paid_total"] = stats.OrdersPaidTotal
 		if stats.LatestSync != nil {
 			data["latest_sync"] = syncRunJSON(stats.LatestSync)
 		}

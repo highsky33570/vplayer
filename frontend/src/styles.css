@@ -2353,6 +2353,16 @@ html.dark .category-btn--child.is-active {
   font-size: 16px;
 }
 
+.auth-modal-logo {
+  display: block;
+  height: 36px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+  object-position: left center;
+  flex-shrink: 0;
+}
+
 .auth-modal-brand h2 {
   margin: 0;
   font-size: 1.25rem;

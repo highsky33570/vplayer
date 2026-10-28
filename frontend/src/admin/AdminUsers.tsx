@@ -106,11 +106,11 @@ export function AdminUsers() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>用户管理</h1>
-        <p className="admin-muted">只读用户列表 · 分页加载，不含密码与凭证</p>
+        <p className="admin-muted">账号、角色与会员状态 · 点击进入详情可编辑 / 删除 / 开通套餐</p>
       </div>
 
-      <form className="admin-filters" onSubmit={onSearchSubmit}>
-        <label className="admin-filter-field">
+      <form className="admin-filters admin-panel" onSubmit={onSearchSubmit}>
+        <label className="admin-filter-field admin-filter-grow">
           <span>搜索</span>
           <input
             value={qInput}
@@ -164,6 +164,9 @@ export function AdminUsers() {
                   <th>邮箱</th>
                   <th>昵称</th>
                   <th>角色</th>
+                  <th>会员</th>
+                  <th>最近套餐</th>
+                  <th>到期</th>
                   <th>创建时间</th>
                 </tr>
               </thead>
@@ -186,6 +189,25 @@ export function AdminUsers() {
                         {roleLabel(row.is_admin)}
                       </span>
                     </td>
+                    <td>
+                      <span
+                        className={
+                          row.is_admin || row.is_member ? 'admin-badge is-ok' : 'admin-badge is-off'
+                        }
+                      >
+                        {row.is_admin ? '管理员' : row.is_member ? 'VIP' : '普通'}
+                      </span>
+                    </td>
+                    <td>{row.latest_plan_name || row.latest_plan_slug || '—'}</td>
+                    <td>
+                      {row.is_admin
+                        ? '—'
+                        : row.membership_expires_at
+                          ? formatTime(row.membership_expires_at)
+                          : row.is_member
+                            ? '终身'
+                            : '—'}
+                    </td>
                     <td>{formatTime(row.created_at)}</td>
                   </tr>
                 ))}
@@ -201,7 +223,9 @@ export function AdminUsers() {
                     #{row.id} {row.email}
                   </strong>
                   <p>
-                    {row.nickname || '—'} · {roleLabel(row.is_admin)}
+                    {row.nickname || '—'} · {roleLabel(row.is_admin)} ·{' '}
+                    {row.is_admin || row.is_member ? 'VIP' : '普通'}
+                    {row.latest_plan_name ? ` · ${row.latest_plan_name}` : ''}
                   </p>
                   <p className="admin-muted">{formatTime(row.created_at)}</p>
                 </div>

@@ -29,22 +29,28 @@ func (a *API) adminUserRepo() adminUserRepo {
 
 // AdminUserDTO is the allowlisted admin user response (never password_hash / tokens).
 type AdminUserDTO struct {
-	ID        uint64    `json:"id"`
-	Email     string    `json:"email"`
-	Nickname  string    `json:"nickname"`
-	IsAdmin   bool      `json:"is_admin"`
-	IsMember  bool      `json:"is_member"`
-	CreatedAt time.Time `json:"created_at"`
+	ID                  uint64     `json:"id"`
+	Email               string     `json:"email"`
+	Nickname            string     `json:"nickname"`
+	IsAdmin             bool       `json:"is_admin"`
+	IsMember            bool       `json:"is_member"`
+	MembershipExpiresAt *time.Time `json:"membership_expires_at"`
+	LatestPlanSlug      string     `json:"latest_plan_slug"`
+	LatestPlanName      string     `json:"latest_plan_name"`
+	CreatedAt           time.Time  `json:"created_at"`
 }
 
 func adminUserDTO(u store.AdminUser) AdminUserDTO {
 	return AdminUserDTO{
-		ID:        u.ID,
-		Email:     u.Email,
-		Nickname:  u.Nickname,
-		IsAdmin:   u.IsAdmin,
-		IsMember:  u.IsMember,
-		CreatedAt: u.CreatedAt,
+		ID:                  u.ID,
+		Email:               u.Email,
+		Nickname:            u.Nickname,
+		IsAdmin:             u.IsAdmin,
+		IsMember:            u.IsMember,
+		MembershipExpiresAt: u.MembershipExpiresAt,
+		LatestPlanSlug:      u.LatestPlanSlug,
+		LatestPlanName:      u.LatestPlanName,
+		CreatedAt:           u.CreatedAt,
 	}
 }
 

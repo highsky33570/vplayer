@@ -62,6 +62,9 @@ export type AdminDashboardData = {
   videos_total: number;
   videos_active: number;
   categories_total: number;
+  members_total: number;
+  videos_membership: number;
+  orders_paid_total: number;
   latest_sync: AdminSyncRunSummary | null;
 };
 
@@ -1004,7 +1007,69 @@ export type AdminUser = {
   nickname: string;
   is_admin: boolean;
   is_member: boolean;
+  membership_expires_at?: string | null;
+  latest_plan_slug?: string;
+  latest_plan_name?: string;
   created_at: string;
+};
+
+export type AdminMembershipPlan = {
+  id: number;
+  slug: string;
+  name: string;
+  price_usd: number;
+  duration_days: number;
+  sort: number;
+  is_active: boolean;
+};
+
+export type AdminUpdateVideoInput = {
+  title?: string;
+  description?: string;
+  year?: string;
+  director?: string;
+  actors?: string;
+  category_id?: number;
+  is_active?: boolean;
+  status?: string;
+  cover_url?: string;
+  membership_required?: boolean;
+};
+
+export type AdminUpdateUserInput = {
+  nickname: string;
+  is_admin?: boolean;
+  is_member?: boolean;
+  membership_expires_at?: string | null;
+};
+
+export type AdminUpdateCategoryInput = {
+  name?: string;
+  sort?: number;
+  is_active?: boolean;
+};
+
+export type AdminCleanupDuplicatesResult = {
+  merged: number;
+  deactivated: number;
+  videos_moved: number;
+};
+
+export type AdminUpdatePlanInput = {
+  name?: string;
+  price_usd?: number;
+  duration_days?: number;
+  sort?: number;
+  is_active?: boolean;
+};
+
+export type AdminCreatePlanInput = {
+  slug: string;
+  name: string;
+  price_usd: number;
+  duration_days: number;
+  sort?: number;
+  is_active?: boolean;
 };
 
 export type AdminUserPage = {
@@ -1115,6 +1180,160 @@ export function fetchAdminVideo(id: number, token: string | null | undefined) {
   return getJSON<AdminVideoDetail>(`/api/v1/admin/videos/${id}`, token);
 }
 
+export async function updateAdminVideo(
+  token: string | null | undefined,
+  id: number,
+  input: AdminUpdateVideoInput,
+): Promise<AdminVideoDetail> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/videos/${id}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminVideoDetail;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function updateAdminCategory(
+  token: string | null | undefined,
+  id: number,
+  input: AdminUpdateCategoryInput,
+): Promise<AdminCategory> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/categories/${id}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminCategory;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function cleanupAdminCategoryDuplicates(
+  token: string | null | undefined,
+): Promise<AdminCleanupDuplicatesResult> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/categories/cleanup-duplicates`, {
+    method: 'POST',
+    headers,
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminCleanupDuplicatesResult;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function updateAdminUser(
+  token: string | null | undefined,
+  id: number,
+  input: AdminUpdateUserInput,
+): Promise<AdminUser> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/users/${id}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminUser;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function deleteAdminUser(
+  token: string | null | undefined,
+  id: number,
+): Promise<void> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/users/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  const json = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+}
+
+export function fetchAdminMembershipPlans(token: string | null | undefined) {
+  return getJSON<AdminMembershipPlan[]>('/api/v1/admin/membership/plans', token);
+}
+
+export async function createAdminMembershipPlan(
+  token: string | null | undefined,
+  input: AdminCreatePlanInput,
+): Promise<AdminMembershipPlan> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/membership/plans`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminMembershipPlan;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function updateAdminMembershipPlan(
+  token: string | null | undefined,
+  id: number,
+  input: AdminUpdatePlanInput,
+): Promise<AdminMembershipPlan> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/membership/plans/${id}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminMembershipPlan;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
 export type AdminCreateVideoInput = {
   title: string;
   playback_url: string;
@@ -1173,13 +1392,19 @@ export async function setAdminUserMembership(
   token: string | null | undefined,
   id: number,
   isMember: boolean,
+  opts?: { membership_expires_at?: string | null; plan_slug?: string },
 ): Promise<AdminUser> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
+  const body: Record<string, unknown> = { is_member: isMember };
+  if (opts && 'membership_expires_at' in opts) {
+    body.membership_expires_at = opts.membership_expires_at;
+  }
+  if (opts?.plan_slug) body.plan_slug = opts.plan_slug;
   const res = await fetch(`${API_BASE}/api/v1/admin/users/${id}/membership`, {
     method: 'PATCH',
     headers,
-    body: JSON.stringify({ is_member: isMember }),
+    body: JSON.stringify(body),
   });
   const json = (await res.json().catch(() => ({}))) as {
     ok?: boolean;

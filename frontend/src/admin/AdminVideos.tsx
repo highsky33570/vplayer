@@ -3,11 +3,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError,
   createAdminVideo,
+  fetchAdminCategories,
   fetchAdminVideos,
-  listCategories,
   setAdminVideoMembership,
+  type AdminCategory,
   type AdminVideoListItem,
-  type Category,
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
@@ -32,7 +32,7 @@ export function AdminVideos() {
   const parsed = useMemo(() => parseAdminVideosSearch(params), [params]);
 
   const [qInput, setQInput] = useState(parsed.q);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [rows, setRows] = useState<AdminVideoListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -56,9 +56,11 @@ export function AdminVideos() {
 
   useEffect(() => {
     let cancelled = false;
-    void listCategories()
+    void fetchAdminCategories(token)
       .then((cats) => {
-        if (!cancelled) setCategories(cats);
+        if (!cancelled) {
+          setCategories([...cats].sort((a, b) => a.id - b.id));
+        }
       })
       .catch(() => {
         if (!cancelled) setCategories([]);
@@ -66,7 +68,7 @@ export function AdminVideos() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,10 +163,16 @@ export function AdminVideos() {
     isActive?: AdminVideosActiveFilter;
     page?: number;
   }) {
+    const categoryId = Object.prototype.hasOwnProperty.call(next, 'categoryId')
+      ? Number(next.categoryId ?? 0)
+      : parsed.categoryId;
+    const isActive = Object.prototype.hasOwnProperty.call(next, 'isActive')
+      ? (next.isActive as AdminVideosActiveFilter)
+      : parsed.isActive;
     const qs = buildAdminVideosSearch({
       q: next.q ?? parsed.q,
-      categoryId: next.categoryId ?? parsed.categoryId,
-      isActive: next.isActive ?? parsed.isActive,
+      categoryId,
+      isActive,
       page: next.page ?? 1,
     });
     setParams(qs ? new URLSearchParams(qs.slice(1)) : new URLSearchParams(), { replace: false });
@@ -220,11 +228,11 @@ export function AdminVideos() {
       <div className="admin-page-head">
         <h1>视频管理</h1>
         <p className="admin-muted">
-          片库列表 · 可添加本地 VIP 视频（播放链接）。OLEHDTV VIP 片源不再同步到 VIP 分类。
+          片库列表与筛选 · 可添加本地 VIP 视频。分类/启用状态会立即写入 URL 并刷新列表。
         </p>
       </div>
 
-      <form className="admin-create-form" onSubmit={onCreateSubmit}>
+      <form className="admin-create-form admin-panel" onSubmit={onCreateSubmit}>
         <h2 className="admin-create-title">添加视频</h2>
         <div className="admin-filters">
           <label className="admin-filter-field admin-filter-grow">
@@ -285,8 +293,8 @@ export function AdminVideos() {
         ) : null}
       </form>
 
-      <form className="admin-filters" onSubmit={onSearchSubmit}>
-        <label className="admin-filter-field">
+      <form className="admin-filters admin-panel" onSubmit={onSearchSubmit}>
+        <label className="admin-filter-field admin-filter-grow">
           <span>搜索标题</span>
           <input
             value={qInput}
@@ -297,24 +305,26 @@ export function AdminVideos() {
         <label className="admin-filter-field">
           <span>分类</span>
           <select
-            value={parsed.categoryId || ''}
-            onChange={(e) =>
+            value={parsed.categoryId > 0 ? String(parsed.categoryId) : ''}
+            onChange={(e) => {
+              const raw = e.target.value;
               applyFilters({
-                categoryId: e.target.value ? Number(e.target.value) : 0,
+                categoryId: raw ? Number(raw) : 0,
                 page: 1,
-              })
-            }
+              });
+            }}
           >
             <option value="">全部</option>
             {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+              <option key={c.id} value={String(c.id)}>
+                #{c.id} {c.name}
+                {!c.is_active ? '（停用）' : ''}
               </option>
             ))}
           </select>
         </label>
         <label className="admin-filter-field">
-          <span>状态</span>
+          <span>启用状态</span>
           <select
             value={parsed.isActive}
             onChange={(e) =>
