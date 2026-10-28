@@ -6,7 +6,7 @@ const TABS = [
   { id: 'home', href: '/', label: '首页', personal: false },
   { id: 'favorites', href: '/favorites', label: '收藏', personal: true },
   { id: 'history', href: '/history', label: '历史', personal: true },
-  { id: 'account', href: '/account', label: '我的', personal: true },
+  { id: 'vip', href: '/vip', label: '大会员', personal: false },
 ] as const;
 
 export function MobileTabBar() {
@@ -16,7 +16,12 @@ export function MobileTabBar() {
   return (
     <nav className="mobile-tabbar" aria-label="手机导航">
       {TABS.map((tab) => {
-        const active = tab.id === 'home' ? pathname === '/' : pathname === tab.href;
+        const active =
+          tab.id === 'home'
+            ? pathname === '/'
+            : tab.id === 'vip'
+              ? pathname === '/vip' || pathname.startsWith('/vip/')
+              : pathname === tab.href;
         return (
           <Link
             key={tab.id}
@@ -65,10 +70,17 @@ function TabIcon({ id }: { id: (typeof TABS)[number]['id'] }) {
         <path d="M12 8v4.5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
       </svg>
     ),
-    account: (
+    vip: (
       <svg {...common}>
-        <circle cx="12" cy="9" r="3.2" stroke="currentColor" strokeWidth="1.7" />
-        <path d="M5.5 19.2c1.4-2.6 3.6-3.7 6.5-3.7s5.1 1.1 6.5 3.7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        <path
+          d="M5 16.5 7.2 8.2a1 1 0 0 1 1.9-.1L12 13l2.9-4.9a1 1 0 0 1 1.9.1L19 16.5"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path d="M4.5 16.5h15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        <path d="M8.2 19h7.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
       </svg>
     ),
   };
