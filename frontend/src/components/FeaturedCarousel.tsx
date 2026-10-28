@@ -4,7 +4,7 @@ import { type Video } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { videoEntryHref } from '../auth/paths';
 import { coverImgSrc, onCoverImgError } from '../media/coverFallback';
-import { FEATURED_CAROUSEL_LIMIT, FEATURED_CAROUSEL_MOBILE_LIMIT } from './featuredLayout';
+import { FEATURED_CAROUSEL_LIMIT } from './featuredLayout';
 
 type Props = {
   videos: Video[];
@@ -13,9 +13,7 @@ type Props = {
 const DRAG_THRESHOLD_PX = 42;
 
 export function FeaturedCarousel({ videos }: Props) {
-  const isPhone = useIsPhone();
-  const slideLimit = isPhone ? FEATURED_CAROUSEL_MOBILE_LIMIT : FEATURED_CAROUSEL_LIMIT;
-  const slides = videos.slice(0, slideLimit);
+  const slides = videos.slice(0, FEATURED_CAROUSEL_LIMIT);
   const [index, setIndex] = useState(0);
   const { user, ready } = useAuth();
   const navigate = useNavigate();
@@ -29,7 +27,7 @@ export function FeaturedCarousel({ videos }: Props) {
 
   useEffect(() => {
     setIndex(0);
-  }, [slideLimit, slides.length]);
+  }, [slides.length]);
 
   useEffect(() => {
     if (slides.length <= 1) return;
@@ -144,59 +142,21 @@ export function FeaturedCarousel({ videos }: Props) {
       })}
 
       {slides.length > 1 ? (
-        <>
-          <div className="carousel-dots">
-            {slides.map((v, i) => (
-              <button
-                key={v.id}
-                type="button"
-                className={i === index ? 'is-active' : ''}
-                aria-label={`第 ${i + 1} 张`}
-                aria-current={i === index ? 'true' : undefined}
-                onClick={() => setIndex(i)}
-              />
-            ))}
-          </div>
-          <div className="carousel-nav">
-            <button type="button" aria-label="上一张" onClick={() => go(-1)}>
-              <Chevron dir="left" />
-            </button>
-            <button type="button" aria-label="下一张" onClick={() => go(1)}>
-              <Chevron dir="right" />
-            </button>
-          </div>
-        </>
+        <div className="carousel-dots">
+          {slides.map((v, i) => (
+            <button
+              key={v.id}
+              type="button"
+              className={i === index ? 'is-active' : ''}
+              aria-label={`第 ${i + 1} 张`}
+              aria-current={i === index ? 'true' : undefined}
+              onClick={() => setIndex(i)}
+            />
+          ))}
+        </div>
       ) : null}
 
       <span className="sr-only">当前：{current?.title}</span>
     </div>
-  );
-}
-
-function useIsPhone() {
-  const [phone, setPhone] = useState(
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false,
-  );
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 767px)');
-    const update = () => setPhone(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-  return phone;
-}
-
-function Chevron({ dir }: { dir: 'left' | 'right' }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d={dir === 'left' ? 'M14.5 6.5 9 12l5.5 5.5' : 'M9.5 6.5 15 12l-5.5 5.5'}
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

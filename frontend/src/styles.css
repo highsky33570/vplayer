@@ -1473,6 +1473,13 @@ img {
   aspect-ratio: auto;
   background: #111;
   align-self: stretch;
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
+
+.carousel:active {
+  cursor: grabbing;
 }
 
 .featured-grid.is-hero-only .carousel {
@@ -1527,52 +1534,46 @@ img {
 }
 
 .carousel-nav {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  display: flex;
-  gap: 6px;
-  z-index: 2;
-}
-
-.carousel-nav button {
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  backdrop-filter: blur(6px);
-  cursor: pointer;
-}
-
-.carousel-nav button:hover {
-  background: rgba(255, 255, 255, 0.28);
+  display: none;
 }
 
 .carousel-dots {
   position: absolute;
-  left: 14px;
-  bottom: 12px;
+  left: 50%;
+  bottom: 10px;
   display: flex;
-  gap: 6px;
+  gap: 3px;
   z-index: 2;
+  transform: translateX(-50%);
+  justify-content: center;
 }
 
-.carousel-dots button {
-  width: 7px;
-  height: 7px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.45);
-  cursor: pointer;
-  padding: 0;
-}
-
+.carousel-dots button,
 .carousel-dots button.is-active {
-  width: 18px;
-  border-radius: 999px;
-  background: #fff;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.carousel-dots button::after,
+.carousel-dots button.is-active::after {
+  content: '';
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.carousel-dots button.is-active::after {
+  width: 12px;
+  height: 2px;
+  background: #2f8fff;
 }
 
 html.dark .video-card:hover .thumb {
@@ -7601,8 +7602,7 @@ html.dark .category-btn--child.is-active {
   font-weight: 600;
 }
 
-.carousel-nav,
-.carousel-dots {
+.carousel-nav {
   display: none !important;
 }
 
@@ -8495,9 +8495,9 @@ html.dark .login-reminder-cta,
     border-radius: 3px;
   }
 
-  .carousel-caption {
-    padding-right: 148px;
-  }
+.carousel-caption {
+  padding-right: 16px;
+}
 
   .feature-switch {
     position: absolute;
@@ -8954,10 +8954,17 @@ html.dark .login-reminder-cta,
 
 .carousel {
   border-radius: 12px;
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
+
+.carousel:active {
+  cursor: grabbing;
 }
 
 .carousel-caption {
-  padding: 20px 96px 36px 16px;
+  padding: 20px 16px 36px;
   background: linear-gradient(180deg, transparent 0%, rgba(28, 12, 14, 0.2) 28%, rgba(24, 10, 12, 0.88) 100%);
 }
 
@@ -8971,66 +8978,47 @@ html.dark .login-reminder-cta,
   display: none;
 }
 
-.carousel-dots,
 .carousel-nav {
-  display: flex !important;
+  display: none !important;
 }
 
 .carousel-dots {
-  left: 16px;
-  bottom: 12px;
-  gap: 7px;
-  transform: none;
+  display: flex !important;
+  left: 50%;
+  right: auto;
+  bottom: 10px;
+  transform: translateX(-50%);
+  gap: 3px;
+  justify-content: center;
 }
 
 .carousel-dots button,
 .carousel-dots button.is-active {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: 0;
   background: transparent;
   display: grid;
   place-items: center;
+  cursor: pointer;
 }
 
 .carousel-dots button::after,
 .carousel-dots button.is-active::after {
   content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.45);
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .carousel-dots button.is-active::after {
-  width: 9px;
-  height: 9px;
-  background: #fff;
-}
-
-.carousel-nav {
-  top: auto;
-  left: auto;
-  right: 12px;
-  bottom: 18px;
-  gap: 8px;
-  transform: none;
-  justify-content: flex-end;
-}
-
-.carousel-nav button {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #333;
-  backdrop-filter: none;
-}
-
-.carousel-nav button:hover {
-  background: #fff;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: #2f8fff;
 }
 
 .featured-side .video-meta-desc {
@@ -9039,10 +9027,6 @@ html.dark .login-reminder-cta,
 }
 
 @media (max-width: 767px) {
-  .carousel {
-    touch-action: pan-y;
-  }
-
   .carousel-caption {
     padding: 28px 12px 18px 10px !important;
   }
@@ -9064,44 +9048,8 @@ html.dark .login-reminder-cta,
     overflow: hidden;
   }
 
-  .carousel-nav {
-    display: none !important;
-  }
-
   .carousel-dots {
-    display: flex !important;
-    left: 50% !important;
-    right: auto !important;
     bottom: 8px !important;
-    transform: translateX(-50%) !important;
-    gap: 3px !important;
-    justify-content: center;
-  }
-
-  .carousel-dots button,
-  .carousel-dots button.is-active {
-    width: 12px !important;
-    height: 12px !important;
-    padding: 0;
-    border: 0;
-    border-radius: 0 !important;
-    background: transparent !important;
-    display: grid;
-    place-items: center;
-  }
-
-  .carousel-dots button::after,
-  .carousel-dots button.is-active::after {
-    content: '';
-    width: 10px !important;
-    height: 2px !important;
-    border-radius: 1px !important;
-    background: rgba(255, 255, 255, 0.55) !important;
-  }
-
-  .carousel-dots button.is-active::after {
-    width: 12px !important;
-    background: #2f8fff !important;
   }
 }
 

@@ -18,23 +18,26 @@ function videos(count: number) {
 }
 
 describe('splitFeaturedVideos', () => {
-  it('keeps five hero slides and six distinct side cards', () => {
-    assert.equal(FEATURED_CAROUSEL_LIMIT, 5);
+  it('keeps nine hero slides and six distinct side cards', () => {
+    assert.equal(FEATURED_CAROUSEL_LIMIT, 9);
     assert.equal(FEATURED_CAROUSEL_MOBILE_LIMIT, 9);
     assert.equal(FEATURED_SIDE_LIMIT, 6);
-    assert.equal(FEATURED_POOL_LIMIT, 11);
+    assert.equal(FEATURED_POOL_LIMIT, 15);
     assert.ok(FEATURED_POOL_LIMIT >= FEATURED_CAROUSEL_MOBILE_LIMIT);
-    const { carousel, side } = splitFeaturedVideos(videos(11));
-    assert.deepEqual(carousel.map((v) => v.id), [1, 2, 3, 4, 5]);
-    assert.deepEqual(side.map((v) => v.id), [6, 7, 8, 9, 10, 11]);
+    const { carousel, side } = splitFeaturedVideos(videos(15));
+    assert.deepEqual(
+      carousel.map((v) => v.id),
+      [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    assert.deepEqual(side.map((v) => v.id), [10, 11, 12, 13, 14, 15]);
     const overlap = carousel.filter((v) => side.some((s) => s.id === v.id));
     assert.equal(overlap.length, 0);
   });
 
   it('does not duplicate videos when fewer than six side items exist', () => {
-    const { carousel, side } = splitFeaturedVideos(videos(8));
-    assert.equal(carousel.length, 5);
-    assert.deepEqual(side.map((v) => v.id), [6, 7, 8]);
+    const { carousel, side } = splitFeaturedVideos(videos(12));
+    assert.equal(carousel.length, 9);
+    assert.deepEqual(side.map((v) => v.id), [10, 11, 12]);
     const short = splitFeaturedVideos(videos(4));
     assert.equal(short.carousel.length, 4);
     assert.deepEqual(short.side, []);
@@ -49,11 +52,10 @@ describe('desktop featured and catalog density', () => {
     assert.match(grid, /splitFeaturedVideos\(videos\)/);
     assert.equal(grid.includes('slice(0, 4)'), false);
     assert.match(carousel, /FEATURED_CAROUSEL_LIMIT/);
-    assert.match(carousel, /FEATURED_CAROUSEL_MOBILE_LIMIT/);
-    assert.match(carousel, /videos\.slice\(0,\s*slideLimit\)/);
+    assert.match(carousel, /videos\.slice\(0,\s*FEATURED_CAROUSEL_LIMIT\)/);
     assert.match(carousel, /setInterval/);
     assert.match(carousel, /carousel-dots/);
-    assert.match(carousel, /carousel-nav/);
+    assert.equal(carousel.includes('carousel-nav'), false);
     assert.match(carousel, /onPointerDown/);
     assert.equal(grid.includes('compact'), false);
     assert.match(home, /GRID_COLS_DESKTOP = 6/);
