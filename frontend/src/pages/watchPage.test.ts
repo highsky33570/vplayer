@@ -95,12 +95,13 @@ describe('public watch page', () => {
     assert.ok(guard > 0);
     assert.match(watch, /const playbackNeedsLogin = authRequired && playbackAuthRequired/);
     assert.match(watch, /登录后观看完整视频/);
-    assert.match(watch, /playbackNeedsLogin \? token : null/);
+    assert.match(watch, /getPlayback\(videoId, sid, nid, token \?\? null\)/);
+    assert.match(watch, /membership_required/);
     assert.match(watch, /!playbackNeedsLogin \|\| \(user && token\)/);
     assert.match(watch, /立即登录/);
     assert.match(watch, /loginWithNext\(`\/watch\/\$\{videoId\}`\)/);
     assert.match(watch, /upsertHistory\(token, videoId\)/);
-    const play = watch.indexOf('getPlayback(videoId, sid, nid, playbackNeedsLogin ? token : null)');
+    const play = watch.indexOf('getPlayback(videoId, sid, nid, token ?? null)');
     assert.ok(guard >= 0 && play > guard);
     assert.equal(watch.split('getPlayback(').length, 2);
     assert.match(watch, /WatchPlaybackSession/);

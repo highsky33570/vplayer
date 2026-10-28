@@ -157,6 +157,13 @@ export function Watch() {
     if (!videoId || !ready || metaLoading) return;
     if (!video) return;
     if (playbackNeedsLogin && (!user || !token)) return;
+    // VIP titles need a Bearer identity even when PLAYBACK_AUTH_REQUIRED=false
+    // (public play for free titles). Without the token the API always 403s.
+    if (video.membership_required && (!user || !token)) {
+      setPlayLoading(false);
+      setPlayError('登录后可观看大会员内容');
+      return;
+    }
     if (video.membership_required && !canPlayMembership) {
       setPlayLoading(false);
       setPlayError('需要升级大会员后才能观看');
@@ -201,7 +208,9 @@ export function Watch() {
       setPlayLoading(true);
       setPlayError('');
       try {
-        const playback = await getPlayback(videoId, sid, nid, playbackNeedsLogin ? token : null);
+        // Always send the session token when present so membership_required
+        // playback can pass viewerSeesMembership under public-play configs.
+        const playback = await getPlayback(videoId, sid, nid, token ?? null);
         if (session.debugState().cancelled || !rootRef.current) return;
         if (!playback.url) {
           throw new Error('无可用播放地址');
@@ -210,7 +219,7 @@ export function Watch() {
         startPlayer(playback.url, playback.type);
       } catch (e) {
         if (session.debugState().cancelled) return;
-        if (playbackNeedsLogin && e instanceof ApiError && e.status === 401) {
+        if ((playbackNeedsLogin || video.membership_required) && e instanceof ApiError && e.status === 401) {
           logout();
           navigate(loginWithNext(`/watch/${videoId}`), { replace: true });
           return;

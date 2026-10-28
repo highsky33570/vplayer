@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tycdn/vplayer/internal/auth"
 	"github.com/tycdn/vplayer/internal/model"
@@ -12,6 +14,7 @@ const membershipRequiredUserMessage = "需要升级大会员后才能观看"
 
 // viewerSeesMembership reports whether the optional Bearer user may see
 // membership_required titles. Missing/invalid tokens count as non-members.
+// Uses EffectiveMember so paid expiry (membership_expires_at) is honored.
 func (a *API) viewerSeesMembership(c *gin.Context) bool {
 	token := auth.BearerToken(c.GetHeader("Authorization"))
 	if token == "" {
@@ -29,7 +32,7 @@ func (a *API) viewerSeesMembership(c *gin.Context) bool {
 	if err != nil || user == nil {
 		return false
 	}
-	return store.UserSeesMembership(user.IsMember, user.IsAdmin)
+	return store.EffectiveMember(user, time.Now())
 }
 
 func videoVisibleToViewer(v *model.Video, seesMembership bool) bool {
