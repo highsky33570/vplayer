@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -236,6 +237,7 @@ func (a *API) RegisterStart(c *gin.Context) {
 
 	// Send before any write. A failed send leaves the previous pending row untouched.
 	if err := a.Mailer.Send(c.Request.Context(), mail.VerificationEmail(email, code)); err != nil {
+		log.Printf("register/start smtp send failed host=%s port=%d: %v", a.Cfg.SMTPHost, a.Cfg.SMTPPort, err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "message": "验证码发送失败，请稍后重试"})
 		return
 	}
@@ -420,6 +422,7 @@ func (a *API) RegisterResend(c *gin.Context) {
 	codeHash := auth.HashVerificationCode(code, a.Cfg.EmailCodePepper)
 	// Failed send must not change the existing code, expiry, or attempt counters.
 	if err := a.Mailer.Send(c.Request.Context(), mail.VerificationEmail(email, code)); err != nil {
+		log.Printf("register/resend smtp send failed host=%s port=%d: %v", a.Cfg.SMTPHost, a.Cfg.SMTPPort, err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "message": "验证码发送失败，请稍后重试"})
 		return
 	}
