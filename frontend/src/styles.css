@@ -5028,6 +5028,87 @@ html.dark .me-feedback.is-success {
   color: #ffd8e4;
 }
 
+@media (max-width: 767px) {
+  .vip-hero-stage {
+    min-height: min(42vh, 360px);
+  }
+
+  .vip-hero-body {
+    max-width: none;
+    margin: 0 14px;
+    /* Leave room for the minimized chip in the top-right. */
+    padding: 64px 0 10px;
+  }
+
+  .vip-hero-title {
+    font-size: clamp(22px, 7vw, 28px);
+  }
+
+  .vip-hero-desc {
+    -webkit-line-clamp: 3;
+    max-width: none;
+    font-size: 13px;
+  }
+
+  /* Expanded: sit in normal flow under hero copy — never cover CTAs. */
+  .vip-status-card:not(.is-minimized) {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: calc(100% - 28px);
+    max-width: none;
+    margin: 0 14px 12px;
+    padding: 14px 14px 12px;
+    padding-top: 34px;
+    gap: 8px;
+    border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  }
+
+  .vip-status-card:not(.is-minimized) .vip-status-user p {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .vip-status-card:not(.is-minimized) .vip-status-detail {
+    font-size: 11px;
+  }
+
+  .vip-status-card:not(.is-minimized) .vip-status-stats {
+    gap: 8px;
+  }
+
+  .vip-status-card:not(.is-minimized) .vip-cta {
+    min-height: 36px;
+    width: 100%;
+  }
+
+  /* Minimized chip stays a small floating pill. */
+  .vip-status-card.is-minimized {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 3;
+    width: min(168px, calc(100% - 20px));
+    padding: 8px 10px;
+    padding-top: 30px;
+    border-radius: 14px;
+  }
+
+  .vip-status-card.is-minimized .vip-status-toggle {
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+  }
+
+  .vip-featured-overlap {
+    padding: 0 12px 12px;
+  }
+}
+
 .vip-dest-body {
   width: min(2200px, calc(100% - 32px));
   margin: 0 auto;
@@ -5870,10 +5951,18 @@ html.dark .me-feedback.is-success {
     display: none;
   }
 
-  .msg-dest--detail .msg-detail-pane,
-  .msg-dest--compose .msg-detail-pane {
+  .msg-dest--detail .msg-detail-pane {
     display: flex;
     grid-column: 1 / -1;
+  }
+
+  /* Search/compose keeps tabs visible; stack search + editor under sidebar. */
+  .msg-dest--compose .msg-center-grid {
+    grid-template-columns: 140px minmax(0, 1fr);
+  }
+
+  .msg-dest--compose .msg-detail-pane {
+    display: flex;
   }
 
   .msg-dest--compose .msg-list-pane {
@@ -6026,9 +6115,13 @@ html.dark .me-feedback.is-success {
     padding: 10px 12px 14px;
   }
 
-  .msg-dest--detail .msg-sidebar,
-  .msg-dest--compose .msg-sidebar {
+  .msg-dest--detail .msg-sidebar {
     display: none;
+  }
+
+  /* Keep 消息中心 tabs on 查找用户 — same chrome as other sections. */
+  .msg-dest--compose .msg-sidebar {
+    display: flex;
   }
 
   .msg-dest--compose .msg-center-grid {
@@ -6038,11 +6131,18 @@ html.dark .me-feedback.is-success {
 
   .msg-dest--compose .msg-search-pane {
     flex: 0 0 auto;
+    display: flex;
   }
 
   .msg-dest--compose .msg-detail-pane {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     display: flex;
+    min-height: 220px;
+  }
+
+  .msg-dest--compose .msg-detail-empty {
+    min-height: 160px;
+    padding: 20px 16px;
   }
 
   .msg-composer {

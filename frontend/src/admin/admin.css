@@ -185,7 +185,9 @@
 .admin-nav-link.is-active {
   background: color-mix(in srgb, var(--brand) 16%, transparent);
   color: var(--text);
-  font-weight: 650;
+  /* Keep weight stable — bolding active items causes mobile size jumps. */
+  font-weight: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent);
 }
 
 .admin-nav-link.is-active svg {
@@ -207,22 +209,22 @@
   background: color-mix(in srgb, var(--surface) 92%, transparent);
 }
 
-.admin-collapse-btn,
-.admin-home-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-weight: 650;
-  text-decoration: none;
-  cursor: pointer;
-  border: none;
-  font: inherit;
-  white-space: nowrap;
-  transition: background 0.18s ease, filter 0.18s ease, padding 0.28s ease;
-}
+  .admin-collapse-btn,
+  .admin-home-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-weight: 650;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    font: inherit;
+    white-space: nowrap;
+    transition: background 0.18s ease, filter 0.18s ease;
+  }
 
 .admin-shell.is-collapsed .admin-collapse-btn,
 .admin-shell.is-collapsed .admin-home-btn {
@@ -931,17 +933,57 @@
     border-bottom: 1px solid var(--line);
   }
 
+  /* Equal-size chips — ignore desktop collapse transitions that inflate on tap. */
   .admin-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    flex: 0 0 auto;
     overflow: visible;
+    padding: 4px 0 8px;
   }
 
+  .admin-nav-link,
+  .admin-shell.is-collapsed .admin-nav-link {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    min-height: 64px;
+    height: 64px;
+    max-height: 64px;
+    padding: 8px 4px;
+    padding-inline: 4px;
+    border-radius: 10px;
+    text-align: center;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .admin-nav-link:active,
+  .admin-nav-link.is-active:active {
+    transform: none;
+  }
+
+  .admin-nav-label,
   .admin-shell.is-collapsed .admin-nav-label,
   .admin-shell.is-collapsed .admin-brand-copy {
     opacity: 1;
-    max-width: 160px;
+    max-width: none;
+    margin: 0;
     pointer-events: auto;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: normal;
+    text-align: center;
+    transition: none;
+  }
+
+  .admin-nav-link.is-active {
+    font-weight: 600;
+  }
+
+  .admin-shell.is-collapsed .admin-brand-copy {
+    display: block;
   }
 
   .admin-sidebar-foot {
