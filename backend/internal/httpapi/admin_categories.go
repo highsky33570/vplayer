@@ -31,6 +31,7 @@ type AdminCategoryDTO struct {
 	Name         string     `json:"name"`
 	Slug         string     `json:"slug"`
 	Sort         int        `json:"sort"`
+	ParentID     *uint64    `json:"parent_id"`
 	IsActive     bool       `json:"is_active"`
 	SourceSystem string     `json:"source_system"`
 	SourceID     string     `json:"source_id"`
@@ -47,6 +48,7 @@ func adminCategoryDTO(c store.AdminCategory) AdminCategoryDTO {
 		Name:         c.Name,
 		Slug:         c.Slug,
 		Sort:         c.Sort,
+		ParentID:     c.ParentID,
 		IsActive:     c.IsActive,
 		SourceSystem: c.SourceSystem,
 		SourceID:     c.SourceID,

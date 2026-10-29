@@ -1031,3 +1031,92 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Category tree */
+.admin-cat-tree-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.admin-cat-toggle,
+.admin-cat-toggle-spacer {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--admin-muted, #9aa3af);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+}
+
+.admin-cat-toggle-spacer {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.admin-cat-branch {
+  display: inline-block;
+  width: 14px;
+  height: 1px;
+  margin-right: 4px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.admin-cat-main-row td:nth-child(2) {
+  font-weight: 600;
+}
+
+.admin-cat-child-row td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-cat-orphan-head td {
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-cat-mobile-child {
+  margin-left: 14px;
+  opacity: 0.95;
+}
+
+.admin-cat-mobile-block {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* Payment history summary */
+.admin-pay-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.admin-pay-stat {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-pay-stat strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .admin-pay-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

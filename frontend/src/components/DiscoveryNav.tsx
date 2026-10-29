@@ -176,6 +176,8 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
           type="button"
           className={`category-btn category-btn--main${active === 'home' ? ' is-active' : ''}`}
           onClick={handleHome}
+          title="首页"
+          aria-label="首页"
         >
           <span className="category-icon" aria-hidden>
             <CategoryIcon slug="home" name="首页" />
@@ -193,6 +195,8 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
             <div key={`${main.id}-${main.slug}`} className="category-rail-group">
               <button
                 type="button"
+                title={main.name}
+                aria-label={main.name}
                 aria-expanded={kids.length > 0 ? expanded : undefined}
                 className={[
                   'category-btn',

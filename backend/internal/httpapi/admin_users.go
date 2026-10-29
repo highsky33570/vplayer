@@ -35,12 +35,21 @@ type AdminUserDTO struct {
 	IsAdmin             bool       `json:"is_admin"`
 	IsMember            bool       `json:"is_member"`
 	MembershipExpiresAt *time.Time `json:"membership_expires_at"`
+	MembershipRemaining int        `json:"membership_remaining_days"`
 	LatestPlanSlug      string     `json:"latest_plan_slug"`
 	LatestPlanName      string     `json:"latest_plan_name"`
 	CreatedAt           time.Time  `json:"created_at"`
 }
 
 func adminUserDTO(u store.AdminUser) AdminUserDTO {
+	remaining := 0
+	if u.IsMember && !u.IsAdmin {
+		if u.MembershipExpiresAt == nil {
+			remaining = -1 // lifetime
+		} else {
+			remaining = store.MembershipDaysRemaining(u.MembershipExpiresAt, time.Now())
+		}
+	}
 	return AdminUserDTO{
 		ID:                  u.ID,
 		Email:               u.Email,
@@ -48,6 +57,7 @@ func adminUserDTO(u store.AdminUser) AdminUserDTO {
 		IsAdmin:             u.IsAdmin,
 		IsMember:            u.IsMember,
 		MembershipExpiresAt: u.MembershipExpiresAt,
+		MembershipRemaining: remaining,
 		LatestPlanSlug:      u.LatestPlanSlug,
 		LatestPlanName:      u.LatestPlanName,
 		CreatedAt:           u.CreatedAt,

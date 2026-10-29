@@ -274,6 +274,11 @@ describe('mobile and desktop category presentation', () => {
     // Banner channel rail: scroll at mid widths instead of overlapping labels.
     assert.match(css, /\.banner-channels\s+\.category-rail\s*\{[^}]*overflow-x:\s*auto/);
     assert.match(css, /\.banner-channels\s+\.category-btn--main[\s\S]*?min-width:\s*max-content/);
+    // Mid-width compact header: icon-only channels/actions + magnifier search.
+    assert.match(css, /@media \(max-width: 1439px\) and \(min-width: 768px\)/);
+    assert.match(css, /\.banner-channels\s+\.category-label\s*\{[^}]*clip:\s*rect\(0,\s*0,\s*0,\s*0\)/);
+    assert.match(css, /\.banner-shell\s+\.search--desktop\s*\{[^}]*width:\s*36px/);
+    assert.match(css, /\.banner-shell\s+\.search--desktop\s+button\s+svg\s*\{[^}]*display:\s*block\s*!important/);
     assert.equal(src.includes('上一组分类'), false);
     assert.equal(src.includes('下一组分类'), false);
     assert.equal(src.includes('scrollBy'), false);

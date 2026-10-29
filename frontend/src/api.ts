@@ -1029,6 +1029,8 @@ export type AdminCategory = {
   name: string;
   slug: string;
   sort: number;
+  /** null/undefined => top-level; set for OLEHDTV child types */
+  parent_id?: number | null;
   is_active: boolean;
   source_system: string;
   source_id: string;
@@ -1054,9 +1056,43 @@ export type AdminUser = {
   is_admin: boolean;
   is_member: boolean;
   membership_expires_at?: string | null;
+  /** Remaining VIP days; -1 = lifetime; 0 = expired/none. */
+  membership_remaining_days?: number;
   latest_plan_slug?: string;
   latest_plan_name?: string;
   created_at: string;
+};
+
+export type AdminPayment = {
+  id: number;
+  order_no: string;
+  user_id: number;
+  user_email: string;
+  user_nickname: string;
+  plan_slug: string;
+  plan_name: string;
+  duration_days: number;
+  amount_usd: number;
+  amount_usdt: number;
+  currency: string;
+  status: string;
+  gateway_provider: string;
+  gateway_trade_id: string;
+  pay_address: string;
+  gateway_network: string;
+  block_txid: string;
+  expire_at: string;
+  paid_at?: string | null;
+  membership_granted_until?: string | null;
+  created_at: string;
+};
+
+export type AdminPaymentPage = {
+  data: AdminPayment[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
 };
 
 export type AdminMembershipPlan = {
@@ -1295,6 +1331,48 @@ export async function cleanupAdminCategoryDuplicates(
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return json.data;
+}
+
+export async function fetchAdminPayments(
+  token: string | null | undefined,
+  opts?: {
+    limit?: number;
+    offset?: number;
+    q?: string;
+    status?: 'all' | 'pending' | 'paid' | 'expired' | 'cancelled';
+  },
+): Promise<AdminPaymentPage> {
+  const limit = opts?.limit ?? 24;
+  const offset = opts?.offset ?? 0;
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  const q = opts?.q?.trim();
+  if (q) params.set('q', q);
+  if (opts?.status && opts.status !== 'all') params.set('status', opts.status);
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/payments?${params}`, { headers });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminPayment[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+    has_more?: boolean;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    data: json.data ?? [],
+    total: Number(json.total ?? 0),
+    limit: Number(json.limit ?? limit),
+    offset: Number(json.offset ?? offset),
+    has_more: Boolean(json.has_more),
+  };
 }
 
 export async function updateAdminUser(

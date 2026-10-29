@@ -12,13 +12,19 @@ const adminVideoSelect = `SELECT ` + videoScanSelect + ` FROM videos`
 // appendAdminVideosWhere applies the same discovery gates as the public catalog:
 // hide OLEHDTV VIP蓝光影院 rows, hide membership-only / unplayable titles.
 // Admin should not list titles users cannot play.
-func appendAdminVideosWhere(q string, args []any, categoryID uint64, query string, active, isHot *bool) (string, []any) {
+// browse mirrors public category/leaf filtering (parent id or parent+leaf_source_id).
+func appendAdminVideosWhere(q string, args []any, browse CategoryBrowseFilter, query string, active, isHot *bool) (string, []any) {
 	excl, exclArgs := AdminExcludeOleHdTvVIPSQL("")
 	q += excl
 	args = append(args, exclArgs...)
-	if categoryID > 0 {
+	if browse.FailClosed {
+		q += ` AND 1=0`
+	} else if browse.LeafSourceID != "" {
+		q += ` AND category_id=? AND leaf_source_id=?`
+		args = append(args, browse.CanonicalCategoryID, browse.LeafSourceID)
+	} else if browse.CanonicalCategoryID > 0 {
 		q += ` AND category_id=?`
-		args = append(args, categoryID)
+		args = append(args, browse.CanonicalCategoryID)
 	}
 	if active != nil {
 		q += ` AND COALESCE(is_active,1)=?`
@@ -50,7 +56,11 @@ func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active,
 	if offset < 0 {
 		offset = 0
 	}
-	q, args := appendAdminVideosWhere(adminVideoSelect+` WHERE 1=1`, nil, categoryID, query, active, isHot)
+	browse, err := m.resolveCategoryBrowse(categoryID)
+	if err != nil {
+		return nil, err
+	}
+	q, args := appendAdminVideosWhere(adminVideoSelect+` WHERE 1=1`, nil, browse, query, active, isHot)
 	q += ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
@@ -72,7 +82,11 @@ func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active,
 
 // CountAdminVideosFiltered counts videos matching the same filters as ListAdminVideosFiltered.
 func (m *MySQL) CountAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool) (int, error) {
-	q, args := appendAdminVideosWhere(`SELECT COUNT(*) FROM videos WHERE 1=1`, nil, categoryID, query, active, isHot)
+	browse, err := m.resolveCategoryBrowse(categoryID)
+	if err != nil {
+		return 0, err
+	}
+	q, args := appendAdminVideosWhere(`SELECT COUNT(*) FROM videos WHERE 1=1`, nil, browse, query, active, isHot)
 	var n int
 	if err := m.DB.QueryRow(q, args...).Scan(&n); err != nil {
 		return 0, err

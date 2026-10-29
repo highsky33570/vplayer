@@ -26,7 +26,7 @@ type adminCreateVideoReq struct {
 
 func adminCreateAsVIP(req adminCreateVideoReq) bool {
 	if req.AsVIP == nil {
-		return true
+		return false
 	}
 	return *req.AsVIP
 }
@@ -110,28 +110,26 @@ func (a *API) AdminCreateVideo(c *gin.Context) {
 		return
 	}
 
-	var categoryID uint64
-	if adminCreateAsVIP(req) {
-		vip, err := a.Store.GetCategoryBySlug("vip-bluray")
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "无法解析 VIP 分类"})
-			return
-		}
-		if vip == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "VIP 分类不存在"})
-			return
-		}
-		categoryID = vip.ID
-	} else if req.CategoryID > 0 {
-		cat, err := a.Store.GetCategoryByID(req.CategoryID)
-		if err != nil || cat == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "invalid category_id"})
-			return
-		}
-		categoryID = cat.ID
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "category_id is required when as_vip is false"})
+	if req.CategoryID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "category_id is required"})
 		return
+	}
+	cat, err := a.Store.GetCategoryByID(req.CategoryID)
+	if err != nil || cat == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "invalid category_id"})
+		return
+	}
+	browse := store.CategoryBrowseFromRow(req.CategoryID, cat)
+	if browse.FailClosed || browse.CanonicalCategoryID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "invalid category_id"})
+		return
+	}
+	categoryID := browse.CanonicalCategoryID
+	sourceCategoryID := strings.TrimSpace(cat.SourceID)
+	if cat.ParentID != nil && *cat.ParentID > 0 {
+		if parent, perr := a.Store.GetCategoryByID(*cat.ParentID); perr == nil && parent != nil {
+			sourceCategoryID = strings.TrimSpace(parent.SourceID)
+		}
 	}
 
 	sourceID, err := newAdminSourceID()
@@ -141,23 +139,30 @@ func (a *API) AdminCreateVideo(c *gin.Context) {
 	}
 	playSrc := playbackSourceForURL(playURL)
 	videoID, err := a.Store.InsertVideoCatalog(store.VideoUpsert{
-		SourceSystem:    adminLocalSourceSystem,
-		SourceID:        sourceID,
-		CategoryID:      categoryID,
-		Title:           title,
-		Description:     strings.TrimSpace(req.Description),
-		PosterSourceURL: coverURL,
-		PlaybackSource:  playSrc,
-		PlaySID:         1,
-		PlayNID:         1,
-		PlaybackURL:     playURL,
-		IsActive:        true,
-		Status:          "ready",
-		SyncStatus:      "ok",
+		SourceSystem:     adminLocalSourceSystem,
+		SourceID:         sourceID,
+		CategoryID:       categoryID,
+		SourceCategoryID: sourceCategoryID,
+		Title:            title,
+		Description:      strings.TrimSpace(req.Description),
+		PosterSourceURL:  coverURL,
+		PlaybackSource:   playSrc,
+		PlaySID:          1,
+		PlayNID:          1,
+		PlaybackURL:      playURL,
+		IsActive:         true,
+		Status:           "ready",
+		SyncStatus:       "ok",
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "无法创建视频"})
 		return
+	}
+	if browse.LeafSourceID != "" {
+		if err := a.Store.SetVideoLeafSourceID(videoID, browse.LeafSourceID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "视频已创建但子分类写入失败"})
+			return
+		}
 	}
 	if err := a.Store.InsertEpisodeCatalog(store.EpisodeUpsert{
 		VideoID:        videoID,
@@ -174,8 +179,14 @@ func (a *API) AdminCreateVideo(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "视频已创建但剧集写入失败"})
 		return
 	}
-	// VIP placements are membership-gated by default (membership box).
-	if adminCreateAsVIP(req) {
+	// VIP channel or explicit as_vip => membership-gated.
+	vipChannel := strings.TrimSpace(cat.Slug) == "vip-bluray"
+	if !vipChannel && cat.ParentID != nil && *cat.ParentID > 0 {
+		if parent, perr := a.Store.GetCategoryByID(*cat.ParentID); perr == nil && parent != nil {
+			vipChannel = strings.TrimSpace(parent.Slug) == "vip-bluray"
+		}
+	}
+	if adminCreateAsVIP(req) || vipChannel {
 		_ = a.Store.SetVideoMembershipRequired(videoID, true, categoryID)
 	}
 

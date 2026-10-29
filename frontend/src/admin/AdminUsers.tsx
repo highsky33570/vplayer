@@ -21,6 +21,19 @@ function formatTime(value?: string) {
   return d.toLocaleString();
 }
 
+function membershipRemainingLabel(row: AdminUser): string {
+  if (row.is_admin) return '—';
+  if (!row.is_member) return '—';
+  const days = row.membership_remaining_days;
+  if (days == null) {
+    if (!row.membership_expires_at) return '终身';
+    return '—';
+  }
+  if (days < 0) return '终身';
+  if (days === 0) return '已过期';
+  return `${days} 天`;
+}
+
 export function AdminUsers() {
   const { token, logout } = useAuth();
   const navigate = useNavigate();
@@ -165,6 +178,7 @@ export function AdminUsers() {
                   <th>昵称</th>
                   <th>角色</th>
                   <th>会员</th>
+                  <th>剩余天数</th>
                   <th>最近套餐</th>
                   <th>到期</th>
                   <th>创建时间</th>
@@ -195,9 +209,10 @@ export function AdminUsers() {
                           row.is_admin || row.is_member ? 'admin-badge is-ok' : 'admin-badge is-off'
                         }
                       >
-                        {row.is_admin ? '管理员' : row.is_member ? 'VIP' : '普通'}
+                        {row.is_admin ? '管理员' : row.is_member ? 'VIP 会员' : '非会员'}
                       </span>
                     </td>
+                    <td>{membershipRemainingLabel(row)}</td>
                     <td>{row.latest_plan_name || row.latest_plan_slug || '—'}</td>
                     <td>
                       {row.is_admin
@@ -224,7 +239,8 @@ export function AdminUsers() {
                   </strong>
                   <p>
                     {row.nickname || '—'} · {roleLabel(row.is_admin)} ·{' '}
-                    {row.is_admin || row.is_member ? 'VIP' : '普通'}
+                    {row.is_admin || row.is_member ? 'VIP 会员' : '非会员'}
+                    {` · 剩余 ${membershipRemainingLabel(row)}`}
                     {row.latest_plan_name ? ` · ${row.latest_plan_name}` : ''}
                   </p>
                   <p className="admin-muted">{formatTime(row.created_at)}</p>

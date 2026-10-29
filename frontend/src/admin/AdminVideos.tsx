@@ -15,9 +15,13 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
 import {
+  adminMainCategories,
+  adminSubcategories,
+  resolveAdminCategorySelection,
+} from './adminVideoCategories';
+import {
   buildAdminVideosSearch,
   parseAdminVideosSearch,
-  type AdminVideosActiveFilter,
   type AdminVideosHotFilter,
 } from './adminVideosQuery';
 import { activeLabel, syncStatusLabel, videoStatusLabel } from './adminLabels';
@@ -46,7 +50,9 @@ export function AdminVideos() {
   const [createURL, setCreateURL] = useState('');
   const [createCover, setCreateCover] = useState('');
   const [createDesc, setCreateDesc] = useState('');
-  const [createAsVIP, setCreateAsVIP] = useState(true);
+  const [createAsVIP, setCreateAsVIP] = useState(false);
+  const [createMainId, setCreateMainId] = useState(0);
+  const [createSubId, setCreateSubId] = useState(0);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createOK, setCreateOK] = useState<string | null>(null);
@@ -65,7 +71,7 @@ export function AdminVideos() {
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [parsed.page, parsed.q, parsed.categoryId, parsed.isActive, parsed.isHot, listTick]);
+  }, [parsed.page, parsed.q, parsed.categoryId, parsed.isHot, listTick]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,7 +101,6 @@ export function AdminVideos() {
           offset: (parsed.page - 1) * parsed.pageSize,
           q: parsed.q,
           categoryId: parsed.categoryId || undefined,
-          isActive: parsed.isActive,
           isHot: parsed.isHot,
         });
         if (!cancelled) {
@@ -134,6 +139,11 @@ export function AdminVideos() {
     e.preventDefault();
     setCreateError(null);
     setCreateOK(null);
+    const categoryId = createSubId > 0 ? createSubId : createMainId;
+    if (!categoryId) {
+      setCreateError('请选择分类');
+      return;
+    }
     setCreating(true);
     try {
       const created = await createAdminVideo(token, {
@@ -142,12 +152,16 @@ export function AdminVideos() {
         cover_url: createCover.trim() || undefined,
         description: createDesc.trim() || undefined,
         as_vip: createAsVIP,
+        category_id: categoryId,
       });
       setCreateOK(`已添加 #${created.id} ${created.title}`);
       setCreateTitle('');
       setCreateURL('');
       setCreateCover('');
       setCreateDesc('');
+      setCreateAsVIP(false);
+      setCreateMainId(0);
+      setCreateSubId(0);
       setListTick((n) => n + 1);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -170,28 +184,38 @@ export function AdminVideos() {
     return (id: number) => map.get(id) ?? String(id);
   }, [categories]);
 
+  const mainCategories = useMemo(() => adminMainCategories(categories), [categories]);
+  const selection = useMemo(
+    () => resolveAdminCategorySelection(categories, parsed.categoryId),
+    [categories, parsed.categoryId],
+  );
+  const subCategories = useMemo(
+    () => adminSubcategories(categories, selection.mainId),
+    [categories, selection.mainId],
+  );
+  const createSubCategories = useMemo(
+    () => adminSubcategories(categories, createMainId),
+    [categories, createMainId],
+  );
+
   const totalPages = Math.max(1, Math.ceil(total / parsed.pageSize));
 
   function applyFilters(next: {
     q?: string;
     categoryId?: number;
-    isActive?: AdminVideosActiveFilter;
     isHot?: AdminVideosHotFilter;
     page?: number;
   }) {
     const categoryId = Object.prototype.hasOwnProperty.call(next, 'categoryId')
       ? Number(next.categoryId ?? 0)
       : parsed.categoryId;
-    const isActive = Object.prototype.hasOwnProperty.call(next, 'isActive')
-      ? (next.isActive as AdminVideosActiveFilter)
-      : parsed.isActive;
     const isHot = Object.prototype.hasOwnProperty.call(next, 'isHot')
       ? (next.isHot as AdminVideosHotFilter)
       : parsed.isHot;
     const qs = buildAdminVideosSearch({
       q: next.q ?? parsed.q,
       categoryId,
-      isActive,
+      isActive: 'all',
       isHot,
       page: next.page ?? 1,
     });
@@ -365,7 +389,7 @@ export function AdminVideos() {
       <div className="admin-page-head">
         <h1>视频管理</h1>
         <p className="admin-muted">
-          片库列表与筛选 · 可添加本地 VIP 视频。分类/启用状态会立即写入 URL 并刷新列表。
+          片库列表与筛选 · 可添加本地 VIP 视频。分类会立即写入 URL 并刷新列表。
         </p>
       </div>
 
@@ -406,13 +430,50 @@ export function AdminVideos() {
               placeholder="简短描述"
             />
           </label>
+          <label className="admin-filter-field">
+            <span>分类</span>
+            <select
+              value={createMainId > 0 ? String(createMainId) : ''}
+              required
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : 0;
+                setCreateMainId(id);
+                setCreateSubId(0);
+                const main = mainCategories.find((c) => c.id === id);
+                if (main?.slug === 'vip-bluray') setCreateAsVIP(true);
+              }}
+            >
+              <option value="">请选择</option>
+              {mainCategories.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {createMainId > 0 && createSubCategories.length > 0 ? (
+            <label className="admin-filter-field">
+              <span>子分类</span>
+              <select
+                value={createSubId > 0 ? String(createSubId) : ''}
+                onChange={(e) => setCreateSubId(e.target.value ? Number(e.target.value) : 0)}
+              >
+                <option value="">全部 / 不指定</option>
+                {createSubCategories.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label className="admin-filter-check">
             <input
               type="checkbox"
               checked={createAsVIP}
               onChange={(e) => setCreateAsVIP(e.target.checked)}
             />
-            <span>设为 VIP 蓝光影院</span>
+            <span>会员专属</span>
           </label>
           <button type="submit" className="admin-btn-primary" disabled={creating}>
             {creating ? '提交中…' : '添加'}
@@ -442,7 +503,7 @@ export function AdminVideos() {
         <label className="admin-filter-field">
           <span>分类</span>
           <select
-            value={parsed.categoryId > 0 ? String(parsed.categoryId) : ''}
+            value={selection.mainId > 0 ? String(selection.mainId) : ''}
             onChange={(e) => {
               const raw = e.target.value;
               applyFilters({
@@ -451,31 +512,36 @@ export function AdminVideos() {
               });
             }}
           >
-            <option value="">全部</option>
-            {categories.map((c) => (
+            <option value="">首页</option>
+            {mainCategories.map((c) => (
               <option key={c.id} value={String(c.id)}>
-                #{c.id} {c.name}
-                {!c.is_active ? '（停用）' : ''}
+                {c.name}
               </option>
             ))}
           </select>
         </label>
-        <label className="admin-filter-field">
-          <span>启用状态</span>
-          <select
-            value={parsed.isActive}
-            onChange={(e) =>
-              applyFilters({
-                isActive: e.target.value as AdminVideosActiveFilter,
-                page: 1,
-              })
-            }
-          >
-            <option value="all">全部</option>
-            <option value="1">启用</option>
-            <option value="0">停用</option>
-          </select>
-        </label>
+        {selection.mainId > 0 && subCategories.length > 0 ? (
+          <label className="admin-filter-field">
+            <span>子分类</span>
+            <select
+              value={selection.subId > 0 ? String(selection.subId) : ''}
+              onChange={(e) => {
+                const raw = e.target.value;
+                applyFilters({
+                  categoryId: raw ? Number(raw) : selection.mainId,
+                  page: 1,
+                });
+              }}
+            >
+              <option value="">全部</option>
+              {subCategories.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label className="admin-filter-field">
           <span>热门推荐</span>
           <select

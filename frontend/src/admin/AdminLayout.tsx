@@ -8,7 +8,7 @@ type AdminNavItem = {
   to: string;
   label: string;
   end?: boolean;
-  icon: 'dashboard' | 'videos' | 'categories' | 'users' | 'sync' | 'media' | 'billing';
+  icon: 'dashboard' | 'videos' | 'categories' | 'users' | 'sync' | 'media' | 'billing' | 'payments';
 };
 
 const NAV: AdminNavItem[] = [
@@ -17,6 +17,7 @@ const NAV: AdminNavItem[] = [
   { to: '/admin/categories', label: '分类管理', icon: 'categories' },
   { to: '/admin/users', label: '用户管理', icon: 'users' },
   { to: '/admin/billing', label: '会员套餐', icon: 'billing' },
+  { to: '/admin/payments', label: '支付记录', icon: 'payments' },
   { to: '/admin/sync', label: '同步 / 采集', icon: 'sync' },
   { to: '/admin/media', label: '媒体管理', icon: 'media' },
 ];
@@ -166,6 +167,12 @@ function NavIcon({
         <svg {...common}>
           <rect x="3" y="6" width="18" height="12" rx="2" {...stroke} />
           <path d="M3 10h18M8 14h3" {...stroke} />
+        </svg>
+      );
+    case 'payments':
+      return (
+        <svg {...common}>
+          <path d="M12 3v18M8 7h6.5a2.5 2.5 0 0 1 0 5H9.5a2.5 2.5 0 0 0 0 5H16" {...stroke} />
         </svg>
       );
     case 'sync':

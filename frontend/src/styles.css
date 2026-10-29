@@ -10181,4 +10181,150 @@ html:not(.dark) .cookie-gate-card {
   }
 }
 
+/* Mid-width desktop/tablet: icon-only channels + actions, magnifier search.
+   Prevents the absolute search field from overlapping channel/action labels. */
+@media (max-width: 1439px) and (min-width: 768px) {
+  .banner-channels .category-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .banner-channels .category-btn--main,
+  .banner-channels .category-btn--main:hover,
+  .banner-channels .category-btn--main.is-active,
+  .banner-channels .category-btn--main.is-parent-of-active,
+  .banner-channels .category-btn--main.is-expanded,
+  html.dark .banner-channels .category-btn--main:not(.is-active),
+  html.dark .banner-channels .category-btn--main:not(.is-active):hover {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0 8px !important;
+    min-width: 36px;
+  }
+
+  .banner-channels .category-icon,
+  .banner-channels .category-icon svg {
+    display: inline-flex !important;
+    width: 18px;
+    height: 18px;
+  }
+
+  .banner-shell .banner-action > span:not(.banner-action-icon):not(.banner-badge):not(.banner-unread-dot),
+  .banner-shell .theme-toggle > span:not(.banner-action-icon),
+  .banner-shell .banner-user:not(.is-logged) > span:not(.banner-action-icon):not(.banner-avatar),
+  .banner-shell .btn-upload > span,
+  .banner-shell .banner-logout > span:not(.banner-action-icon) {
+    display: none !important;
+  }
+
+  .banner-shell .banner-action-icon,
+  .banner-shell .theme-toggle .banner-action-icon,
+  .banner-shell .banner-logout .banner-action-icon,
+  .banner-shell .btn-upload svg,
+  .banner-shell .banner-user:not(.is-logged) .banner-action-icon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    color: inherit;
+  }
+
+  .banner-shell .banner-action,
+  .banner-shell .theme-toggle,
+  .banner-shell .btn-upload,
+  .banner-shell .banner-logout,
+  .banner-shell .banner-user:not(.is-logged) {
+    min-width: 36px;
+    padding: 0 6px !important;
+    justify-content: center;
+  }
+
+  /* Magnifier-only search; expands when .is-expanded / shell is-search-open. */
+  .banner-shell .search--desktop {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    z-index: 4;
+    width: 36px;
+    max-width: 36px;
+    min-width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    justify-self: center;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .banner-shell .search--desktop input {
+    display: none;
+    width: 0;
+    padding: 0;
+    opacity: 0;
+  }
+
+  .banner-shell .search--desktop button {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    border-radius: 4px;
+    background: var(--brand) !important;
+    color: #fff !important;
+  }
+
+  .banner-shell .search--desktop button span {
+    display: none !important;
+  }
+
+  .banner-shell .search--desktop button svg {
+    display: block !important;
+    width: 18px;
+    height: 18px;
+  }
+
+  .banner-shell .search--desktop.is-expanded,
+  .banner-shell.is-search-open .search--desktop {
+    position: absolute !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: min(320px, 52vw);
+    max-width: 320px;
+    min-width: 200px;
+    flex: none;
+    display: flex;
+    align-items: center;
+  }
+
+  .banner-shell .search--desktop.is-expanded input,
+  .banner-shell.is-search-open .search--desktop input {
+    display: block;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    height: 36px;
+    padding: 0 12px;
+    opacity: 1;
+  }
+
+  .banner-shell .search--desktop.is-expanded button,
+  .banner-shell.is-search-open .search--desktop button {
+    width: auto !important;
+    min-width: 44px !important;
+    padding: 0 10px !important;
+  }
+}
+
 

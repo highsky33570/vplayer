@@ -179,6 +179,7 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/admin/membership/plans", api.RequireUser, api.RequireAdmin, api.AdminListMembershipPlans)
 		v1.POST("/admin/membership/plans", api.RequireUser, api.RequireAdmin, api.AdminCreateMembershipPlan)
 		v1.PATCH("/admin/membership/plans/:id", api.RequireUser, api.RequireAdmin, api.AdminUpdateMembershipPlan)
+		v1.GET("/admin/payments", api.RequireUser, api.RequireAdmin, api.AdminListPayments)
 		v1.GET("/admin/sync", api.RequireUser, api.RequireAdmin, api.AdminSyncOverview)
 		v1.GET("/admin/sync/runs", api.RequireUser, api.RequireAdmin, api.AdminListSyncRuns)
 		v1.GET("/admin/sync/runs/:id", api.RequireUser, api.RequireAdmin, api.AdminGetSyncRun)

@@ -13,6 +13,7 @@ type AdminCategory struct {
 	Name         string
 	Slug         string
 	Sort         int
+	ParentID     *uint64
 	IsActive     bool
 	SourceSystem string
 	SourceID     string
@@ -24,7 +25,7 @@ type AdminCategory struct {
 }
 
 const adminCategorySelect = `
-		SELECT c.id, c.name, c.slug, c.sort,
+		SELECT c.id, c.name, c.slug, c.sort, c.parent_id,
 		       COALESCE(c.source_system,''), COALESCE(c.source_id,''),
 		       c.last_synced_at, COALESCE(c.sync_status,'ok'), COALESCE(c.sync_error,''),
 		       COALESCE(c.is_active,1), c.created_at,
@@ -186,10 +187,11 @@ type adminCategoryScannable interface {
 func scanAdminCategory(row adminCategoryScannable) (*AdminCategory, error) {
 	var c AdminCategory
 	var last sql.NullTime
+	var parentID sql.NullInt64
 	var active int
 	var errText string
 	err := row.Scan(
-		&c.ID, &c.Name, &c.Slug, &c.Sort,
+		&c.ID, &c.Name, &c.Slug, &c.Sort, &parentID,
 		&c.SourceSystem, &c.SourceID,
 		&last, &c.SyncStatus, &errText,
 		&active, &c.CreatedAt, &c.VideoCount,
@@ -198,6 +200,7 @@ func scanAdminCategory(row adminCategoryScannable) (*AdminCategory, error) {
 		return nil, err
 	}
 	c.IsActive = active == 1
+	c.ParentID = nullUint64Ptr(parentID)
 	if last.Valid {
 		t := last.Time
 		c.LastSyncedAt = &t

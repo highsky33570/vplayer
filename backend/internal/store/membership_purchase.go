@@ -344,6 +344,98 @@ func EffectiveMember(u *model.User, now time.Time) bool {
 	return u.IsMember
 }
 
+// AdminMembershipOrderRow is a payment-history list row with buyer identity.
+type AdminMembershipOrderRow struct {
+	MembershipOrder
+	UserEmail    string
+	UserNickname string
+}
+
+// ListAdminMembershipOrders lists checkout rows newest-first for admin payment history.
+// status empty = all; query matches order_no / user email / nickname (parameterized LIKE).
+func (m *MySQL) ListAdminMembershipOrders(status, query string, limit, offset int) ([]AdminMembershipOrderRow, error) {
+	if limit <= 0 {
+		limit = 24
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	q := `
+		SELECT o.id, o.order_no, o.user_id, o.plan_slug, o.plan_name, o.duration_days, o.amount_usd, o.currency, o.status,
+		  o.gateway_provider, COALESCE(o.gateway_trade_id,''), COALESCE(o.gateway_payment_url,''), COALESCE(o.pay_address,''),
+		  COALESCE(o.amount_usdt,0), COALESCE(o.gateway_token,''), COALESCE(o.gateway_network,''), COALESCE(o.gateway_status,''),
+		  COALESCE(o.block_txid,''), o.expire_at, o.paid_at, o.membership_granted_until, o.created_at, o.updated_at,
+		  COALESCE(u.email,''), COALESCE(u.nickname,'')
+		FROM membership_orders o
+		LEFT JOIN users u ON u.id = o.user_id
+		WHERE 1=1`
+	args := []any{}
+	if status = strings.TrimSpace(status); status != "" {
+		q += ` AND o.status=?`
+		args = append(args, status)
+	}
+	if query = strings.TrimSpace(query); query != "" {
+		like := "%" + query + "%"
+		q += ` AND (o.order_no LIKE ? OR COALESCE(u.email,'') LIKE ? OR COALESCE(u.nickname,'') LIKE ?)`
+		args = append(args, like, like, like)
+	}
+	q += ` ORDER BY o.id DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+	rows, err := m.DB.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AdminMembershipOrderRow
+	for rows.Next() {
+		var o MembershipOrder
+		var paid, granted sql.NullTime
+		var email, nick string
+		if err := rows.Scan(
+			&o.ID, &o.OrderNo, &o.UserID, &o.PlanSlug, &o.PlanName, &o.DurationDays, &o.AmountUSD, &o.Currency, &o.Status,
+			&o.GatewayProvider, &o.GatewayTradeID, &o.GatewayPaymentURL, &o.PayAddress,
+			&o.AmountUSDT, &o.GatewayToken, &o.GatewayNetwork, &o.GatewayStatus,
+			&o.BlockTxID, &o.ExpireAt, &paid, &granted, &o.CreatedAt, &o.UpdatedAt,
+			&email, &nick,
+		); err != nil {
+			return nil, err
+		}
+		if paid.Valid {
+			t := paid.Time
+			o.PaidAt = &t
+		}
+		if granted.Valid {
+			t := granted.Time
+			o.MembershipGrantedUntil = &t
+		}
+		out = append(out, AdminMembershipOrderRow{MembershipOrder: o, UserEmail: email, UserNickname: nick})
+	}
+	return out, rows.Err()
+}
+
+// CountAdminMembershipOrders counts rows matching ListAdminMembershipOrders filters.
+func (m *MySQL) CountAdminMembershipOrders(status, query string) (int, error) {
+	q := `SELECT COUNT(*) FROM membership_orders o LEFT JOIN users u ON u.id = o.user_id WHERE 1=1`
+	args := []any{}
+	if status = strings.TrimSpace(status); status != "" {
+		q += ` AND o.status=?`
+		args = append(args, status)
+	}
+	if query = strings.TrimSpace(query); query != "" {
+		like := "%" + query + "%"
+		q += ` AND (o.order_no LIKE ? OR COALESCE(u.email,'') LIKE ? OR COALESCE(u.nickname,'') LIKE ?)`
+		args = append(args, like, like, like)
+	}
+	var n int
+	if err := m.DB.QueryRow(q, args...).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // MembershipDaysRemaining returns whole days left (ceil-ish via hour padding), or 0.
 func MembershipDaysRemaining(expiresAt *time.Time, now time.Time) int {
 	if expiresAt == nil || !expiresAt.After(now) {

@@ -42,6 +42,7 @@ export function Header() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const desktopSearchInputRef = useRef<HTMLInputElement | null>(null);
   const [params] = useSearchParams();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -53,6 +54,7 @@ export function Header() {
   const { theme, toggleTheme } = useTheme();
   const desktopHover = useDesktopHover();
   const isPhone = useIsPhone();
+  const isCompactHeader = useCompactHeader();
   const reducedMotion = usePrefersReducedMotion();
   const [openFlyout, setOpenFlyout] = useState<HeaderFlyoutId | null>(null);
   const [unread, setUnread] = useState(0);
@@ -64,6 +66,31 @@ export function Header() {
   useEffect(() => {
     if (!desktopHover || !showIdentity) setOpenFlyout(null);
   }, [desktopHover, showIdentity]);
+
+  // Compact mid-width search: collapse magnifier panel when leaving that range or clicking away.
+  // Do not clear searchOpen on phone — mobile chrome reuses the same flag.
+  useEffect(() => {
+    if (!isCompactHeader) {
+      if (!isPhone) setSearchOpen(false);
+      return;
+    }
+    if (!searchOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node | null;
+      const form = desktopSearchInputRef.current?.closest('form');
+      if (form && target && form.contains(target)) return;
+      setSearchOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSearchOpen(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isCompactHeader, isPhone, searchOpen]);
 
   const refreshUnread = useCallback(() => {
     if (!token) return;
@@ -153,10 +180,17 @@ export function Header() {
     if (!keyword) return;
     navigate(`/?q=${encodeURIComponent(keyword)}`);
     setMenuOpen(false);
+    setSearchOpen(false);
   }
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault();
+    // Mid-width compact header: first click on the magnifier expands the field.
+    if (isCompactHeader && !searchOpen && !q.trim()) {
+      setSearchOpen(true);
+      window.setTimeout(() => desktopSearchInputRef.current?.focus(), 40);
+      return;
+    }
     runSearch();
   }
 
@@ -230,15 +264,20 @@ export function Header() {
           <div className="banner-channels" ref={setChannelHost} />
         </div>
 
-        <form className="search search--desktop" role="search" onSubmit={onSearchSubmit}>
+        <form
+          className={`search search--desktop${isCompactHeader && searchOpen ? ' is-expanded' : ''}`}
+          role="search"
+          onSubmit={onSearchSubmit}
+        >
           <input
+            ref={desktopSearchInputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="搜索影视、剧集、动漫"
             aria-label="搜索"
             autoComplete="off"
           />
-          <button type="submit" aria-label="搜索">
+          <button type="submit" aria-label="搜索" title="搜索">
             <SearchIcon />
             <span>搜索</span>
           </button>
@@ -631,6 +670,23 @@ function useIsPhone() {
     return () => media.removeEventListener('change', update);
   }, []);
   return phone;
+}
+
+/** Tablet / mid desktop: icon-only channels/actions + magnifier search. */
+function useCompactHeader() {
+  const [compact, setCompact] = useState(
+    typeof window !== 'undefined'
+      ? window.matchMedia('(max-width: 1439px) and (min-width: 768px)').matches
+      : false,
+  );
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1439px) and (min-width: 768px)');
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return compact;
 }
 
 function MenuIcon() {

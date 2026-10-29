@@ -50,7 +50,7 @@ func (m *MySQL) ListAdminUsersFiltered(query string, isAdmin *bool, limit, offse
 		q += ` AND (email LIKE ? OR COALESCE(nickname,'') LIKE ?)`
 		args = append(args, like, like)
 	}
-	q += ` ORDER BY id DESC LIMIT ? OFFSET ?`
+	q += ` ORDER BY id ASC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
 	rows, err := m.DB.Query(q, args...)

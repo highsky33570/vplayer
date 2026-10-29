@@ -9,6 +9,7 @@ import { AdminLayout } from './admin/AdminLayout';
 import { AdminMedia } from './admin/AdminMedia';
 import { AdminMediaEpisodeDetail } from './admin/AdminMediaEpisodeDetail';
 import { AdminOperationalRunDetail } from './admin/AdminOperationalRunDetail';
+import { AdminPayments } from './admin/AdminPayments';
 import { AdminSync } from './admin/AdminSync';
 import { AdminSyncRunDetail } from './admin/AdminSyncRunDetail';
 import { AdminUserDetail } from './admin/AdminUserDetail';
@@ -72,6 +73,7 @@ export default function App() {
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="users/:id" element={<AdminUserDetail />} />
                 <Route path="billing" element={<AdminBilling />} />
+                <Route path="payments" element={<AdminPayments />} />
                 <Route path="sync" element={<AdminSync />} />
                 <Route path="sync/runs/:id" element={<AdminSyncRunDetail />} />
                 <Route path="sync/operations/:id" element={<AdminOperationalRunDetail />} />

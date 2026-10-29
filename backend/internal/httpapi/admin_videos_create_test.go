@@ -21,11 +21,15 @@ func TestValidateAdminPlaybackURL(t *testing.T) {
 }
 
 func TestAdminCreateAsVIPDefault(t *testing.T) {
-	if !adminCreateAsVIP(adminCreateVideoReq{}) {
-		t.Fatal("default as_vip true")
+	if adminCreateAsVIP(adminCreateVideoReq{}) {
+		t.Fatal("default as_vip must be false; category selection is required")
 	}
 	f := false
 	if adminCreateAsVIP(adminCreateVideoReq{AsVIP: &f}) {
 		t.Fatal("explicit false")
+	}
+	tr := true
+	if !adminCreateAsVIP(adminCreateVideoReq{AsVIP: &tr}) {
+		t.Fatal("explicit true")
 	}
 }
