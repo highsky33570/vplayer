@@ -13,12 +13,17 @@ function kindLabel(kind: string): string {
   if (kind === 'comment_reply') return '评论回复';
   if (kind === 'system') return '系统通知';
   if (kind === 'direct_message') return '私信';
+  if (kind === 'direct_message_sent') return '已发送';
   return '消息';
 }
 
 export function messageListPrimary(item: UserNotification): string {
-  if (item.kind === 'comment_reply' || item.kind === 'direct_message') {
-    return (item.actor_name ?? '').trim() || kindLabel(item.kind);
+  if (item.kind === 'comment_reply' || item.kind === 'direct_message' || item.kind === 'direct_message_sent') {
+    const name = (item.actor_name ?? '').trim();
+    if (item.kind === 'direct_message_sent') {
+      return name ? `发给 ${name}` : kindLabel(item.kind);
+    }
+    return name || kindLabel(item.kind);
   }
   return (item.title ?? '').trim() || kindLabel(item.kind);
 }
@@ -26,7 +31,7 @@ export function messageListPrimary(item: UserNotification): string {
 export function messageListPreview(item: UserNotification): string {
   const body = (item.body ?? '').trim();
   if (body) return body;
-  if (item.kind === 'comment_reply' || item.kind === 'direct_message') {
+  if (item.kind === 'comment_reply' || item.kind === 'direct_message' || item.kind === 'direct_message_sent') {
     return (item.title ?? '').trim();
   }
   return '';

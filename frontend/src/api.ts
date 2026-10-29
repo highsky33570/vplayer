@@ -566,7 +566,7 @@ export type HistoryVideo = Video & {
   progress_sec: number;
 };
 
-export type NotificationKind = 'comment_reply' | 'system' | 'direct_message';
+export type NotificationKind = 'comment_reply' | 'system' | 'direct_message' | 'direct_message_sent';
 
 export type UserNotification = {
   id: number;

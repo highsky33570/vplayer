@@ -87,8 +87,8 @@ func (a *API) notificationJSON(n store.Notification) notificationJSON {
 		IsRead:    n.IsRead,
 		CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339),
 	}
-	// Expose actor id only for DMs (reply UX). Comment replies keep actor_name only.
-	if n.Kind == store.NotificationKindDirectMessage {
+	// Expose actor id for DMs (received + sent) so the UI can reply / show the other party.
+	if n.Kind == store.NotificationKindDirectMessage || n.Kind == store.NotificationKindDirectMessageSent {
 		out.ActorUserID = n.ActorUserID
 	}
 	if n.ActorUserID != nil {

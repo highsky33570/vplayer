@@ -145,23 +145,41 @@ func (a *API) SendDirectMessage(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "message": "未登录"})
 		return
 	}
-	actor := fromID
-	display := auth.DisplayName(fromUser.Nickname, fromUser.Email)
-	n, err := notifs.CreateNotification(store.Notification{
+	now := time.Now().UTC()
+	fromActor := fromID
+	toActor := req.ToUserID
+	toDisplay := auth.DisplayName(toUser.Nickname, toUser.Email)
+
+	// Recipient inbox (unread).
+	if _, err := notifs.CreateNotification(store.Notification{
 		UserID:      req.ToUserID,
 		Kind:        store.NotificationKindDirectMessage,
 		Title:       title,
 		Body:        body,
-		ActorUserID: &actor,
-		CreatedAt:   time.Now().UTC(),
+		ActorUserID: &fromActor,
+		CreatedAt:   now,
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "发送失败，请稍后重试"})
+		return
+	}
+
+	// Sender's own copy (already read) so it appears under 我的消息.
+	sent, err := notifs.CreateNotification(store.Notification{
+		UserID:      fromID,
+		Kind:        store.NotificationKindDirectMessageSent,
+		Title:       title,
+		Body:        body,
+		ActorUserID: &toActor,
+		IsRead:      true,
+		CreatedAt:   now,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "发送失败，请稍后重试"})
 		return
 	}
-	out := a.notificationJSON(n)
+	out := a.notificationJSON(sent)
 	if out.ActorName == "" {
-		out.ActorName = display
+		out.ActorName = toDisplay
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": out})
 }

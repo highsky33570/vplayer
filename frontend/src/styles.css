@@ -4241,6 +4241,14 @@ html.dark .login-reminder-cta {
   color: var(--danger-text);
 }
 
+.me-feedback.is-success {
+  color: #1f9d55;
+}
+
+html.dark .me-feedback.is-success {
+  color: #3dd68c;
+}
+
 .me-links {
   display: flex;
   flex-wrap: wrap;

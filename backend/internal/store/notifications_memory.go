@@ -22,7 +22,6 @@ func (m *MemoryNotifications) CreateNotification(n Notification) (Notification, 
 	defer m.mu.Unlock()
 	m.seq++
 	n.ID = m.seq
-	n.IsRead = false
 	if n.CreatedAt.IsZero() {
 		n.CreatedAt = time.Now()
 	}

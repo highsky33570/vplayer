@@ -133,6 +133,18 @@ describe('messages categories and list/detail', () => {
       }),
       'Bob',
     );
+    assert.equal(
+      messageListPrimary({
+        id: 3,
+        kind: 'direct_message_sent',
+        title: '私信',
+        body: '你好',
+        actor_name: 'Bob',
+        is_read: true,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+      '发给 Bob',
+    );
   });
 });
 

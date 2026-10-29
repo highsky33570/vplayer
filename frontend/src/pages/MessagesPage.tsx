@@ -50,7 +50,11 @@ function MessagesContent({ token }: { token: string }) {
   const [params, setParams] = useSearchParams();
   const filter = parseMessageFilter(params.get('kind'));
   const isSearch = filter === 'search';
-  const kind = MESSAGE_TABS.find((tab) => tab.id === filter)?.kind ?? (filter === 'direct_message' || filter === 'comment_reply' ? filter : undefined);
+  const kind =
+    MESSAGE_TABS.find((tab) => tab.id === filter)?.kind ??
+    (filter === 'direct_message' || filter === 'direct_message_sent' || filter === 'comment_reply'
+      ? filter
+      : undefined);
   const [items, setItems] = useState<UserNotification[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(!isSearch);
@@ -237,7 +241,7 @@ function MessagesContent({ token }: { token: string }) {
         title: draftTitle.trim() || undefined,
         body,
       });
-      setSendFeedback('发送成功！对方消息图标将显示未读红点。');
+      setSendFeedback('发送成功');
       setDraftBody('');
     } catch (e) {
       setSendFeedback(e instanceof Error ? e.message : '发送失败');
@@ -459,7 +463,7 @@ function MessagesContent({ token }: { token: string }) {
                   </label>
                   {sendFeedback ? (
                     <p
-                      className={`me-feedback${sendFeedback.includes('成功') ? '' : ' is-error'}`}
+                      className={`me-feedback${sendFeedback === '发送成功' ? ' is-success' : ' is-error'}`}
                       role="status"
                     >
                       {sendFeedback}
@@ -509,9 +513,13 @@ function MessagesContent({ token }: { token: string }) {
                     <p className="me-hint">该回复没有关联视频</p>
                   )}
                 </div>
-              ) : selected.kind === 'direct_message' ? (
+              ) : selected.kind === 'direct_message' || selected.kind === 'direct_message_sent' ? (
                 <div className="msg-detail-actions">
-                  <p className="me-hint">来自用户的私信</p>
+                  <p className="me-hint">
+                    {selected.kind === 'direct_message_sent'
+                      ? `已发送给 ${selected.actor_name || '用户'}`
+                      : '来自用户的私信'}
+                  </p>
                   {selected.actor_user_id ? (
                     <button
                       type="button"
@@ -519,6 +527,7 @@ function MessagesContent({ token }: { token: string }) {
                       onClick={() => {
                         setSearchId(String(selected.actor_user_id));
                         selectTab('search');
+                        setFoundUsers([]);
                         setFoundUser(
                           selected.actor_user_id
                             ? {
@@ -528,11 +537,15 @@ function MessagesContent({ token }: { token: string }) {
                               }
                             : null,
                         );
-                        setDraftTitle(`回复 ${selected.actor_name || ''}`.trim());
+                        setDraftTitle(
+                          selected.kind === 'direct_message_sent'
+                            ? `致 ${selected.actor_name || ''}`.trim()
+                            : `回复 ${selected.actor_name || ''}`.trim(),
+                        );
                         setDraftBody('');
                       }}
                     >
-                      回复私信
+                      {selected.kind === 'direct_message_sent' ? '再次发送' : '回复私信'}
                     </button>
                   ) : null}
                 </div>

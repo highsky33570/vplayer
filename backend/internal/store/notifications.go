@@ -7,16 +7,18 @@ import (
 )
 
 const (
-	NotificationKindCommentReply   = "comment_reply"
-	NotificationKindSystem         = "system"
-	NotificationKindDirectMessage  = "direct_message"
+	NotificationKindCommentReply      = "comment_reply"
+	NotificationKindSystem            = "system"
+	NotificationKindDirectMessage     = "direct_message"
+	NotificationKindDirectMessageSent = "direct_message_sent"
 )
 
 // ValidNotificationKind reports whether kind is one of the supported kinds.
 func ValidNotificationKind(kind string) bool {
 	return kind == NotificationKindCommentReply ||
 		kind == NotificationKindSystem ||
-		kind == NotificationKindDirectMessage
+		kind == NotificationKindDirectMessage ||
+		kind == NotificationKindDirectMessageSent
 }
 
 // Notification is a user_notifications row.
@@ -35,7 +37,8 @@ type Notification struct {
 
 // NotificationRepo is the notification surface used by comment replies and /me/notifications.
 type NotificationRepo interface {
-	// CreateNotification stores n as unread. ID, IsRead and a zero CreatedAt are filled in.
+	// CreateNotification stores n. ID and a zero CreatedAt are filled in.
+	// IsRead is honored (sent-message copies are typically stored as already read).
 	CreateNotification(n Notification) (Notification, error)
 	// ListNotifications lists newest first. An empty kind lists every kind.
 	ListNotifications(userID uint64, kind string, limit, offset int) ([]Notification, int, error)
@@ -62,12 +65,16 @@ func (m *MySQL) CreateNotification(n Notification) (Notification, error) {
 		n.CreatedAt = time.Now()
 	}
 	n.CreatedAt = n.CreatedAt.UTC()
+	readFlag := 0
+	if n.IsRead {
+		readFlag = 1
+	}
 	res, err := m.DB.Exec(`
 		INSERT INTO user_notifications (user_id, kind, title, body, video_id, comment_id, actor_user_id, is_read, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.UserID, n.Kind, n.Title, n.Body,
 		optionalUint64(n.VideoID), optionalUint64(n.CommentID), optionalUint64(n.ActorUserID),
-		formatUTCDateTime(n.CreatedAt),
+		readFlag, formatUTCDateTime(n.CreatedAt),
 	)
 	if err != nil {
 		return Notification{}, err
@@ -77,7 +84,6 @@ func (m *MySQL) CreateNotification(n Notification) (Notification, error) {
 		return Notification{}, err
 	}
 	n.ID = uint64(id)
-	n.IsRead = false
 	return n, nil
 }
 

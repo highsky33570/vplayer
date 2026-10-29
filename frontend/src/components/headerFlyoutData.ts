@@ -152,7 +152,13 @@ export const MESSAGE_TABS: { id: MessageFilter; label: string; kind?: Notificati
 ];
 
 export function parseMessageFilter(raw: string | null | undefined): MessageFilter {
-  if (raw === 'search' || raw === 'system' || raw === 'direct_message' || raw === 'comment_reply') {
+  if (
+    raw === 'search' ||
+    raw === 'system' ||
+    raw === 'direct_message' ||
+    raw === 'direct_message_sent' ||
+    raw === 'comment_reply'
+  ) {
     return raw;
   }
   return 'all';
@@ -162,6 +168,7 @@ export function messageKindLabel(kind: string): string {
   if (kind === 'comment_reply') return '评论回复';
   if (kind === 'system') return '系统通知';
   if (kind === 'direct_message') return '私信';
+  if (kind === 'direct_message_sent') return '已发送';
   return '消息';
 }
 

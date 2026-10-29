@@ -109,6 +109,21 @@ func TestSendDirectMessageCreatesUnreadAndLookup(t *testing.T) {
 	if envelope.Data.UnreadCount < 1 {
 		t.Fatalf("expected bob unread >= 1, got %d", envelope.Data.UnreadCount)
 	}
+
+	aliceRows, _, err := notifs.ListNotifications(alice.ID, store.NotificationKindDirectMessageSent, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aliceRows) != 1 || !aliceRows[0].IsRead {
+		t.Fatalf("expected alice sent copy read=true, got %+v", aliceRows)
+	}
+	bobRows, _, err := notifs.ListNotifications(bob.ID, store.NotificationKindDirectMessage, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bobRows) != 1 || bobRows[0].IsRead {
+		t.Fatalf("expected bob received unread, got %+v", bobRows)
+	}
 }
 
 func TestNotifyWelcomeSignup(t *testing.T) {
