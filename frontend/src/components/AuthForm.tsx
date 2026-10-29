@@ -1,4 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import {
+  passwordForgot as apiPasswordForgot,
+  passwordReset as apiPasswordReset,
+} from '../api';
 import { useAuth } from '../auth/AuthContext';
 import {
   authFormSubmitPlan,
@@ -12,9 +16,12 @@ import {
 type Props = {
   /** Optional: close parent after success (AuthContext already closes modal). */
   onSuccess?: () => void;
+  /** Notifies parent so modal title can follow forgot-password steps. */
+  onFlowChange?: (flow: 'auth' | 'forgot') => void;
 };
 
 type RegisterStep = 'form' | 'verify';
+type ForgotStep = 'email' | 'reset';
 
 function maskEmail(email: string): string {
   const e = email.trim();
@@ -26,7 +33,7 @@ function maskEmail(email: string): string {
   return `${name[0]}${'*'.repeat(Math.min(name.length - 2, 4))}${name[name.length - 1]}${domain}`;
 }
 
-export function AuthForm({ onSuccess }: Props) {
+export function AuthForm({ onSuccess, onFlowChange }: Props) {
   const {
     authMode,
     setAuthMode,
@@ -40,20 +47,29 @@ export function AuthForm({ onSuccess }: Props) {
   } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [nickname, setNickname] = useState('');
   const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [registerStep, setRegisterStep] = useState<RegisterStep>('form');
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotStep, setForgotStep] = useState<ForgotStep>('email');
   const [expiresInSec, setExpiresInSec] = useState(600);
   const [resendAfterSec, setResendAfterSec] = useState(60);
   const [cooldownLeft, setCooldownLeft] = useState(0);
 
   const isRegister = authMode === 'register';
-  const showVerify = isRegister && showsVerificationStep(registrationConfig, registerStep);
-  const registrationNotice = isRegister && !showVerify ? registrationBlockMessage(registrationConfig) : null;
+  const showVerify = !forgotMode && isRegister && showsVerificationStep(registrationConfig, registerStep);
+  const registrationNotice =
+    !forgotMode && isRegister && !showVerify ? registrationBlockMessage(registrationConfig) : null;
   const registrationReady = canSubmitRegistration(registrationConfig);
+
+  useEffect(() => {
+    onFlowChange?.(forgotMode ? 'forgot' : 'auth');
+  }, [forgotMode, onFlowChange]);
 
   useEffect(() => {
     if (cooldownLeft <= 0) return;
@@ -69,8 +85,115 @@ export function AuthForm({ onSuccess }: Props) {
     }
   }, [isRegister]);
 
+  function enterForgot() {
+    setForgotMode(true);
+    setForgotStep('email');
+    setPassword('');
+    setConfirmPassword('');
+    setCode('');
+    setError('');
+    setInfo('');
+    setCooldownLeft(0);
+    setAuthMode('login');
+  }
+
+  function leaveForgot() {
+    setForgotMode(false);
+    setForgotStep('email');
+    setPassword('');
+    setConfirmPassword('');
+    setCode('');
+    setError('');
+    setInfo('');
+    setCooldownLeft(0);
+  }
+
+  async function onForgotSend() {
+    const account = email.trim();
+    if (!account) {
+      setError('请输入账号或邮箱');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    setInfo('');
+    try {
+      const meta = await apiPasswordForgot(account);
+      setExpiresInSec(meta.expires_in_sec || 600);
+      setResendAfterSec(meta.resend_after_sec || 60);
+      setCooldownLeft(meta.resend_after_sec || 60);
+      setForgotStep('reset');
+      setInfo('若该邮箱已注册，验证码已发送，请查收邮件');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '发送失败，请稍后重试');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function onForgotReset() {
+    const account = email.trim();
+    const trimmed = code.trim();
+    if (!/^\d{6}$/.test(trimmed)) {
+      setError('请输入 6 位数字验证码');
+      return;
+    }
+    if (!password) {
+      setError('请输入新密码');
+      return;
+    }
+    if (password.length < 6) {
+      setError('密码至少 6 位');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('两次输入的密码不一致');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    setInfo('');
+    try {
+      await apiPasswordReset(account, trimmed, password);
+      await login(account, password);
+      onSuccess?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '重置失败，请稍后重试');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function onForgotResend() {
+    const account = email.trim();
+    if (!account) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const meta = await apiPasswordForgot(account);
+      setExpiresInSec(meta.expires_in_sec || 600);
+      setResendAfterSec(meta.resend_after_sec || 60);
+      setCooldownLeft(meta.resend_after_sec || 60);
+      setInfo('验证码已重新发送，请查收邮件');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '发送失败，请稍后重试');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+
+    if (forgotMode) {
+      if (forgotStep === 'email') {
+        await onForgotSend();
+      } else {
+        await onForgotReset();
+      }
+      return;
+    }
+
     const account = email.trim();
     if (!account) {
       setError('请输入账号或邮箱');
@@ -118,15 +241,14 @@ export function AuthForm({ onSuccess }: Props) {
         const meta = await registerStart(account, password, nickname.trim() || undefined);
         const next = stateAfterRegisterStart();
         setPassword(next.password);
-        setCode(next.code);
         setRegisterStep(next.registerStep);
         setExpiresInSec(meta.expires_in_sec || 600);
         setResendAfterSec(meta.resend_after_sec || 60);
         setCooldownLeft(meta.resend_after_sec || 60);
-      } else if (isRegister && registerSubmitAction(registrationConfig) === 'direct') {
+      } else if (isRegister) {
         await register(account, password, nickname.trim() || undefined);
         onSuccess?.();
-      } else if (!isRegister) {
+      } else {
         await login(account, password);
         onSuccess?.();
       }
@@ -138,7 +260,6 @@ export function AuthForm({ onSuccess }: Props) {
   }
 
   async function onResend() {
-    if (cooldownLeft > 0 || submitting) return;
     const account = email.trim();
     if (!account) return;
     setSubmitting(true);
@@ -163,8 +284,8 @@ export function AuthForm({ onSuccess }: Props) {
   }
 
   return (
-    <form className="auth-form" onSubmit={onSubmit} noValidate>
-      {!showVerify && (
+    <form className="auth-form" onSubmit={(e) => void onSubmit(e)} noValidate>
+      {!forgotMode && !showVerify && (
         <div className="auth-tabs" role="tablist" aria-label="登录方式">
           <button
             type="button"
@@ -194,7 +315,79 @@ export function AuthForm({ onSuccess }: Props) {
         </div>
       )}
 
-      {showVerify ? (
+      {forgotMode ? (
+        <>
+          {forgotStep === 'reset' ? (
+            <p className="auth-verify-hint">
+              验证码已发送至 <strong>{maskEmail(email)}</strong>
+              <br />
+              请在 {Math.max(1, Math.round(expiresInSec / 60))} 分钟内完成验证并设置新密码
+            </p>
+          ) : (
+            <p className="auth-verify-hint">输入注册邮箱，我们将发送找回密码验证码。</p>
+          )}
+
+          <label className="auth-field">
+            <span>账号 / 邮箱</span>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="请输入账号或邮箱"
+              autoComplete="username"
+              disabled={submitting || forgotStep === 'reset'}
+            />
+          </label>
+
+          {forgotStep === 'reset' ? (
+            <>
+              <label className="auth-field">
+                <span>邮箱验证码</span>
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="6 位数字验证码"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  disabled={submitting}
+                  autoFocus
+                />
+              </label>
+              <label className="auth-field">
+                <span>新密码</span>
+                <div className="auth-password">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="至少 6 位新密码"
+                    autoComplete="new-password"
+                    disabled={submitting}
+                  />
+                  <button
+                    type="button"
+                    className="auth-eye"
+                    aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                    onClick={() => setShowPassword((v) => !v)}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              </label>
+              <label className="auth-field">
+                <span>确认新密码</span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="再次输入新密码"
+                  autoComplete="new-password"
+                  disabled={submitting}
+                />
+              </label>
+            </>
+          ) : null}
+        </>
+      ) : showVerify ? (
         <>
           <p className="auth-verify-hint">
             验证码已发送至 <strong>{maskEmail(email)}</strong>
@@ -241,7 +434,14 @@ export function AuthForm({ onSuccess }: Props) {
           </label>
 
           <label className="auth-field">
-            <span>密码</span>
+            <div className="auth-field-label-row">
+              <span>密码</span>
+              {!isRegister ? (
+                <button type="button" className="auth-forgot-link" onClick={enterForgot}>
+                  忘记密码？
+                </button>
+              ) : null}
+            </div>
             <div className="auth-password">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -264,9 +464,9 @@ export function AuthForm({ onSuccess }: Props) {
         </>
       )}
 
-      {(registrationNotice || error) && (
-        <p className="auth-error" role="alert">
-          {registrationNotice ?? error}
+      {(registrationNotice || error || info) && (
+        <p className={error || registrationNotice ? 'auth-error' : 'auth-info'} role="alert">
+          {registrationNotice ?? error ?? info}
           {registrationNotice && (
             <>
               {' '}
@@ -279,7 +479,22 @@ export function AuthForm({ onSuccess }: Props) {
       )}
 
       <div className="auth-actions">
-        {showVerify ? (
+        {forgotMode ? (
+          <>
+            <button type="button" className="auth-btn-secondary" disabled={submitting} onClick={leaveForgot}>
+              返回登录
+            </button>
+            <button type="submit" className="auth-btn-primary" disabled={submitting}>
+              {submitting
+                ? forgotStep === 'email'
+                  ? '发送中...'
+                  : '重置中...'
+                : forgotStep === 'email'
+                  ? '发送验证码'
+                  : '重置密码'}
+            </button>
+          </>
+        ) : showVerify ? (
           <>
             <button type="button" className="auth-btn-secondary" disabled={submitting} onClick={backToRegisterForm}>
               返回修改
@@ -325,13 +540,13 @@ export function AuthForm({ onSuccess }: Props) {
         )}
       </div>
 
-      {showVerify && (
+      {(showVerify || (forgotMode && forgotStep === 'reset')) && (
         <div className="auth-resend-row">
           <button
             type="button"
             className="auth-link-btn auth-resend-btn"
             disabled={submitting || cooldownLeft > 0}
-            onClick={() => void onResend()}
+            onClick={() => void (forgotMode ? onForgotResend() : onResend())}
           >
             {cooldownLeft > 0 ? `重新发送（${cooldownLeft}s）` : '重新发送验证码'}
           </button>

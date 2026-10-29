@@ -28,6 +28,7 @@ type UserRepo interface {
 	Authenticate(email, password string) (*model.User, error)
 	GetUserByID(id uint64) (*model.User, error)
 	UpdateProfile(id uint64, nickname string, avatarHue int) (*model.User, error)
+	UpdatePasswordHash(email, passwordHash string) error
 }
 
 func (m *MySQL) CreateUser(email, password, nickname string) (*model.User, error) {
@@ -77,6 +78,24 @@ func (m *MySQL) UpdateProfile(id uint64, nickname string, avatarHue int) (*model
 		return nil, err
 	}
 	return m.GetUserByID(id)
+}
+
+// UpdatePasswordHash sets users.password_hash by normalized email.
+func (m *MySQL) UpdatePasswordHash(email, passwordHash string) error {
+	email = authNormalizeEmail(email)
+	passwordHash = strings.TrimSpace(passwordHash)
+	if email == "" || passwordHash == "" {
+		return errors.New("email and password hash required")
+	}
+	res, err := m.DB.Exec(`UPDATE users SET password_hash=? WHERE email=?`, passwordHash, email)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrUserNotFound
+	}
+	return nil
 }
 
 func (m *MySQL) Authenticate(email, password string) (*model.User, error) {
@@ -258,5 +277,34 @@ func (m *MemoryUsers) SetIsAdmin(id uint64, isAdmin bool) error {
 		return ErrUserNotFound
 	}
 	u.user.IsAdmin = isAdmin
+	return nil
+}
+
+func (m *MemoryUsers) EmailExists(email string) (bool, error) {
+	email = authNormalizeEmail(email)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.byMail[email]
+	return ok, nil
+}
+
+func (m *MemoryUsers) UpdatePasswordHash(email, passwordHash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.UpdatePasswordHashLocked(email, passwordHash)
+}
+
+// UpdatePasswordHashLocked requires m.mu held.
+func (m *MemoryUsers) UpdatePasswordHashLocked(email, passwordHash string) error {
+	email = authNormalizeEmail(email)
+	passwordHash = strings.TrimSpace(passwordHash)
+	if email == "" || passwordHash == "" {
+		return errors.New("email and password hash required")
+	}
+	u, ok := m.byMail[email]
+	if !ok {
+		return ErrUserNotFound
+	}
+	u.hash = passwordHash
 	return nil
 }

@@ -504,6 +504,23 @@ export function registerResend(email: string) {
   return postJSON<RegisterStartResult>('/api/v1/auth/register/resend', { email });
 }
 
+export type PasswordForgotResult = {
+  expires_in_sec: number;
+  resend_after_sec: number;
+};
+
+export function passwordForgot(email: string) {
+  return postJSON<PasswordForgotResult>('/api/v1/auth/password/forgot', { email });
+}
+
+export function passwordReset(email: string, code: string, password: string) {
+  return postJSON<AuthResult | { reset: true }>('/api/v1/auth/password/reset', {
+    email,
+    code,
+    password,
+  });
+}
+
 export async function fetchMe(token: string): Promise<AuthUser> {
   const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },

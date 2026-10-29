@@ -132,6 +132,8 @@ func New(cfg config.Config) (*Server, error) {
 		v1.POST("/auth/register/start", api.RegisterStart)
 		v1.POST("/auth/register/verify", api.RegisterVerify)
 		v1.POST("/auth/register/resend", api.RegisterResend)
+		v1.POST("/auth/password/forgot", api.PasswordForgot)
+		v1.POST("/auth/password/reset", api.PasswordReset)
 		v1.POST("/auth/login", api.Login)
 		v1.GET("/auth/me", api.Me)
 		v1.PATCH("/auth/me", api.RequireUser, api.UpdateMe)

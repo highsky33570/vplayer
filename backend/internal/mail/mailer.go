@@ -38,3 +38,23 @@ func VerificationEmail(to, code string) Message {
 		HTMLBody: html,
 	}
 }
+
+// PasswordResetEmail builds a forgot-password verification message.
+// code is included only in the message bodies (caller must not log it).
+func PasswordResetEmail(to, code string) Message {
+	to = strings.TrimSpace(to)
+	text := fmt.Sprintf(
+		"天涯欧乐 找回密码\n\n您的验证码是：%s\n\n验证码 10 分钟内有效。\n如非本人操作，请忽略本邮件。\n",
+		code,
+	)
+	html := fmt.Sprintf(
+		`<p>天涯欧乐 找回密码</p><p>您的验证码是：<strong style="font-size:20px;letter-spacing:2px">%s</strong></p><p>验证码 10 分钟内有效。</p><p>如非本人操作，请忽略本邮件。</p>`,
+		code,
+	)
+	return Message{
+		To:       to,
+		Subject:  "天涯欧乐 找回密码验证码",
+		TextBody: text,
+		HTMLBody: html,
+	}
+}

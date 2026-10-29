@@ -26,8 +26,10 @@ type API struct {
 	Epusdt *epusdt.Client
 	// PendingRegs optionally overrides Store for pending registration (tests).
 	PendingRegs store.PendingRegistrationStore
-	Mailer      mail.Mailer
-	registerIP  *registerIPLimiter
+	// PasswordResets optionally overrides Store for forgot-password codes (tests).
+	PasswordResets store.PasswordResetStore
+	Mailer         mail.Mailer
+	registerIP     *registerIPLimiter
 	Resolver    *play.Resolver
 	SyncRunner  *scheduler.OleHdTvRunner
 	MediaBase   string

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import logoUrl from '../assets/logo.png';
 import { useAuth } from '../auth/AuthContext';
@@ -6,6 +6,11 @@ import { AuthForm } from './AuthForm';
 
 export function LoginModal() {
   const { loginOpen, closeLogin, authMode, authRequired } = useAuth();
+  const [flow, setFlow] = useState<'auth' | 'forgot'>('auth');
+
+  useEffect(() => {
+    if (!loginOpen) setFlow('auth');
+  }, [loginOpen]);
 
   useEffect(() => {
     if (!loginOpen) return;
@@ -23,6 +28,9 @@ export function LoginModal() {
 
   if (!authRequired || !loginOpen) return null;
 
+  const title =
+    flow === 'forgot' ? '找回密码' : authMode === 'register' ? '注册 天涯欧乐' : '登录 天涯欧乐';
+
   return createPortal(
     <div className="auth-overlay" role="presentation" onMouseDown={closeLogin}>
       <div
@@ -39,12 +47,12 @@ export function LoginModal() {
         <div className="auth-modal-brand">
           <img className="auth-modal-logo" src={logoUrl} alt="天涯欧乐" width={140} height={36} decoding="async" />
           <div>
-            <h2 id="auth-modal-title">{authMode === 'register' ? '注册 天涯欧乐' : '登录 天涯欧乐'}</h2>
-            <p>高清点播 · 畅享精彩影视</p>
+            <h2 id="auth-modal-title">{title}</h2>
+            <p>{flow === 'forgot' ? '通过邮箱验证码重置密码' : '高清点播 · 畅享精彩影视'}</p>
           </div>
         </div>
 
-        <AuthForm />
+        <AuthForm onFlowChange={setFlow} />
       </div>
     </div>,
     document.body,
