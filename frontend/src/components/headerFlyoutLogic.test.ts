@@ -198,6 +198,8 @@ describe('preview and badge helpers', () => {
     assert.equal(previewState(false, false, 0), 'empty');
     assert.equal(previewState(false, false, 3), 'ready');
     assert.equal(parseMessageFilter('comment_reply'), 'comment_reply');
+    assert.equal(parseMessageFilter('search'), 'search');
+    assert.equal(parseMessageFilter('direct_message'), 'direct_message');
     assert.equal(parseMessageFilter('nope'), 'all');
 
     const fav = favoritePreviewItems([

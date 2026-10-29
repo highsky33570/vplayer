@@ -3,7 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   fetchUnreadCount,
   listNotificationsPage,
+  lookupPublicUser,
   markNotificationsRead,
+  sendDirectMessage,
+  type PublicUser,
   type UserNotification,
 } from '../api';
 import { appendUnique, countUnread, markRead } from '../account/accountLogic';
@@ -27,6 +30,8 @@ import {
 } from './messagesPageLogic';
 
 const PAGE_SIZE = 30;
+const DM_BODY_MAX = 500;
+const DM_TITLE_MAX = 40;
 
 export function MessagesPage() {
   const { authRequired, ready } = useAuth();
@@ -44,21 +49,34 @@ export function MessagesPage() {
 function MessagesContent({ token }: { token: string }) {
   const [params, setParams] = useSearchParams();
   const filter = parseMessageFilter(params.get('kind'));
-  const kind = MESSAGE_TABS.find((tab) => tab.id === filter)?.kind;
+  const isSearch = filter === 'search';
+  const kind = MESSAGE_TABS.find((tab) => tab.id === filter)?.kind ?? (filter === 'direct_message' || filter === 'comment_reply' ? filter : undefined);
   const [items, setItems] = useState<UserNotification[]>([]);
   const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isSearch);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [totalUnread, setTotalUnread] = useState(0);
   const requestRef = useRef(0);
 
+  const [searchId, setSearchId] = useState('');
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [foundUser, setFoundUser] = useState<PublicUser | null>(null);
+  const [draftTitle, setDraftTitle] = useState('私信');
+  const [draftBody, setDraftBody] = useState('');
+  const [sendBusy, setSendBusy] = useState(false);
+  const [sendFeedback, setSendFeedback] = useState('');
+
   useEffect(() => {
     let cancelled = false;
     fetchUnreadCount(token)
       .then((n) => {
-        if (!cancelled) setTotalUnread(n);
+        if (!cancelled) {
+          setTotalUnread(n);
+          publishUnreadCount(n);
+        }
       })
       .catch(() => {
         if (!cancelled) setTotalUnread(0);
@@ -69,6 +87,14 @@ function MessagesContent({ token }: { token: string }) {
   }, [token]);
 
   useEffect(() => {
+    if (isSearch) {
+      setLoading(false);
+      setItems([]);
+      setHasMore(false);
+      setSelectedId(null);
+      setError('');
+      return;
+    }
     const request = ++requestRef.current;
     setLoading(true);
     setError('');
@@ -87,7 +113,7 @@ function MessagesContent({ token }: { token: string }) {
       .finally(() => {
         if (requestRef.current === request) setLoading(false);
       });
-  }, [token, kind]);
+  }, [token, kind, isSearch]);
 
   const selected = items.find((item) => item.id === selectedId) ?? null;
   const unreadHere = countUnread(items);
@@ -113,6 +139,8 @@ function MessagesContent({ token }: { token: string }) {
     if (id === 'all') next.delete('kind');
     else next.set('kind', id);
     setParams(next, { replace: true });
+    setSendFeedback('');
+    setLookupError('');
   }
 
   async function onSelect(item: UserNotification) {
@@ -148,11 +176,65 @@ function MessagesContent({ token }: { token: string }) {
     setSelectedId(null);
   }
 
+  async function onLookup() {
+    const id = Number(String(searchId).trim());
+    if (!Number.isInteger(id) || id <= 0) {
+      setLookupError('请输入有效的用户 ID（正整数）');
+      setFoundUser(null);
+      return;
+    }
+    setLookupBusy(true);
+    setLookupError('');
+    setSendFeedback('');
+    try {
+      const user = await lookupPublicUser(token, id);
+      setFoundUser(user);
+      setDraftTitle(`致 ${user.nickname}`);
+      setDraftBody('');
+    } catch (e) {
+      setFoundUser(null);
+      setLookupError(e instanceof Error ? e.message : '查找失败');
+    } finally {
+      setLookupBusy(false);
+    }
+  }
+
+  async function onSend() {
+    if (!foundUser) {
+      setLookupError('请先查找接收用户');
+      return;
+    }
+    const body = draftBody.trim();
+    if (!body) {
+      setSendFeedback('请输入私信内容');
+      return;
+    }
+    if (body.length > DM_BODY_MAX) {
+      setSendFeedback(`内容最多 ${DM_BODY_MAX} 字`);
+      return;
+    }
+    setSendBusy(true);
+    setSendFeedback('');
+    try {
+      await sendDirectMessage(token, {
+        to_user_id: foundUser.id,
+        title: draftTitle.trim() || undefined,
+        body,
+      });
+      setSendFeedback('发送成功！对方消息图标将显示未读红点。');
+      setDraftBody('');
+    } catch (e) {
+      setSendFeedback(e instanceof Error ? e.message : '发送失败');
+    } finally {
+      setSendBusy(false);
+    }
+  }
+
   const watchHref = selected ? messageWatchHref(selected) : null;
 
   return (
     <div
-      className={`msg-dest${selected ? ' msg-dest--detail' : ''}`}
+      className={`msg-dest${selected && !isSearch ? ' msg-dest--detail' : ''}${isSearch ? ' msg-dest--compose' : ''}`}
       data-testid="messages-page"
     >
       <div className="msg-center-grid" data-testid="messages-workspace">
@@ -177,80 +259,187 @@ function MessagesContent({ token }: { token: string }) {
               );
             })}
           </nav>
-          <button
-            type="button"
-            className="me-btn msg-sidebar-action"
-            disabled={totalUnread === 0 && unreadHere === 0 && !loading}
-            onClick={() => void onMarkAll()}
-          >
-            全部已读
-          </button>
+          {!isSearch ? (
+            <button
+              type="button"
+              className="me-btn msg-sidebar-action"
+              disabled={totalUnread === 0 && unreadHere === 0 && !loading}
+              onClick={() => void onMarkAll()}
+            >
+              全部已读
+            </button>
+          ) : null}
         </aside>
 
-        <section className="msg-list-pane" aria-label="消息列表">
-          <header className="msg-pane-head">
-            <h2>{listTitle}</h2>
-          </header>
-          {error ? (
-            <p className="me-feedback is-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {loading ? (
-            <p className="me-status msg-pane-status">加载中…</p>
-          ) : items.length === 0 ? (
-            <div className="msg-list-empty" data-testid="messages-list-empty">
-              <p>{emptyListCopy(filter)}</p>
-            </div>
-          ) : (
-            <>
-              <ul className="msg-list msg-list--center">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      className={`msg-item${item.is_read ? '' : ' is-unread'}${
-                        selectedId === item.id ? ' is-selected' : ''
-                      }`}
-                      data-testid={`message-item-${item.id}`}
-                      onClick={() => void onSelect(item)}
-                    >
-                      <span className="msg-avatar" aria-hidden>
-                        {(item.actor_name || messageKindLabel(item.kind)).slice(0, 1)}
-                      </span>
-                      <span className="msg-body">
-                        <span className="msg-head">
-                          <span className="msg-kind">{messageKindLabel(item.kind)}</span>
-                          <strong>{messageListPrimary(item)}</strong>
-                        </span>
-                        {messageListPreview(item) ? (
-                          <span className="msg-text">{messageListPreview(item)}</span>
-                        ) : null}
-                        <span className="msg-meta">{formatHistoryTime(item.created_at)}</span>
-                      </span>
-                      {!item.is_read ? <span className="msg-dot" aria-label="未读" /> : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {hasMore ? (
-                <div className="load-more-wrap">
-                  <button
-                    type="button"
-                    className="me-btn"
-                    disabled={loadingMore}
-                    onClick={() => void loadMore()}
-                  >
-                    {loadingMore ? '加载中…' : '加载更多'}
+        {isSearch ? (
+          <section className="msg-list-pane msg-search-pane" aria-label="查找用户" data-testid="messages-search">
+            <header className="msg-pane-head">
+              <h2>查找用户</h2>
+            </header>
+            <div className="msg-search-form">
+              <label className="msg-field">
+                <span>用户 ID</span>
+                <div className="msg-search-row">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="输入平台用户 ID"
+                    value={searchId}
+                    onChange={(e) => setSearchId(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void onLookup();
+                    }}
+                  />
+                  <button type="button" className="me-btn me-btn--primary" disabled={lookupBusy} onClick={() => void onLookup()}>
+                    {lookupBusy ? '查找中…' : '查找'}
                   </button>
                 </div>
+              </label>
+              {lookupError ? (
+                <p className="me-feedback is-error" role="alert">
+                  {lookupError}
+                </p>
               ) : null}
-            </>
-          )}
-        </section>
+              {foundUser ? (
+                <div className="msg-found-user" data-testid="messages-found-user">
+                  <span
+                    className="msg-avatar"
+                    style={{ background: `hsl(${foundUser.avatar_hue} 55% 42%)` }}
+                    aria-hidden
+                  >
+                    {foundUser.nickname.slice(0, 1)}
+                  </span>
+                  <div>
+                    <strong>{foundUser.nickname}</strong>
+                    <p>ID · {foundUser.id}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="me-hint">{emptyListCopy('search')}</p>
+              )}
+            </div>
+          </section>
+        ) : (
+          <section className="msg-list-pane" aria-label="消息列表">
+            <header className="msg-pane-head">
+              <h2>{listTitle}</h2>
+            </header>
+            {error ? (
+              <p className="me-feedback is-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {loading ? (
+              <p className="me-status msg-pane-status">加载中…</p>
+            ) : items.length === 0 ? (
+              <div className="msg-list-empty" data-testid="messages-list-empty">
+                <p>{emptyListCopy(filter)}</p>
+              </div>
+            ) : (
+              <>
+                <ul className="msg-list msg-list--center">
+                  {items.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className={`msg-item${item.is_read ? '' : ' is-unread'}${
+                          selectedId === item.id ? ' is-selected' : ''
+                        }`}
+                        data-testid={`message-item-${item.id}`}
+                        onClick={() => void onSelect(item)}
+                      >
+                        <span className="msg-avatar" aria-hidden>
+                          {(item.actor_name || messageKindLabel(item.kind)).slice(0, 1)}
+                        </span>
+                        <span className="msg-body">
+                          <span className="msg-head">
+                            <span className="msg-kind">{messageKindLabel(item.kind)}</span>
+                            <strong>{messageListPrimary(item)}</strong>
+                          </span>
+                          {messageListPreview(item) ? (
+                            <span className="msg-text">{messageListPreview(item)}</span>
+                          ) : null}
+                          <span className="msg-meta">{formatHistoryTime(item.created_at)}</span>
+                        </span>
+                        {!item.is_read ? <span className="msg-dot" aria-label="未读" /> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {hasMore ? (
+                  <div className="load-more-wrap">
+                    <button
+                      type="button"
+                      className="me-btn"
+                      disabled={loadingMore}
+                      onClick={() => void loadMore()}
+                    >
+                      {loadingMore ? '加载中…' : '加载更多'}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </section>
+        )}
 
-        <section className="msg-detail-pane" aria-label="消息详情" data-testid="messages-detail">
-          {!selected ? (
+        <section className="msg-detail-pane" aria-label={isSearch ? '编辑私信' : '消息详情'} data-testid="messages-detail">
+          {isSearch ? (
+            <div className="msg-composer" data-testid="messages-composer">
+              <h2>编写私信</h2>
+              {!foundUser ? (
+                <div className="msg-detail-empty">
+                  <p>{emptyDetailCopy('search')}</p>
+                </div>
+              ) : (
+                <>
+                  <p className="msg-meta">
+                    发送给 <strong>{foundUser.nickname}</strong>（ID {foundUser.id}）
+                  </p>
+                  <label className="msg-field">
+                    <span>标题</span>
+                    <input
+                      type="text"
+                      maxLength={DM_TITLE_MAX}
+                      value={draftTitle}
+                      onChange={(e) => setDraftTitle(e.target.value)}
+                      placeholder="私信标题（可编辑）"
+                    />
+                  </label>
+                  <label className="msg-field">
+                    <span>
+                      内容 <em>{draftBody.length}/{DM_BODY_MAX}</em>
+                    </span>
+                    <textarea
+                      rows={8}
+                      maxLength={DM_BODY_MAX}
+                      value={draftBody}
+                      onChange={(e) => setDraftBody(e.target.value)}
+                      placeholder="在此编辑私信内容…"
+                    />
+                  </label>
+                  {sendFeedback ? (
+                    <p
+                      className={`me-feedback${sendFeedback.includes('成功') ? '' : ' is-error'}`}
+                      role="status"
+                    >
+                      {sendFeedback}
+                    </p>
+                  ) : null}
+                  <div className="msg-detail-actions">
+                    <button
+                      type="button"
+                      className="me-btn me-btn--primary"
+                      disabled={sendBusy || !draftBody.trim()}
+                      onClick={() => void onSend()}
+                    >
+                      {sendBusy ? '发送中…' : '发送私信'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : !selected ? (
             <div className="msg-detail-empty" data-testid="messages-detail-empty">
               <div className="msg-detail-icon" aria-hidden>
                 <MsgEmptyIcon />
@@ -266,6 +455,7 @@ function MessagesContent({ token }: { token: string }) {
               <h2>{selected.title}</h2>
               <p className="msg-meta">
                 {selected.actor_name ? `${selected.actor_name} · ` : ''}
+                {selected.actor_user_id ? `ID ${selected.actor_user_id} · ` : ''}
                 {formatHistoryTime(selected.created_at)}
               </p>
               {selected.body ? <p className="msg-detail-body">{selected.body}</p> : null}
@@ -279,6 +469,33 @@ function MessagesContent({ token }: { token: string }) {
                   ) : (
                     <p className="me-hint">该回复没有关联视频</p>
                   )}
+                </div>
+              ) : selected.kind === 'direct_message' ? (
+                <div className="msg-detail-actions">
+                  <p className="me-hint">来自用户的私信</p>
+                  {selected.actor_user_id ? (
+                    <button
+                      type="button"
+                      className="me-btn me-btn--primary"
+                      onClick={() => {
+                        setSearchId(String(selected.actor_user_id));
+                        selectTab('search');
+                        setFoundUser(
+                          selected.actor_user_id
+                            ? {
+                                id: selected.actor_user_id,
+                                nickname: selected.actor_name || `用户${selected.actor_user_id}`,
+                                avatar_hue: 200,
+                              }
+                            : null,
+                        );
+                        setDraftTitle(`回复 ${selected.actor_name || ''}`.trim());
+                        setDraftBody('');
+                      }}
+                    >
+                      回复私信
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 <div className="msg-detail-actions">

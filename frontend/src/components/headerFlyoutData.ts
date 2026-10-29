@@ -143,21 +143,25 @@ export function accountStats(summary: MeSummary | null | undefined): { label: st
 
 // ——— Messages ———
 
-export type MessageFilter = 'all' | NotificationKind;
+export type MessageFilter = 'all' | 'search' | NotificationKind;
 
 export const MESSAGE_TABS: { id: MessageFilter; label: string; kind?: NotificationKind }[] = [
   { id: 'all', label: '我的消息' },
-  { id: 'comment_reply', label: '回复我的', kind: 'comment_reply' },
+  { id: 'search', label: '查找用户' },
   { id: 'system', label: '系统通知', kind: 'system' },
 ];
 
 export function parseMessageFilter(raw: string | null | undefined): MessageFilter {
-  return raw === 'comment_reply' || raw === 'system' ? raw : 'all';
+  if (raw === 'search' || raw === 'system' || raw === 'direct_message' || raw === 'comment_reply') {
+    return raw;
+  }
+  return 'all';
 }
 
 export function messageKindLabel(kind: string): string {
-  if (kind === 'comment_reply') return '回复我的';
+  if (kind === 'comment_reply') return '评论回复';
   if (kind === 'system') return '系统通知';
+  if (kind === 'direct_message') return '私信';
   return '消息';
 }
 
@@ -167,14 +171,16 @@ export function notificationHref(n: Pick<UserNotification, 'video_id'>): string 
 }
 
 export function emptyMessagesText(filter: MessageFilter): string {
+  if (filter === 'search') return '输入用户 ID 查找并发送私信';
   if (filter === 'comment_reply') return '还没有人回复你的评论';
+  if (filter === 'direct_message') return '暂无私信';
   if (filter === 'system') return '暂无系统通知';
   return '暂无消息';
 }
 
 /** Header 消息 flyout menu. */
 export const MESSAGE_MENU = [
-  { id: 'reply', label: '回复我的', href: '/messages?kind=comment_reply' },
+  { id: 'search', label: '查找用户', href: '/messages?kind=search' },
   { id: 'system', label: '系统通知', href: '/messages?kind=system' },
   { id: 'all', label: '我的消息', href: '/messages' },
 ] as const;

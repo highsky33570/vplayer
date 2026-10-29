@@ -134,6 +134,7 @@ func (a *API) Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": err.Error()})
 		return
 	}
+	a.notifyWelcomeSignup(user.ID)
 	token, err := auth.IssueToken(a.authSecret(), user.ID, user.Email, 30*24*time.Hour)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "签发登录凭证失败"})
@@ -337,6 +338,8 @@ func (a *API) RegisterVerify(c *gin.Context) {
 		}
 		return
 	}
+
+	a.notifyWelcomeSignup(user.ID)
 
 	token, err := auth.IssueToken(a.authSecret(), user.ID, user.Email, 30*24*time.Hour)
 	if err != nil {

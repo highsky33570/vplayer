@@ -191,7 +191,7 @@ describe('destination page composition markers', () => {
     assert.match(messages, /MESSAGE_TABS/);
     assert.match(messages, /系统通知/);
     assert.match(tabs, /label: '我的消息'/);
-    assert.match(tabs, /label: '回复我的'/);
+    assert.match(tabs, /label: '查找用户'/);
     assert.match(tabs, /label: '系统通知'/);
   });
 

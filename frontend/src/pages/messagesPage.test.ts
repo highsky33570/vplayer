@@ -47,12 +47,13 @@ describe('messages shell — no cinematic banner', () => {
 });
 
 describe('messages categories and list/detail', () => {
-  it('D/E/F: truthful tabs only — 我的消息 / 回复我的 / 系统通知', () => {
+  it('D/E/F: tabs — 我的消息 / 查找用户 / 系统通知', () => {
     assert.match(flyoutData, /label: '我的消息'/);
-    assert.match(flyoutData, /label: '回复我的'/);
+    assert.match(flyoutData, /label: '查找用户'/);
     assert.match(flyoutData, /label: '系统通知'/);
-    assert.match(flyoutData, /kind: 'comment_reply'/);
+    assert.match(flyoutData, /id: 'search'/);
     assert.match(flyoutData, /kind: 'system'/);
+    assert.equal(flyoutData.includes("label: '回复我的'"), false);
     assert.equal(flyoutData.includes('@我的'), false);
     assert.equal(flyoutData.includes('收到的赞'), false);
     assert.match(messages, /MESSAGE_TABS/);
@@ -65,7 +66,6 @@ describe('messages categories and list/detail', () => {
     assert.match(messages, /publishUnreadCount/);
     assert.match(messages, /fetchUnreadCount/);
     assert.match(messages, /setSelectedId\(item\.id\)/);
-    // Do not auto-open first item on load (empty detail until click)
     assert.equal(messages.includes('setSelectedId(page.data[0]'), false);
   });
 
@@ -88,12 +88,12 @@ describe('messages categories and list/detail', () => {
 
   it('L/M: empty list and empty detail copy', () => {
     assert.equal(emptyListCopy('all'), '暂无消息');
-    assert.equal(emptyListCopy('comment_reply'), '还没有人回复你的评论');
+    assert.equal(emptyListCopy('search'), '输入用户 ID 查找并发送私信');
     assert.equal(emptyListCopy('system'), '暂无系统通知');
     assert.equal(emptyDetailCopy(), '选择一条消息查看详情');
+    assert.equal(emptyDetailCopy('search'), '查找用户后，在此编辑并发送私信');
     assert.match(messages, /messages-list-empty/);
     assert.match(messages, /messages-detail-empty/);
-    assert.match(messages, /emptyDetailCopy\(\)/);
   });
 
   it('list primary/preview stay truthful', () => {
@@ -120,22 +120,37 @@ describe('messages categories and list/detail', () => {
       }),
       '今晚升级',
     );
+    assert.equal(
+      messageListPrimary({
+        id: 2,
+        kind: 'direct_message',
+        title: '私信',
+        body: '你好',
+        actor_name: 'Bob',
+        is_read: false,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+      'Bob',
+    );
   });
 });
 
 describe('messages safety and header link', () => {
-  it('N: desktop 消息 DestNavLink is new-tab /messages', () => {
+  it('N: desktop 消息 DestNavLink is new-tab /messages with unread red dot', () => {
     assert.match(header, /href="\/messages"/);
     assert.match(header, /target="_blank"/);
     assert.match(header, /rel=\{HEADER_NEW_TAB_REL\}/);
+    assert.match(header, /banner-unread-dot/);
+    assert.match(header, /has-unread/);
   });
 
-  it('O: no fake DM / send-message composer', () => {
-    assert.equal(messagesPageHasComposer(messages), false);
-    assert.equal(messages.includes('textarea'), false);
-    assert.equal(messages.includes('contenteditable'), false);
-    assert.equal(messages.includes('在线'), false);
-    assert.equal(logic.includes('fake-dm'), true); // helper documents forbidden marker only
+  it('O: search/DM composer is present for 查找用户', () => {
+    assert.equal(messagesPageHasComposer(messages), true);
+    assert.match(messages, /msg-composer/);
+    assert.match(messages, /msg-search-pane/);
+    assert.match(messages, /sendDirectMessage/);
+    assert.match(messages, /lookupPublicUser/);
+    assert.match(logic, /msg-composer/);
   });
 
   it('column proportions and independent scroll', () => {

@@ -172,6 +172,7 @@ function AccountSpace({ token }: { token: string }) {
             ) : null}
           </p>
           {membership ? <p className="space-identity-member-detail">{membership.detail}</p> : null}
+          <p className="space-identity-uid">用户 ID · {user.id}</p>
           <p className="space-identity-email-row">
             <span className="space-identity-email">{user.email}</span>
             <button

@@ -64,15 +64,16 @@ func (a *API) notifyCommentReply(parent, reply store.Comment, actorID uint64, no
 }
 
 type notificationJSON struct {
-	ID        uint64  `json:"id"`
-	Kind      string  `json:"kind"`
-	Title     string  `json:"title"`
-	Body      string  `json:"body"`
-	VideoID   *uint64 `json:"video_id,omitempty"`
-	CommentID *uint64 `json:"comment_id,omitempty"`
-	ActorName string  `json:"actor_name,omitempty"`
-	IsRead    bool    `json:"is_read"`
-	CreatedAt string  `json:"created_at"`
+	ID          uint64  `json:"id"`
+	Kind        string  `json:"kind"`
+	Title       string  `json:"title"`
+	Body        string  `json:"body"`
+	VideoID     *uint64 `json:"video_id,omitempty"`
+	CommentID   *uint64 `json:"comment_id,omitempty"`
+	ActorUserID *uint64 `json:"actor_user_id,omitempty"`
+	ActorName   string  `json:"actor_name,omitempty"`
+	IsRead      bool    `json:"is_read"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 func (a *API) notificationJSON(n store.Notification) notificationJSON {
@@ -86,6 +87,10 @@ func (a *API) notificationJSON(n store.Notification) notificationJSON {
 		IsRead:    n.IsRead,
 		CreatedAt: n.CreatedAt.UTC().Format(time.RFC3339),
 	}
+	// Expose actor id only for DMs (reply UX). Comment replies keep actor_name only.
+	if n.Kind == store.NotificationKindDirectMessage {
+		out.ActorUserID = n.ActorUserID
+	}
 	if n.ActorUserID != nil {
 		if users := a.users(); users != nil {
 			if u, err := users.GetUserByID(*n.ActorUserID); err == nil && u != nil {
@@ -97,6 +102,32 @@ func (a *API) notificationJSON(n store.Notification) notificationJSON {
 		}
 	}
 	return out
+}
+
+const (
+	welcomeTitle = "欢迎加入天涯欧乐！"
+	welcomeBody  = "恭喜你成功注册！海量影视内容已为你准备好。点击本条消息可随时查看系统通知；也可在「查找用户」中按用户 ID 发送私信。祝你观影愉快！"
+)
+
+// notifyWelcomeSignup creates an unread celebration system notice for a new account.
+func (a *API) notifyWelcomeSignup(userID uint64) {
+	if userID == 0 {
+		return
+	}
+	repo := a.notifications()
+	if repo == nil {
+		return
+	}
+	_, err := repo.CreateNotification(store.Notification{
+		UserID:    userID,
+		Kind:      store.NotificationKindSystem,
+		Title:     welcomeTitle,
+		Body:      welcomeBody,
+		CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		log.Printf("welcome notification: %v", err)
+	}
 }
 
 // ListNotifications handles GET /api/v1/me/notifications?kind=&limit=&offset=.

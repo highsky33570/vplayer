@@ -577,12 +577,13 @@ function DestNavLink({
   active?: boolean;
   badge?: string;
 }) {
+  const hasUnread = Boolean(badge);
   return (
     <a
       href={href}
       target="_blank"
       rel={HEADER_NEW_TAB_REL}
-      className={`banner-action${active ? ' is-route-active' : ''} ${className}`.trim()}
+      className={`banner-action${active ? ' is-route-active' : ''}${hasUnread ? ' has-unread' : ''} ${className}`.trim()}
       title={badge ? `${label}（${badge} 条未读）` : `${label}（新标签页）`}
       aria-haspopup={popup ? 'dialog' : undefined}
       aria-expanded={popup ? expanded : undefined}
@@ -592,6 +593,7 @@ function DestNavLink({
     >
       <span className="banner-action-icon" aria-hidden>
         {icon}
+        {hasUnread ? <span className="banner-unread-dot" /> : null}
       </span>
       <span>{label}</span>
       {badge ? (

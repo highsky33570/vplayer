@@ -22,7 +22,7 @@ import {
 } from '../api';
 import { AppToast } from '../components/AppToast';
 import { CookieConsent } from '../components/CookieConsent';
-import { acceptCookieConsent, hasCookieConsent } from './cookieConsent';
+import { hasCookieConsent } from './cookieConsent';
 import { registrationConfigAfterFetch, type RegistrationConfigStatus } from './registerFlow';
 import {
   bindSessionActivity,
@@ -226,7 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const onCookieAccepted = useCallback(() => {
-    acceptCookieConsent();
+    // CookieConsent already wrote + verified consent; unlock app storage now.
     setCookieConsent(true);
     const pending = pendingPersistToken.current;
     if (pending) {
@@ -236,7 +236,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else if (token) {
       writeStoredToken(token);
     } else {
-      // Restore a token saved before consent was recorded.
       try {
         const existing = localStorage.getItem(TOKEN_KEY);
         if (existing) setToken(existing);
@@ -301,12 +300,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const openLogin = useCallback(
     (mode: 'login' | 'register' = 'login') => {
-      if (!authRequired) return;
+      if (!authRequired || !cookieConsent) return;
       setAuthMode(mode);
       setLoginOpen(true);
     },
-    [authRequired],
+    [authRequired, cookieConsent],
   );
+
+  useEffect(() => {
+    if (!cookieConsent) setLoginOpen(false);
+  }, [cookieConsent]);
 
   useEffect(() => {
     if (!authRequired) setLoginOpen(false);
@@ -362,7 +365,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      <div className={cookieConsent ? undefined : 'cookie-gate-locked'} aria-hidden={!cookieConsent}>
+        {children}
+      </div>
       <AppToast message={toastMessage} />
       <CookieConsent onAccepted={onCookieAccepted} />
     </AuthContext.Provider>

@@ -566,7 +566,7 @@ export type HistoryVideo = Video & {
   progress_sec: number;
 };
 
-export type NotificationKind = 'comment_reply' | 'system';
+export type NotificationKind = 'comment_reply' | 'system' | 'direct_message';
 
 export type UserNotification = {
   id: number;
@@ -575,9 +575,16 @@ export type UserNotification = {
   body: string;
   video_id?: number;
   comment_id?: number;
+  actor_user_id?: number;
   actor_name?: string;
   is_read: boolean;
   created_at: string;
+};
+
+export type PublicUser = {
+  id: number;
+  nickname: string;
+  avatar_hue: number;
 };
 
 export type Page<T> = {
@@ -713,6 +720,17 @@ export function listNotificationsPage(
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (opts?.kind) params.set('kind', opts.kind);
   return getPage<UserNotification>('/api/v1/me/notifications', token, params, limit, offset);
+}
+
+export function lookupPublicUser(token: string | null | undefined, userId: number): Promise<PublicUser> {
+  return sendJSON<PublicUser>(`/api/v1/users/${userId}/public`, 'GET', token);
+}
+
+export function sendDirectMessage(
+  token: string | null | undefined,
+  body: { to_user_id: number; title?: string; body: string },
+): Promise<UserNotification> {
+  return sendJSON<UserNotification>('/api/v1/me/messages', 'POST', token, body);
 }
 
 export async function fetchUnreadCount(token: string | null | undefined): Promise<number> {

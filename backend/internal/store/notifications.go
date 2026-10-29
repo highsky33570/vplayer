@@ -7,13 +7,16 @@ import (
 )
 
 const (
-	NotificationKindCommentReply = "comment_reply"
-	NotificationKindSystem       = "system"
+	NotificationKindCommentReply   = "comment_reply"
+	NotificationKindSystem         = "system"
+	NotificationKindDirectMessage  = "direct_message"
 )
 
 // ValidNotificationKind reports whether kind is one of the supported kinds.
 func ValidNotificationKind(kind string) bool {
-	return kind == NotificationKindCommentReply || kind == NotificationKindSystem
+	return kind == NotificationKindCommentReply ||
+		kind == NotificationKindSystem ||
+		kind == NotificationKindDirectMessage
 }
 
 // Notification is a user_notifications row.

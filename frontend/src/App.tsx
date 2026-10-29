@@ -22,6 +22,7 @@ import { MobileTabBar } from './components/MobileTabBar';
 import { stopAllHoverPreviews } from './components/HoverPreviewThumb';
 import { LoginModal } from './components/LoginModal';
 import { LoginReminder } from './components/LoginReminder';
+import { ScrollToTop } from './components/ScrollToTop';
 import { clearHoverPreviewCache } from './media/hoverPreviewResolve';
 import { AccountPage } from './pages/AccountPage';
 import { FavoritesPage } from './pages/FavoritesPage';
@@ -46,6 +47,7 @@ function ConsumerShell() {
     <div className="shell">
       <Header />
       <Outlet />
+      <ScrollToTop />
       <MobileCornerDock />
       <MobileTabBar />
       {authRequired ? <LoginModal /> : null}
