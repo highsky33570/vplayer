@@ -51,7 +51,7 @@ func (m *MySQL) PurgeOleHdTvVIPVideos() (int64, error) {
 		{`DELETE FROM video_comments WHERE video_id IN (SELECT id FROM videos WHERE ` + where + `)`, vipArgs},
 		{`DELETE FROM video_source_comments WHERE video_id IN (SELECT id FROM videos WHERE ` + where + `)`, vipArgs},
 		{`DELETE FROM user_favorites WHERE video_id IN (SELECT id FROM videos WHERE ` + where + `)`, vipArgs},
-		{`DELETE FROM user_history WHERE video_id IN (SELECT id FROM videos WHERE ` + where + `)`, vipArgs},
+		{`DELETE FROM user_watch_history WHERE video_id IN (SELECT id FROM videos WHERE ` + where + `)`, vipArgs},
 		{`DELETE FROM user_notifications WHERE video_id IN (SELECT id FROM videos WHERE ` + where + `)`, vipArgs},
 	}
 	for _, s := range steps {

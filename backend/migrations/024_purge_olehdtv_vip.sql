@@ -42,7 +42,7 @@ DELETE FROM user_favorites
       )
  );
 
-DELETE FROM user_history
+DELETE FROM user_watch_history
  WHERE video_id IN (
    SELECT id FROM videos
     WHERE COALESCE(source_system,'') = 'olehdtv'
