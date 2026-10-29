@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiError,
   batchSetAdminVideoHot,
+  batchSetAdminVideoMembership,
   createAdminVideo,
   fetchAdminCategories,
   fetchAdminVideos,
@@ -54,7 +55,9 @@ export function AdminVideos() {
   const [hotBusyId, setHotBusyId] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   const [batchHotBusy, setBatchHotBusy] = useState(false);
+  const [batchVipBusy, setBatchVipBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const batchBusy = batchHotBusy || batchVipBusy;
 
   useEffect(() => {
     setQInput(parsed.q);
@@ -320,6 +323,38 @@ export function AdminVideos() {
     }
   }
 
+  async function onBatchVip(next: boolean) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBatchVipBusy(true);
+    setError(null);
+    try {
+      await batchSetAdminVideoMembership(token, ids, next);
+      setRows((prev) =>
+        prev.map((r) => (selectedIds.has(r.id) ? { ...r, membership_required: next } : r)),
+      );
+      setSelectedIds(new Set());
+      const msg = next
+        ? `已将 ${ids.length} 部设为 VIP 视频`
+        : `已取消 ${ids.length} 部 VIP`;
+      setToast(msg);
+      window.setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 1600);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          logout();
+          navigate(loginWithNext('/admin/videos'), { replace: true });
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : '批量更新失败');
+      }
+    } finally {
+      setBatchVipBusy(false);
+    }
+  }
+
   return (
     <section className="admin-page">
       {toast ? (
@@ -496,7 +531,7 @@ export function AdminVideos() {
               <button
                 type="button"
                 className="admin-btn-primary"
-                disabled={selectedCount === 0 || batchHotBusy}
+                disabled={selectedCount === 0 || batchBusy}
                 onClick={() => void onBatchHot(true)}
               >
                 {batchHotBusy ? '处理中…' : '设为热门推荐'}
@@ -504,15 +539,31 @@ export function AdminVideos() {
               <button
                 type="button"
                 className="admin-btn-ghost"
-                disabled={selectedCount === 0 || batchHotBusy}
+                disabled={selectedCount === 0 || batchBusy}
                 onClick={() => void onBatchHot(false)}
               >
                 取消热门推荐
               </button>
               <button
                 type="button"
+                className="admin-btn-primary"
+                disabled={selectedCount === 0 || batchBusy}
+                onClick={() => void onBatchVip(true)}
+              >
+                {batchVipBusy ? '处理中…' : '设为 VIP'}
+              </button>
+              <button
+                type="button"
                 className="admin-btn-ghost"
-                disabled={selectedCount === 0 || batchHotBusy}
+                disabled={selectedCount === 0 || batchBusy}
+                onClick={() => void onBatchVip(false)}
+              >
+                取消 VIP
+              </button>
+              <button
+                type="button"
+                className="admin-btn-ghost"
+                disabled={selectedCount === 0 || batchBusy}
                 onClick={() => setSelectedIds(new Set())}
               >
                 清空选择

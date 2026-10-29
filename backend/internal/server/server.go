@@ -163,6 +163,7 @@ func New(cfg config.Config) (*Server, error) {
 		v1.POST("/admin/videos", api.RequireUser, api.RequireAdmin, api.AdminCreateVideo)
 		// Static path before :id so "hot" is not captured as an id.
 		v1.PATCH("/admin/videos/hot", api.RequireUser, api.RequireAdmin, api.AdminBatchSetVideoHot)
+		v1.PATCH("/admin/videos/membership", api.RequireUser, api.RequireAdmin, api.AdminBatchSetVideoMembership)
 		v1.GET("/admin/videos/:id", api.RequireUser, api.RequireAdmin, api.AdminGetVideo)
 		v1.PATCH("/admin/videos/:id", api.RequireUser, api.RequireAdmin, api.AdminUpdateVideo)
 		v1.PATCH("/admin/videos/:id/membership", api.RequireUser, api.RequireAdmin, api.AdminSetVideoMembership)

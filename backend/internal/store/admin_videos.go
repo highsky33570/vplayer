@@ -23,6 +23,9 @@ func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active,
 	}
 	q := adminVideoSelect + ` WHERE 1=1`
 	args := []any{}
+	excl, exclArgs := AdminExcludeOleHdTvVIPSQL("")
+	q += excl
+	args = append(args, exclArgs...)
 	if categoryID > 0 {
 		q += ` AND category_id=?`
 		args = append(args, categoryID)
@@ -63,6 +66,9 @@ func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active,
 func (m *MySQL) CountAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool) (int, error) {
 	q := `SELECT COUNT(*) FROM videos WHERE 1=1`
 	args := []any{}
+	excl, exclArgs := AdminExcludeOleHdTvVIPSQL("")
+	q += excl
+	args = append(args, exclArgs...)
 	if categoryID > 0 {
 		q += ` AND category_id=?`
 		args = append(args, categoryID)

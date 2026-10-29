@@ -41,6 +41,13 @@ func (s *OleHdTvSyncService) Run(ctx context.Context, trigger string) (model.Syn
 
 	s.Log.Info("sync started", "adapter", s.Adapter.Name(), "trigger", trigger)
 
+	// Drop any previously ingested OLEHDTV VIP蓝光影院 titles (admin-local VIP only).
+	if n, perr := s.Store.PurgeOleHdTvVIPVideos(); perr != nil {
+		s.Log.Warn("purge OLEHDTV VIP failed", "err", perr)
+	} else if n > 0 {
+		s.Log.Info("purged OLEHDTV VIP titles", "deleted", n)
+	}
+
 	var categories []olehdtv.SourceCategory
 	err := s.withRetry(ctx, "categories", func(c context.Context) error {
 		var e error

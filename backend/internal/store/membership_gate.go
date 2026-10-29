@@ -53,6 +53,40 @@ func (m *MySQL) SetVideoMembershipRequired(videoID uint64, required bool, catego
 	return err
 }
 
+// SetVideosMembershipRequired batch-toggles membership_required for the given ids.
+// When required and categoryID>0, also moves those titles into the VIP box category.
+func (m *MySQL) SetVideosMembershipRequired(ids []uint64, required bool, categoryID uint64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, 0, len(ids))
+	args := make([]any, 0, len(ids)+2)
+	args = append(args, boolToInt(required))
+	if required && categoryID > 0 {
+		args = append(args, categoryID)
+	}
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		placeholders = append(placeholders, "?")
+		args = append(args, id)
+	}
+	if len(placeholders) == 0 {
+		return 0, nil
+	}
+	in := strings.Join(placeholders, ",")
+	query := `UPDATE videos SET membership_required=? WHERE id IN (` + in + `)`
+	if required && categoryID > 0 {
+		query = `UPDATE videos SET membership_required=?, category_id=? WHERE id IN (` + in + `)`
+	}
+	res, err := m.DB.Exec(query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // SetUserIsMember toggles site membership for a user (admin-controlled).
 // Enabling clears expiry (lifetime grant). Disabling clears both flag and expiry.
 func (m *MySQL) SetUserIsMember(userID uint64, isMember bool) error {

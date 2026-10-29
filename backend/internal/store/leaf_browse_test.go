@@ -39,9 +39,13 @@ func TestAppendReadyVideosWhere_excludeOleHdTv(t *testing.T) {
 		CanonicalCategoryID:  17,
 		ExcludeOleHdTvSource: true,
 	}, "", "", false)
-	want := `COALESCE(source_system,'') <> 'olehdtv' OR COALESCE(membership_required,0)=1`
+	want := `COALESCE(source_system,'') <> 'olehdtv'`
 	if !strings.Contains(q, want) {
-		t.Fatalf("missing olehdtv/membership VIP exception: %s", q)
+		t.Fatalf("missing olehdtv VIP exclude: %s", q)
+	}
+	legacy := `COALESCE(source_system,'') <> 'olehdtv' OR COALESCE(membership_required,0)=1`
+	if strings.Contains(q, legacy) {
+		t.Fatalf("VIP browse must not keep OLEHDTV via membership exception: %s", q)
 	}
 }
 

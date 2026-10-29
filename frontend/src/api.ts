@@ -1443,6 +1443,33 @@ export async function batchSetAdminVideoHot(
   };
 }
 
+export async function batchSetAdminVideoMembership(
+  token: string | null | undefined,
+  ids: number[],
+  membershipRequired: boolean,
+): Promise<{ updated: number; membership_required: boolean; ids: number[] }> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/videos/membership`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ ids, membership_required: membershipRequired }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: { updated?: number; membership_required?: boolean; ids?: number[] };
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return {
+    updated: Number(json.data.updated ?? 0),
+    membership_required: Boolean(json.data.membership_required),
+    ids: Array.isArray(json.data.ids) ? json.data.ids.map(Number) : ids,
+  };
+}
+
 export async function setAdminVideoMembership(
   token: string | null | undefined,
   id: number,
