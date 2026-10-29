@@ -261,34 +261,37 @@ function MessagesContent({ token }: { token: string }) {
         <aside className="msg-sidebar" aria-label="消息分类">
           <div className="msg-sidebar-head">
             <h1 className="msg-sidebar-title">消息中心</h1>
+            <p className="msg-sidebar-sub">系统通知、私信收发与查找用户都在这里</p>
           </div>
-          <nav className="msg-nav">
-            {MESSAGE_TABS.map((tab) => {
-              const showTotalBadge = tab.id === 'all' && totalUnread > 0;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={filter === tab.id ? 'is-active' : undefined}
-                  aria-current={filter === tab.id ? 'page' : undefined}
-                  onClick={() => selectTab(tab.id)}
-                >
-                  <span>{tab.label}</span>
-                  {showTotalBadge ? <em>{totalUnread > 99 ? '99+' : totalUnread}</em> : null}
-                </button>
-              );
-            })}
-          </nav>
-          {!isSearch ? (
-            <button
-              type="button"
-              className="me-btn msg-sidebar-action"
-              disabled={totalUnread === 0 && unreadHere === 0 && !loading}
-              onClick={() => void onMarkAll()}
-            >
-              全部已读
-            </button>
-          ) : null}
+          <div className="msg-sidebar-tools">
+            <nav className="msg-nav">
+              {MESSAGE_TABS.map((tab) => {
+                const showTotalBadge = tab.id === 'all' && totalUnread > 0;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={filter === tab.id ? 'is-active' : undefined}
+                    aria-current={filter === tab.id ? 'page' : undefined}
+                    onClick={() => selectTab(tab.id)}
+                  >
+                    <span>{tab.label}</span>
+                    {showTotalBadge ? <em>{totalUnread > 99 ? '99+' : totalUnread}</em> : null}
+                  </button>
+                );
+              })}
+            </nav>
+            {!isSearch ? (
+              <button
+                type="button"
+                className="me-btn msg-sidebar-action"
+                disabled={totalUnread === 0 && unreadHere === 0 && !loading}
+                onClick={() => void onMarkAll()}
+              >
+                全部已读
+              </button>
+            ) : null}
+          </div>
         </aside>
 
         {isSearch ? (
@@ -376,7 +379,18 @@ function MessagesContent({ token }: { token: string }) {
               <p className="me-status msg-pane-status">加载中…</p>
             ) : items.length === 0 ? (
               <div className="msg-list-empty" data-testid="messages-list-empty">
-                <p>{emptyListCopy(filter)}</p>
+                <div className="msg-empty-art" aria-hidden>
+                  <MsgEmptyIcon />
+                </div>
+                <p className="msg-empty-title">{emptyListCopy(filter)}</p>
+                <p className="msg-empty-desc">
+                  新注册欢迎信、系统公告、好友私信都会出现在这里。也可以去「查找用户」按 ID 或昵称发私信。
+                </p>
+                {filter !== 'search' ? (
+                  <button type="button" className="me-btn me-btn--primary" onClick={() => selectTab('search')}>
+                    去查找用户
+                  </button>
+                ) : null}
               </div>
             ) : (
               <>
@@ -420,7 +434,11 @@ function MessagesContent({ token }: { token: string }) {
                       {loadingMore ? '加载中…' : '加载更多'}
                     </button>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="msg-list-foot">
+                    <p>已显示全部消息 · 未读会在顶部消息图标显示红点</p>
+                  </div>
+                )}
               </>
             )}
           </section>
