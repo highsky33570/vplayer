@@ -57,15 +57,36 @@ func (m *MySQL) DeleteExpiredPasswordResets() error {
 func (m *MySQL) GetPasswordReset(email string) (*PasswordReset, error) {
 	email = auth.NormalizeEmail(email)
 	var p PasswordReset
+	// DATE_FORMAT + parseUTCDateTime keeps UTC wall-clock; parseTime&loc=Local would
+	// treat the DATETIME as server-local and make fresh codes look already expired.
+	var expiresAt, lastSentAt, createdAt, updatedAt string
 	err := m.DB.QueryRow(`
-		SELECT id, email, code_hash, expires_at, attempt_count, resend_count, last_sent_at, created_at, updated_at
+		SELECT id, email, code_hash,
+		       DATE_FORMAT(expires_at, '%Y-%m-%d %H:%i:%s'),
+		       attempt_count, resend_count,
+		       DATE_FORMAT(last_sent_at, '%Y-%m-%d %H:%i:%s'),
+		       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s'),
+		       DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s')
 		FROM password_resets WHERE email=? LIMIT 1`, email).
-		Scan(&p.ID, &p.Email, &p.CodeHash, &p.ExpiresAt, &p.AttemptCount, &p.ResendCount, &p.LastSentAt, &p.CreatedAt, &p.UpdatedAt)
+		Scan(&p.ID, &p.Email, &p.CodeHash, &expiresAt, &p.AttemptCount, &p.ResendCount, &lastSentAt, &createdAt, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrPasswordResetNotFound
 	}
 	if err != nil {
 		return nil, err
+	}
+	var perr error
+	if p.ExpiresAt, perr = parseUTCDateTime(expiresAt); perr != nil {
+		return nil, perr
+	}
+	if p.LastSentAt, perr = parseUTCDateTime(lastSentAt); perr != nil {
+		return nil, perr
+	}
+	if p.CreatedAt, perr = parseUTCDateTime(createdAt); perr != nil {
+		return nil, perr
+	}
+	if p.UpdatedAt, perr = parseUTCDateTime(updatedAt); perr != nil {
+		return nil, perr
 	}
 	return &p, nil
 }
@@ -158,14 +179,20 @@ func (m *MySQL) ConsumePasswordResetAndSetPassword(email, expectHash, passwordHa
 	defer func() { _ = tx.Rollback() }()
 
 	var p PasswordReset
+	var expiresAt string
 	err = tx.QueryRow(`
-		SELECT id, email, code_hash, expires_at, attempt_count
+		SELECT id, email, code_hash,
+		       DATE_FORMAT(expires_at, '%Y-%m-%d %H:%i:%s'),
+		       attempt_count
 		FROM password_resets WHERE email=? FOR UPDATE`, email).
-		Scan(&p.ID, &p.Email, &p.CodeHash, &p.ExpiresAt, &p.AttemptCount)
+		Scan(&p.ID, &p.Email, &p.CodeHash, &expiresAt, &p.AttemptCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrPasswordResetNotFound
 	}
 	if err != nil {
+		return err
+	}
+	if p.ExpiresAt, err = parseUTCDateTime(expiresAt); err != nil {
 		return err
 	}
 	if p.CodeHash != expectHash {
