@@ -154,6 +154,7 @@ func New(cfg config.Config) (*Server, error) {
 		v1.GET("/me/notifications", api.RequireUser, api.ListNotifications)
 		v1.GET("/me/notifications/unread-count", api.RequireUser, api.UnreadNotificationCount)
 		v1.POST("/me/notifications/read", api.RequireUser, api.MarkNotificationsRead)
+		v1.GET("/users/search", api.RequireUser, api.SearchPublicUsers)
 		v1.GET("/users/:id/public", api.RequireUser, api.LookupPublicUser)
 		v1.POST("/me/messages", api.RequireUser, api.SendDirectMessage)
 		v1.GET("/admin/me", api.RequireUser, api.RequireAdmin, api.AdminMe)

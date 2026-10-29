@@ -3,8 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   fetchUnreadCount,
   listNotificationsPage,
-  lookupPublicUser,
   markNotificationsRead,
+  searchPublicUsers,
   sendDirectMessage,
   type PublicUser,
   type UserNotification,
@@ -63,6 +63,7 @@ function MessagesContent({ token }: { token: string }) {
   const [searchId, setSearchId] = useState('');
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupError, setLookupError] = useState('');
+  const [foundUsers, setFoundUsers] = useState<PublicUser[]>([]);
   const [foundUser, setFoundUser] = useState<PublicUser | null>(null);
   const [draftTitle, setDraftTitle] = useState('私信');
   const [draftBody, setDraftBody] = useState('');
@@ -176,23 +177,38 @@ function MessagesContent({ token }: { token: string }) {
     setSelectedId(null);
   }
 
+  function pickUser(user: PublicUser) {
+    setFoundUser(user);
+    setDraftTitle(`致 ${user.nickname}`);
+    setDraftBody('');
+    setSendFeedback('');
+    setLookupError('');
+  }
+
   async function onLookup() {
-    const id = Number(String(searchId).trim());
-    if (!Number.isInteger(id) || id <= 0) {
-      setLookupError('请输入有效的用户 ID（正整数）');
+    const q = String(searchId).trim();
+    if (!q) {
+      setLookupError('请输入用户 ID、邮箱或昵称');
       setFoundUser(null);
+      setFoundUsers([]);
       return;
     }
     setLookupBusy(true);
     setLookupError('');
     setSendFeedback('');
+    setFoundUser(null);
+    setFoundUsers([]);
     try {
-      const user = await lookupPublicUser(token, id);
-      setFoundUser(user);
-      setDraftTitle(`致 ${user.nickname}`);
-      setDraftBody('');
+      const users = await searchPublicUsers(token, q);
+      if (users.length === 0) {
+        setLookupError('未找到该用户，请确认 ID / 邮箱 / 昵称');
+        return;
+      }
+      setFoundUsers(users);
+      if (users.length === 1) {
+        pickUser(users[0]);
+      }
     } catch (e) {
-      setFoundUser(null);
       setLookupError(e instanceof Error ? e.message : '查找失败');
     } finally {
       setLookupBusy(false);
@@ -278,12 +294,11 @@ function MessagesContent({ token }: { token: string }) {
             </header>
             <div className="msg-search-form">
               <label className="msg-field">
-                <span>用户 ID</span>
+                <span>用户 ID / 邮箱 / 昵称</span>
                 <div className="msg-search-row">
                   <input
                     type="text"
-                    inputMode="numeric"
-                    placeholder="输入平台用户 ID"
+                    placeholder="例如 12、name@mail.com、test2"
                     value={searchId}
                     onChange={(e) => setSearchId(e.target.value)}
                     onKeyDown={(e) => {
@@ -300,7 +315,31 @@ function MessagesContent({ token }: { token: string }) {
                   {lookupError}
                 </p>
               ) : null}
-              {foundUser ? (
+              {foundUsers.length > 1 ? (
+                <ul className="msg-found-list" data-testid="messages-found-list">
+                  {foundUsers.map((user) => (
+                    <li key={user.id}>
+                      <button
+                        type="button"
+                        className={`msg-found-user${foundUser?.id === user.id ? ' is-selected' : ''}`}
+                        onClick={() => pickUser(user)}
+                      >
+                        <span
+                          className="msg-avatar"
+                          style={{ background: `hsl(${user.avatar_hue} 55% 42%)` }}
+                          aria-hidden
+                        >
+                          {user.nickname.slice(0, 1)}
+                        </span>
+                        <span>
+                          <strong>{user.nickname}</strong>
+                          <p>ID · {user.id}</p>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : foundUser ? (
                 <div className="msg-found-user" data-testid="messages-found-user">
                   <span
                     className="msg-avatar"
@@ -315,7 +354,7 @@ function MessagesContent({ token }: { token: string }) {
                   </div>
                 </div>
               ) : (
-                <p className="me-hint">{emptyListCopy('search')}</p>
+                <p className="me-hint">输入用户 ID、邮箱或昵称查找并发送私信</p>
               )}
             </div>
           </section>

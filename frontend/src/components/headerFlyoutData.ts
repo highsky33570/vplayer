@@ -171,7 +171,7 @@ export function notificationHref(n: Pick<UserNotification, 'video_id'>): string 
 }
 
 export function emptyMessagesText(filter: MessageFilter): string {
-  if (filter === 'search') return '输入用户 ID 查找并发送私信';
+  if (filter === 'search') return '输入用户 ID、邮箱或昵称查找并发送私信';
   if (filter === 'comment_reply') return '还没有人回复你的评论';
   if (filter === 'direct_message') return '暂无私信';
   if (filter === 'system') return '暂无系统通知';

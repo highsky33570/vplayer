@@ -23,7 +23,7 @@ func TestSendDirectMessageCreatesUnreadAndLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bob, err := users.CreateUser("bob-dm@example.com", "password1", "鲍勃")
+	bob, err := users.CreateUser("bob-dm@example.com", "password1", "test2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,6 +33,7 @@ func TestSendDirectMessageCreatesUnreadAndLookup(t *testing.T) {
 		Cfg:           config.Config{AuthSecret: "test-auth-secret"},
 	}
 	r := gin.New()
+	r.GET("/users/search", api.RequireUser, api.SearchPublicUsers)
 	r.GET("/users/:id/public", api.RequireUser, api.LookupPublicUser)
 	r.POST("/me/messages", api.RequireUser, api.SendDirectMessage)
 	r.GET("/me/notifications/unread-count", api.RequireUser, api.UnreadNotificationCount)
@@ -42,12 +43,33 @@ func TestSendDirectMessageCreatesUnreadAndLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lookup := httptest.NewRequest(http.MethodGet, "/users/"+strconv.FormatUint(bob.ID, 10)+"/public", nil)
+	lookup := httptest.NewRequest(http.MethodGet, "/users/search?q=test2", nil)
 	lookup.Header.Set("Authorization", "Bearer "+tok)
 	lw := httptest.NewRecorder()
 	r.ServeHTTP(lw, lookup)
 	if lw.Code != http.StatusOK {
 		t.Fatalf("lookup status %d: %s", lw.Code, lw.Body.String())
+	}
+	var lookEnv struct {
+		OK   bool `json:"ok"`
+		Data []struct {
+			ID       uint64 `json:"id"`
+			Nickname string `json:"nickname"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(lw.Body.Bytes(), &lookEnv); err != nil {
+		t.Fatal(err)
+	}
+	if len(lookEnv.Data) != 1 || lookEnv.Data[0].ID != bob.ID {
+		t.Fatalf("search test2: %+v", lookEnv.Data)
+	}
+
+	byID := httptest.NewRequest(http.MethodGet, "/users/"+strconv.FormatUint(bob.ID, 10)+"/public", nil)
+	byID.Header.Set("Authorization", "Bearer "+tok)
+	idw := httptest.NewRecorder()
+	r.ServeHTTP(idw, byID)
+	if idw.Code != http.StatusOK {
+		t.Fatalf("id lookup status %d: %s", idw.Code, idw.Body.String())
 	}
 
 	body, _ := json.Marshal(map[string]any{

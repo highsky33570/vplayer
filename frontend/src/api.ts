@@ -722,6 +722,14 @@ export function listNotificationsPage(
   return getPage<UserNotification>('/api/v1/me/notifications', token, params, limit, offset);
 }
 
+/** Search users by numeric id, email, or nickname for messaging. */
+export function searchPublicUsers(token: string | null | undefined, query: string): Promise<PublicUser[]> {
+  const q = query.trim();
+  const params = new URLSearchParams({ q });
+  return sendJSON<PublicUser[]>(`/api/v1/users/search?${params}`, 'GET', token);
+}
+
+/** @deprecated prefer searchPublicUsers — kept for numeric-id shortcuts. */
 export function lookupPublicUser(token: string | null | undefined, userId: number): Promise<PublicUser> {
   return sendJSON<PublicUser>(`/api/v1/users/${userId}/public`, 'GET', token);
 }

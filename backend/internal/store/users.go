@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,8 @@ type UserRepo interface {
 	CreateUserWithHash(email, passwordHash, nickname string) (*model.User, error)
 	Authenticate(email, password string) (*model.User, error)
 	GetUserByID(id uint64) (*model.User, error)
+	// SearchUsersForMessage finds users by numeric id, email, or nickname (exact, case-insensitive).
+	SearchUsersForMessage(query string, limit int) ([]model.User, error)
 	UpdateProfile(id uint64, nickname string, avatarHue int) (*model.User, error)
 	UpdatePasswordHash(email, passwordHash string) error
 }
@@ -151,6 +154,103 @@ func (m *MySQL) GetUserByID(id uint64) (*model.User, error) {
 	return &u, nil
 }
 
+func clampUserSearchLimit(limit int) int {
+	if limit <= 0 {
+		return 10
+	}
+	if limit > 20 {
+		return 20
+	}
+	return limit
+}
+
+func scanPublicUserRow(scanner interface {
+	Scan(dest ...any) error
+}) (model.User, error) {
+	var u model.User
+	var isAdmin, isMember int
+	var exp sql.NullTime
+	err := scanner.Scan(&u.ID, &u.Email, &u.Nickname, &u.AvatarHue, &isAdmin, &isMember, &exp, &u.CreatedAt)
+	if err != nil {
+		return model.User{}, err
+	}
+	u.IsAdmin = isAdmin == 1
+	u.IsMember = isMember == 1
+	if exp.Valid {
+		t := exp.Time
+		u.MembershipExpiresAt = &t
+	}
+	applyEffectiveMembership(&u, time.Now())
+	return u, nil
+}
+
+const userPublicSelect = `SELECT id, email, COALESCE(nickname,''), COALESCE(avatar_hue,-1), COALESCE(is_admin,0), COALESCE(is_member,0), membership_expires_at, created_at FROM users`
+
+// SearchUsersForMessage matches numeric id, exact email, or exact nickname (case-insensitive).
+func (m *MySQL) SearchUsersForMessage(query string, limit int) ([]model.User, error) {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		return nil, nil
+	}
+	limit = clampUserSearchLimit(limit)
+	seen := map[uint64]struct{}{}
+	out := make([]model.User, 0, limit)
+
+	add := func(u model.User) {
+		if _, ok := seen[u.ID]; ok {
+			return
+		}
+		seen[u.ID] = struct{}{}
+		out = append(out, u)
+	}
+
+	if id, err := strconv.ParseUint(q, 10, 64); err == nil && id > 0 {
+		if u, err := m.GetUserByID(id); err == nil && u != nil {
+			add(*u)
+		} else if err != nil && !errors.Is(err, ErrUserNotFound) {
+			return nil, err
+		}
+	}
+
+	email := authNormalizeEmail(q)
+	if email != "" {
+		row := m.DB.QueryRow(userPublicSelect+` WHERE email=? LIMIT 1`, email)
+		if u, err := scanPublicUserRow(row); err == nil {
+			add(u)
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+	}
+
+	if len(out) >= limit {
+		return out[:limit], nil
+	}
+
+	// Nickname exact match, or email local-part (before @) exact match — e.g. "test2" → test2@mail.com
+	rows, err := m.DB.Query(
+		userPublicSelect+`
+		WHERE LOWER(TRIM(nickname)) = LOWER(?)
+		   OR LOWER(SUBSTRING_INDEX(email, '@', 1)) = LOWER(?)
+		ORDER BY id ASC LIMIT ?`,
+		q, q, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		u, err := scanPublicUserRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		add(u)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, rows.Err()
+}
+
 func applyEffectiveMembership(u *model.User, now time.Time) {
 	if u == nil {
 		return
@@ -253,6 +353,53 @@ func (m *MemoryUsers) GetUserByID(id uint64) (*model.User, error) {
 	}
 	cp := u.user
 	return &cp, nil
+}
+
+func (m *MemoryUsers) SearchUsersForMessage(query string, limit int) ([]model.User, error) {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		return nil, nil
+	}
+	limit = clampUserSearchLimit(limit)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	seen := map[uint64]struct{}{}
+	out := make([]model.User, 0, limit)
+	add := func(u model.User) {
+		if _, ok := seen[u.ID]; ok {
+			return
+		}
+		seen[u.ID] = struct{}{}
+		out = append(out, u)
+	}
+
+	if id, err := strconv.ParseUint(q, 10, 64); err == nil && id > 0 {
+		if u, ok := m.byID[id]; ok {
+			add(u.user)
+		}
+	}
+	email := authNormalizeEmail(q)
+	if email != "" {
+		if u, ok := m.byMail[email]; ok {
+			add(u.user)
+		}
+	}
+	needle := strings.ToLower(q)
+	for _, u := range m.byID {
+		nick := strings.ToLower(strings.TrimSpace(u.user.Nickname))
+		local, _, _ := strings.Cut(strings.ToLower(u.user.Email), "@")
+		if nick == needle || local == needle {
+			add(u.user)
+		}
+		if len(out) >= limit {
+			break
+		}
+	}
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
 }
 
 func (m *MemoryUsers) UpdateProfile(id uint64, nickname string, avatarHue int) (*model.User, error) {

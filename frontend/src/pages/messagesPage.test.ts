@@ -88,7 +88,8 @@ describe('messages categories and list/detail', () => {
 
   it('L/M: empty list and empty detail copy', () => {
     assert.equal(emptyListCopy('all'), '暂无消息');
-    assert.equal(emptyListCopy('search'), '输入用户 ID 查找并发送私信');
+    assert.equal(emptyListCopy('search'), '输入用户 ID、邮箱或昵称查找并发送私信');
+    assert.match(messages, /searchPublicUsers/);
     assert.equal(emptyListCopy('system'), '暂无系统通知');
     assert.equal(emptyDetailCopy(), '选择一条消息查看详情');
     assert.equal(emptyDetailCopy('search'), '查找用户后，在此编辑并发送私信');
@@ -149,7 +150,7 @@ describe('messages safety and header link', () => {
     assert.match(messages, /msg-composer/);
     assert.match(messages, /msg-search-pane/);
     assert.match(messages, /sendDirectMessage/);
-    assert.match(messages, /lookupPublicUser/);
+    assert.match(messages, /searchPublicUsers/);
     assert.match(logic, /msg-composer/);
   });
 

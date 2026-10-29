@@ -2,13 +2,13 @@ package httpapi
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tycdn/vplayer/internal/auth"
+	"github.com/tycdn/vplayer/internal/model"
 	"github.com/tycdn/vplayer/internal/store"
 )
 
@@ -16,6 +16,7 @@ const (
 	directMessageTitlePrefix = "收到私信"
 	directMessageMaxRunes    = 500
 	directMessageTitleRunes  = 40
+	userSearchMaxResults     = 10
 )
 
 type publicUserJSON struct {
@@ -24,14 +25,26 @@ type publicUserJSON struct {
 	AvatarHue int    `json:"avatar_hue"`
 }
 
-// LookupPublicUser GET /api/v1/users/:id/public — find a user by platform ID for messaging.
-func (a *API) LookupPublicUser(c *gin.Context) {
+func publicUserFromModel(u model.User) publicUserJSON {
+	return publicUserJSON{
+		ID:        u.ID,
+		Nickname:  auth.DisplayName(u.Nickname, u.Email),
+		AvatarHue: u.AvatarHue,
+	}
+}
+
+// SearchPublicUsers GET /api/v1/users/search?q= — lookup by user id, email, or nickname.
+func (a *API) SearchPublicUsers(c *gin.Context) {
 	if _, ok := libraryUser(c); !ok {
 		return
 	}
-	id, err := strconv.ParseUint(strings.TrimSpace(c.Param("id")), 10, 64)
-	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "请输入有效的用户 ID"})
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "请输入用户 ID、邮箱或昵称"})
+		return
+	}
+	if utf8.RuneCountInString(q) > 64 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "message": "搜索内容过长"})
 		return
 	}
 	repo := a.users()
@@ -39,19 +52,39 @@ func (a *API) LookupPublicUser(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "message": "用户服务暂不可用"})
 		return
 	}
-	u, err := repo.GetUserByID(id)
-	if err != nil || u == nil {
+	rows, err := repo.SearchUsersForMessage(q, userSearchMaxResults)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "查找失败，请稍后重试"})
+		return
+	}
+	data := make([]publicUserJSON, 0, len(rows))
+	for _, u := range rows {
+		data = append(data, publicUserFromModel(u))
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": data})
+}
+
+// LookupPublicUser GET /api/v1/users/:id/public — id / email / nickname shortcut.
+func (a *API) LookupPublicUser(c *gin.Context) {
+	if _, ok := libraryUser(c); !ok {
+		return
+	}
+	raw := strings.TrimSpace(c.Param("id"))
+	repo := a.users()
+	if repo == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "message": "用户服务暂不可用"})
+		return
+	}
+	rows, err := repo.SearchUsersForMessage(raw, 1)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "查找失败，请稍后重试"})
+		return
+	}
+	if len(rows) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"ok": false, "message": "未找到该用户"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
-		"data": publicUserJSON{
-			ID:        u.ID,
-			Nickname:  auth.DisplayName(u.Nickname, u.Email),
-			AvatarHue: u.AvatarHue,
-		},
-	})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": publicUserFromModel(rows[0])})
 }
 
 type sendDirectMessageBody struct {
