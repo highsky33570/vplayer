@@ -253,7 +253,7 @@ describe('mobile and desktop category presentation', () => {
     assert.match(phone, /\.category-children\s*\{[^}]*display:\s*none/);
     assert.match(phone, /\.category-subrow\s*\{[^}]*display:\s*none/);
     assert.match(phone, /\.category-subrow\.is-open\s*\{[^}]*display:\s*grid/);
-    assert.match(phone, /\.category-btn--main\s*\{[^}]*height:\s*36px/);
+    assert.match(phone, /\.category-btn--main\s*\{[^}]*height:\s*40px/);
     assert.match(phone, /\.category-btn--main\s*\{[^}]*max-width:\s*none/);
     assert.match(phone, /\.brand-text\s*\{[^}]*display:\s*inline/);
     assert.match(phone, /repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
@@ -271,6 +271,9 @@ describe('mobile and desktop category presentation', () => {
     const desktop = css.slice(0, css.indexOf('/* bp:compact'));
     assert.match(desktop, /\.category-rail\s*\{[^}]*flex-wrap:\s*nowrap/);
     assert.match(desktop, /\.category-children\s*\{[^}]*display:\s*none/);
+    // Banner channel rail: scroll at mid widths instead of overlapping labels.
+    assert.match(css, /\.banner-channels\s+\.category-rail\s*\{[^}]*overflow-x:\s*auto/);
+    assert.match(css, /\.banner-channels\s+\.category-btn--main[\s\S]*?min-width:\s*max-content/);
     assert.equal(src.includes('上一组分类'), false);
     assert.equal(src.includes('下一组分类'), false);
     assert.equal(src.includes('scrollBy'), false);

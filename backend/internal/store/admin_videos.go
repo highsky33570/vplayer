@@ -9,20 +9,10 @@ import (
 
 const adminVideoSelect = `SELECT ` + videoScanSelect + ` FROM videos`
 
-// ListAdminVideosFiltered lists videos for admin regardless of status.
-// active/isHot=nil means all; true/false filters the column. limit is clamped to 1..100.
-func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool, limit, offset int) ([]model.Video, error) {
-	if limit <= 0 {
-		limit = 24
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	if offset < 0 {
-		offset = 0
-	}
-	q := adminVideoSelect + ` WHERE 1=1`
-	args := []any{}
+// appendAdminVideosWhere applies the same discovery gates as the public catalog:
+// hide OLEHDTV VIP蓝光影院 rows, hide membership-only / unplayable titles.
+// Admin should not list titles users cannot play.
+func appendAdminVideosWhere(q string, args []any, categoryID uint64, query string, active, isHot *bool) (string, []any) {
 	excl, exclArgs := AdminExcludeOleHdTvVIPSQL("")
 	q += excl
 	args = append(args, exclArgs...)
@@ -43,6 +33,24 @@ func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active,
 		q += ` AND title LIKE ?`
 		args = append(args, like)
 	}
+	q += MembershipOnlyCatalogExclusionSQL("videos.id")
+	q += PlayableEpisodeCatalogSQL("videos.id")
+	return q, args
+}
+
+// ListAdminVideosFiltered lists admin videos that are playable (or admin VIP showcase).
+// active/isHot=nil means all; true/false filters the column. limit is clamped to 1..100.
+func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool, limit, offset int) ([]model.Video, error) {
+	if limit <= 0 {
+		limit = 24
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	q, args := appendAdminVideosWhere(adminVideoSelect+` WHERE 1=1`, nil, categoryID, query, active, isHot)
 	q += ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
@@ -64,28 +72,7 @@ func (m *MySQL) ListAdminVideosFiltered(categoryID uint64, query string, active,
 
 // CountAdminVideosFiltered counts videos matching the same filters as ListAdminVideosFiltered.
 func (m *MySQL) CountAdminVideosFiltered(categoryID uint64, query string, active, isHot *bool) (int, error) {
-	q := `SELECT COUNT(*) FROM videos WHERE 1=1`
-	args := []any{}
-	excl, exclArgs := AdminExcludeOleHdTvVIPSQL("")
-	q += excl
-	args = append(args, exclArgs...)
-	if categoryID > 0 {
-		q += ` AND category_id=?`
-		args = append(args, categoryID)
-	}
-	if active != nil {
-		q += ` AND COALESCE(is_active,1)=?`
-		args = append(args, boolToInt(*active))
-	}
-	if isHot != nil {
-		q += ` AND COALESCE(is_hot,0)=?`
-		args = append(args, boolToInt(*isHot))
-	}
-	if query = strings.TrimSpace(query); query != "" {
-		like := "%" + query + "%"
-		q += ` AND title LIKE ?`
-		args = append(args, like)
-	}
+	q, args := appendAdminVideosWhere(`SELECT COUNT(*) FROM videos WHERE 1=1`, nil, categoryID, query, active, isHot)
 	var n int
 	if err := m.DB.QueryRow(q, args...).Scan(&n); err != nil {
 		return 0, err

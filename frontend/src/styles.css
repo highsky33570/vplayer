@@ -9146,19 +9146,35 @@ html.dark .login-reminder-cta,
   .banner-channels {
     display: flex;
     align-items: center;
+    flex: 1 1 auto;
     min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .banner-channels .category-rail {
-    width: auto;
+    width: 100%;
+    max-width: 100%;
     height: 72px;
     min-height: 0;
     flex-wrap: nowrap;
     align-items: center;
     gap: 0;
     padding: 0;
-    overflow: visible;
+    /* Mid-width desktop: scroll instead of crushing/overlapping labels. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
     background: transparent;
+  }
+
+  .banner-channels .category-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .banner-channels .category-rail-group {
+    flex: 0 0 auto;
   }
 
   .banner-channels .category-btn--main,
@@ -9169,6 +9185,8 @@ html.dark .login-reminder-cta,
   html.dark .banner-channels .category-btn--main:not(.is-active),
   html.dark .banner-channels .category-btn--main:not(.is-active):hover {
     height: auto;
+    flex: 0 0 auto;
+    min-width: max-content;
     padding: 0 5px;
     border: 0;
     border-radius: 0;
