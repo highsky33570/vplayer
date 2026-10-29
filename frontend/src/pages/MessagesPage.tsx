@@ -386,11 +386,9 @@ function MessagesContent({ token }: { token: string }) {
                 <p className="msg-empty-desc">
                   新注册欢迎信、系统公告、好友私信都会出现在这里。也可以去「查找用户」按 ID 或昵称发私信。
                 </p>
-                {filter !== 'search' ? (
-                  <button type="button" className="me-btn me-btn--primary" onClick={() => selectTab('search')}>
-                    去查找用户
-                  </button>
-                ) : null}
+                <button type="button" className="me-btn me-btn--primary" onClick={() => selectTab('search')}>
+                  去查找用户
+                </button>
               </div>
             ) : (
               <>
