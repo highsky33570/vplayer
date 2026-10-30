@@ -277,6 +277,7 @@ describe('mobile and desktop category presentation', () => {
     // Mid-width compact header: icon-only channels/actions + magnifier search.
     assert.match(css, /@media \(max-width: 1439px\) and \(min-width: 768px\)/);
     assert.match(css, /\.banner-channels\s+\.category-label\s*\{[^}]*clip:\s*rect\(0,\s*0,\s*0,\s*0\)/);
+    assert.match(css, /\.banner-shell\s+\.search--desktop\s*\{[^}]*left:\s*50%/);
     assert.match(css, /\.banner-shell\s+\.search--desktop\s*\{[^}]*width:\s*36px/);
     assert.match(css, /\.banner-shell\s+\.search--desktop\s+button\s+svg\s*\{[^}]*display:\s*block\s*!important/);
     assert.equal(src.includes('上一组分类'), false);

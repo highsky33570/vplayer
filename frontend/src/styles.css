@@ -10250,19 +10250,20 @@ html:not(.dark) .cookie-gate-card {
     justify-content: center;
   }
 
-  /* Magnifier-only search; expands when .is-expanded / shell is-search-open. */
+  /* Magnifier-only search — stay horizontally centered like the full search bar.
+     Expands when .is-expanded / shell is-search-open. */
   .banner-shell .search--desktop {
-    position: static !important;
-    left: auto !important;
-    top: auto !important;
-    transform: none !important;
+    position: absolute !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
     z-index: 4;
     width: 36px;
     max-width: 36px;
     min-width: 36px;
     height: 36px;
-    flex: 0 0 36px;
-    justify-self: center;
+    flex: none;
+    margin: 0;
     border-radius: 4px;
     overflow: hidden;
   }
