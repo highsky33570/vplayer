@@ -1723,7 +1723,7 @@ html.dark .category-btn--child.is-active {
 .video-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 14px 12px;
+  gap: 12px;
 }
 
 .video-card {
@@ -1898,6 +1898,24 @@ html.dark .category-btn--child.is-active {
 
 .skel-card .skel-line.short {
   width: 55%;
+  height: 12px;
+  margin-top: 8px;
+}
+
+.skel-card .skel-line--title {
+  height: 14px;
+  width: 92%;
+  margin-top: 10px;
+}
+
+.skel-card .skel-line--desc {
+  height: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.skel-card .skel-line--desc-short {
+  width: 68%;
   height: 12px;
   margin-top: 8px;
 }
@@ -3250,7 +3268,7 @@ html.dark .login-reminder-cta {
 
   .video-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px 12px;
+    gap: 12px;
   }
 }
 
@@ -3795,7 +3813,7 @@ html.dark .login-reminder-cta {
 
   .video-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
   }
 
   .video-card {
@@ -3809,16 +3827,16 @@ html.dark .login-reminder-cta {
   }
 
   .video-title {
-    margin: 3px 0 0;
-    font-size: 14px;
+    margin: 6px 0 2px;
+    font-size: 13px;
     font-weight: 600;
-    line-height: 1.25;
+    line-height: 1.35;
   }
 
   .video-meta {
-    margin-top: 1px;
-    font-size: 12px;
-    line-height: 1.25;
+    margin-top: 0;
+    font-size: 11px;
+    line-height: 1.4;
   }
 
   .thumb-stats {
@@ -3971,7 +3989,7 @@ html.dark .login-reminder-cta {
   }
 
   .video-grid {
-    gap: 8px;
+    gap: 10px;
   }
 }
 
@@ -4003,7 +4021,7 @@ html.dark .login-reminder-cta {
   }
 
   .video-grid {
-    gap: 8px;
+    gap: 10px;
   }
 
   .carousel-caption h3 {
@@ -8147,11 +8165,11 @@ html.dark .category-btn--child.is-active {
 }
 
 .video-grid {
-  gap: 16px 12px;
+  gap: 12px;
 }
 
 .video-grid--compact {
-  gap: 8px 8px;
+  gap: 10px;
 }
 
 .video-grid--compact .video-title {
@@ -8198,10 +8216,12 @@ html.dark .category-btn--child.is-active {
 }
 
 .video-title {
-  margin: 4px 0 2px;
+  margin: 6px 0 2px;
+  padding: 0;
   font-size: 14px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
+  color: var(--text);
 }
 
 .video-card:hover .video-title {
@@ -8210,6 +8230,7 @@ html.dark .category-btn--child.is-active {
 
 .video-meta {
   margin: 0;
+  padding: 0;
   font-size: 12px;
   line-height: 1.4;
   color: var(--muted);
@@ -8220,6 +8241,29 @@ html.dark .category-btn--child.is-active {
 .skel-card .skel-thumb,
 .skel-card .skel-line {
   border-radius: 0;
+}
+
+.skel-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.skel-card .skel-line--title {
+  height: 14px;
+  width: 92%;
+  margin-top: 8px;
+}
+
+.skel-card .skel-line--desc {
+  height: 12px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.skel-card .skel-line--desc-short {
+  width: 68%;
+  margin-top: 6px;
 }
 
 .login-reminder {
@@ -8512,7 +8556,7 @@ html.dark .login-reminder-cta,
   .video-grid--compact,
   .video-grid--lead {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
   }
 
   .video-grid--lead > .video-card:first-child {
@@ -8527,14 +8571,32 @@ html.dark .login-reminder-cta,
   .video-title,
   .video-grid--lead > .video-card:first-child .video-title,
   .video-grid--compact .video-title {
-    margin: 4px 0 2px;
+    margin: 6px 0 2px;
     font-size: 13px;
     line-height: 1.35;
   }
 
   .video-meta {
     font-size: 11px;
-    line-height: 1.35;
+    line-height: 1.4;
+  }
+
+  .video-card .video-meta-desc {
+    font-size: 11px;
+    line-height: 1.4;
+    -webkit-line-clamp: 2;
+    min-height: calc(1.4em * 2);
+  }
+
+  .skel-card .skel-line--title {
+    margin-top: 8px;
+    height: 13px;
+  }
+
+  .skel-card .skel-line--desc,
+  .skel-card .skel-line--desc-short {
+    margin-top: 6px;
+    height: 11px;
   }
 
   .login-reminder {
@@ -9485,13 +9547,18 @@ html.dark .login-reminder-cta,
 
 .video-card .video-meta-desc {
   display: -webkit-box;
-  margin-top: 2px;
+  margin: 2px 0 0;
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
-  line-height: 1.35;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
+  /* Reserve 2 lines so card heights / grid gutters stay even */
+  min-height: calc(1.4em * 2);
 }
 
 @media (max-width: 767px) {

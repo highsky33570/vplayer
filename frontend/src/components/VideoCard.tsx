@@ -63,7 +63,7 @@ export function VideoCard({ video, compact, categoryName }: Props) {
       </HoverPreviewThumb>
       <div className="video-title">{video.title}</div>
       {!compact && facts ? <div className="video-meta video-meta-facts">{facts}</div> : null}
-      {!compact && description ? <div className="video-meta video-meta-desc">{description}</div> : null}
+      {!compact ? <div className="video-meta video-meta-desc">{description}</div> : null}
     </Link>
   );
 }

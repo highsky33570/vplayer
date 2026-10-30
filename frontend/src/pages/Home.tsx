@@ -213,7 +213,9 @@ export function Home() {
               {Array.from({ length: HOME_SECTION_LIMIT }).map((__, j) => (
                 <div key={j} className="skel-card">
                   <div className="skel skel-thumb" />
-                  <div className="skel skel-line" />
+                  <div className="skel skel-line skel-line--title" />
+                  <div className="skel skel-line skel-line--desc" />
+                  <div className="skel skel-line skel-line--desc skel-line--desc-short" />
                 </div>
               ))}
             </div>
@@ -269,8 +271,9 @@ export function Home() {
                 {Array.from({ length: HOME_SECTION_LIMIT }).map((_, i) => (
                   <div key={i} className="skel-card">
                     <div className="skel skel-thumb" />
-                    <div className="skel skel-line" />
-                    <div className="skel skel-line short" />
+                    <div className="skel skel-line skel-line--title" />
+                    <div className="skel skel-line skel-line--desc" />
+                    <div className="skel skel-line skel-line--desc skel-line--desc-short" />
                   </div>
                 ))}
               </div>
