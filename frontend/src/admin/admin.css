@@ -11,6 +11,140 @@
   font-family: var(--font);
 }
 
+/* Dedicated admin login — solid, no public-site chrome */
+.admin-login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #0f1419;
+  color: #e8eaed;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.admin-login-card {
+  width: min(400px, 100%);
+  padding: 32px 28px;
+  background: #171c22;
+  border: 1px solid #2a313a;
+  border-radius: 12px;
+}
+
+.admin-login-kicker {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8b949e;
+}
+
+.admin-login-card h1 {
+  margin: 0 0 6px;
+  font-size: 1.45rem;
+  font-weight: 650;
+  color: #f0f3f6;
+}
+
+.admin-login-muted {
+  margin: 0 0 20px;
+  color: #8b949e;
+  font-size: 0.92rem;
+}
+
+.admin-login-meta {
+  margin: 0 0 16px;
+  color: #c5cbd3;
+  font-size: 0.9rem;
+  word-break: break-all;
+}
+
+.admin-login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-login-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #c5cbd3;
+}
+
+.admin-login-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #2a313a;
+  background: #0f1419;
+  color: #f0f3f6;
+  font: inherit;
+}
+
+.admin-login-form input:focus {
+  outline: 2px solid #3d8bfd;
+  outline-offset: 1px;
+}
+
+.admin-login-password-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-login-eye {
+  border: 0;
+  background: transparent;
+  color: #8b949e;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 8px 4px;
+  white-space: nowrap;
+}
+
+.admin-login-error {
+  margin: 0;
+  color: #f85149;
+  font-size: 0.88rem;
+}
+
+.admin-login-submit {
+  margin-top: 4px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #3d8bfd;
+  color: #fff;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.admin-login-submit:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.admin-login-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-login-link {
+  text-align: center;
+  color: #8b949e;
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.admin-login-link:hover {
+  color: #c5cbd3;
+}
+
 .admin-forbidden-card {
   width: min(420px, 100%);
   background: var(--surface);

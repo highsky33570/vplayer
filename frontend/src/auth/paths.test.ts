@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  adminLoginWithNext,
+  isAdminAppPath,
   loginWithNext,
+  resolveAdminPostLoginPath,
   resolvePostLoginPath,
   safeInternalPath,
   videoEntryHref,
@@ -24,8 +27,28 @@ describe('loginWithNext', () => {
     assert.equal(loginWithNext('/watch/7'), '/login?next=%2Fwatch%2F7');
   });
 
-  it('supports admin return path', () => {
-    assert.equal(loginWithNext('/admin'), '/login?next=%2Fadmin');
+  it('sends admin destinations to /admin/login', () => {
+    assert.equal(loginWithNext('/admin'), '/admin/login?next=%2Fadmin');
+    assert.equal(
+      loginWithNext('/admin/videos'),
+      '/admin/login?next=%2Fadmin%2Fvideos',
+    );
+  });
+});
+
+describe('adminLoginWithNext / resolveAdminPostLoginPath', () => {
+  it('builds admin login URLs', () => {
+    assert.equal(adminLoginWithNext(), '/admin/login?next=%2Fadmin');
+    assert.equal(adminLoginWithNext('/admin/payments'), '/admin/login?next=%2Fadmin%2Fpayments');
+    assert.equal(isAdminAppPath('/admin'), true);
+    assert.equal(isAdminAppPath('/admin/login'), false);
+  });
+
+  it('keeps post-login inside admin', () => {
+    assert.equal(resolveAdminPostLoginPath('/admin/videos'), '/admin/videos');
+    assert.equal(resolveAdminPostLoginPath('/watch/1'), '/admin');
+    assert.equal(resolveAdminPostLoginPath('/admin/login'), '/admin');
+    assert.equal(resolveAdminPostLoginPath(null), '/admin');
   });
 });
 

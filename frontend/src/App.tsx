@@ -6,6 +6,7 @@ import { AdminCategoryDetail } from './admin/AdminCategoryDetail';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { AdminGuard } from './admin/AdminGuard';
 import { AdminLayout } from './admin/AdminLayout';
+import { AdminLoginPage } from './admin/AdminLoginPage';
 import { AdminMedia } from './admin/AdminMedia';
 import { AdminMediaEpisodeDetail } from './admin/AdminMediaEpisodeDetail';
 import { AdminOperationalRunDetail } from './admin/AdminOperationalRunDetail';
@@ -63,6 +64,7 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <Routes>
+            <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminGuard />}>
               <Route element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />

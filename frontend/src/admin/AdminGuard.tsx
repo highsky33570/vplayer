@@ -1,10 +1,11 @@
-import { Link, Navigate, Outlet } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { loginWithNext } from '../auth/paths';
+import { adminLoginWithNext } from '../auth/paths';
 
 /** Route guard for /admin — UX only; backend RequireAdmin is the real boundary. */
 export function AdminGuard() {
   const { ready, user, token } = useAuth();
+  const location = useLocation();
 
   if (!ready) {
     return (
@@ -15,7 +16,8 @@ export function AdminGuard() {
   }
 
   if (!token || !user) {
-    return <Navigate to={loginWithNext('/admin')} replace />;
+    const next = `${location.pathname}${location.search || ''}` || '/admin';
+    return <Navigate to={adminLoginWithNext(next)} replace />;
   }
 
   if (!user.is_admin) {
