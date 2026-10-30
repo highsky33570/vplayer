@@ -8595,6 +8595,7 @@ html.dark .login-reminder-cta,
 /* Home ads: between hero and categories. Nav = desktop; page = mobile. */
 .home-ad-stack {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   width: min(1840px, calc(100% - 48px));
   margin: 0 auto 12px;
@@ -8608,7 +8609,7 @@ html.dark .login-reminder-cta,
 .home-ad-stack__item {
   display: block;
   width: 100%;
-  aspect-ratio: 9 / 1;
+  aspect-ratio: 16 / 5;
   overflow: hidden;
   border-radius: 2px;
   background: #1a1a1a;
@@ -8866,6 +8867,7 @@ html.dark .login-reminder-cta,
 
   .home-ad-stack--nav {
     display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: min(1840px, calc(100% - 48px));
     margin: 0 auto 12px;
     gap: 8px;
@@ -9085,6 +9087,7 @@ html.dark .login-reminder-cta,
 
   .home-ad-stack--page {
     display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
     margin: 8px 0 10px;
     padding: 0 10px;
@@ -9093,7 +9096,7 @@ html.dark .login-reminder-cta,
   }
 
   .home-ad-stack--page .home-ad-stack__item {
-    aspect-ratio: 8 / 1;
+    aspect-ratio: 16 / 5;
   }
 
   .banner-stage,
