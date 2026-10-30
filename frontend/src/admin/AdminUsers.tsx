@@ -14,7 +14,7 @@ import {
 } from './adminUsersQuery';
 import { roleLabel } from './adminLabels';
 
-function formatTime(value?: string) {
+function formatTime(value?: string | null) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
