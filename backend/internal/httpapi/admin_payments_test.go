@@ -30,14 +30,23 @@ func TestPaymentDeliveryStatus(t *testing.T) {
 			want: "pending",
 		},
 		{
-			name: "expired",
+			name: "expired_is_fail",
 			o:    store.MembershipOrder{Status: store.MembershipOrderExpired},
-			want: "none",
+			want: "fail",
 		},
 		{
-			name: "cancelled",
+			name: "cancelled_is_fail",
 			o:    store.MembershipOrder{Status: store.MembershipOrderCancel},
-			want: "none",
+			want: "fail",
+		},
+		{
+			name: "paid_at_fallback_success",
+			o: store.MembershipOrder{
+				Status:                 store.MembershipOrderPending,
+				PaidAt:                 &until,
+				MembershipGrantedUntil: &until,
+			},
+			want: "success",
 		},
 	}
 	for _, tc := range cases {

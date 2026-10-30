@@ -45,20 +45,38 @@ type AdminPaymentDTO struct {
 	CreatedAt              time.Time  `json:"created_at"`
 }
 
-// paymentDeliveryStatus reports whether VIP membership was delivered after payment.
+// paymentDeliveryStatus reports payment + VIP grant outcome for admin UI.
+// success = paid and membership granted; fail = paid without grant, or
+// unpaid terminal (expired/cancelled); pending = awaiting payment.
 func paymentDeliveryStatus(o store.MembershipOrder) string {
-	switch strings.TrimSpace(o.Status) {
+	st := strings.TrimSpace(o.Status)
+	granted := o.MembershipGrantedUntil != nil && !o.MembershipGrantedUntil.IsZero()
+	paidHint := o.PaidAt != nil && !o.PaidAt.IsZero()
+	switch st {
 	case store.MembershipOrderPaid:
-		if o.MembershipGrantedUntil != nil {
+		if granted {
 			return "success"
 		}
 		return "fail"
 	case store.MembershipOrderPending:
+		// Rare: settle wrote paid_at before status flip — still treat as settled.
+		if paidHint {
+			if granted {
+				return "success"
+			}
+			return "fail"
+		}
 		return "pending"
 	case store.MembershipOrderExpired, store.MembershipOrderCancel:
-		return "none"
+		return "fail"
 	default:
-		return "none"
+		if paidHint {
+			if granted {
+				return "success"
+			}
+			return "fail"
+		}
+		return "pending"
 	}
 }
 

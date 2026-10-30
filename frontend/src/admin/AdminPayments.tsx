@@ -41,26 +41,41 @@ function statusClass(status: string) {
   return 'admin-badge is-off';
 }
 
-function deliveryLabel(status: string) {
+/** Derive delivery outcome when API omits delivery_status (older backends). */
+function resolveDeliveryStatus(row: AdminPayment): string {
+  const raw = (row.delivery_status || '').trim();
+  if (raw && raw !== 'none') return raw;
+  const st = (row.status || '').trim();
+  const granted = Boolean(row.membership_granted_until);
+  const paidAt = Boolean(row.paid_at);
+  if (st === 'paid' || paidAt) return granted ? 'success' : 'fail';
+  if (st === 'pending') return 'pending';
+  if (st === 'expired' || st === 'cancelled') return 'fail';
+  return raw || 'pending';
+}
+
+function deliveryLabel(status: string, row?: AdminPayment) {
   switch (status) {
     case 'success':
       return '开通成功';
     case 'fail':
-      return '开通失败';
+      // Paid without grant vs never paid.
+      if (row && (row.status === 'paid' || row.paid_at)) return '开通失败';
+      return '支付失败';
     case 'pending':
-      return '待开通';
+      return '待支付';
     case 'none':
-      return '—';
+      return '待支付';
     default:
-      return status || '—';
+      return status || '待支付';
   }
 }
 
 function deliveryClass(status: string) {
   if (status === 'success') return 'admin-badge is-ok';
-  if (status === 'fail') return 'admin-badge is-off';
-  if (status === 'pending') return 'admin-badge';
-  return 'admin-muted';
+  if (status === 'fail') return 'admin-badge is-danger';
+  if (status === 'pending') return 'admin-badge is-warn';
+  return 'admin-badge';
 }
 
 function parsePaymentsSearch(params: URLSearchParams) {
@@ -262,7 +277,9 @@ export function AdminPayments() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const delivery = resolveDeliveryStatus(row);
+                  return (
                   <tr key={row.id}>
                     <td>{row.id}</td>
                     <td>
@@ -282,9 +299,7 @@ export function AdminPayments() {
                       <span className={statusClass(row.status)}>{statusLabel(row.status)}</span>
                     </td>
                     <td>
-                      <span className={deliveryClass(row.delivery_status)}>
-                        {deliveryLabel(row.delivery_status)}
-                      </span>
+                      <span className={deliveryClass(delivery)}>{deliveryLabel(delivery, row)}</span>
                     </td>
                     <td>
                       <span className="admin-mono">
@@ -301,13 +316,16 @@ export function AdminPayments() {
                     <td>{formatTime(row.membership_granted_until)}</td>
                     <td>{formatTime(row.created_at)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           <div className="admin-card-list" aria-label="支付记录（移动端）">
-            {rows.map((row) => (
+            {rows.map((row) => {
+              const delivery = resolveDeliveryStatus(row);
+              return (
               <div key={row.id} className="admin-card-item">
                 <div>
                   <strong>
@@ -320,14 +338,13 @@ export function AdminPayments() {
                   <p>
                     <span className={statusClass(row.status)}>{statusLabel(row.status)}</span>
                     {' · '}
-                    <span className={deliveryClass(row.delivery_status)}>
-                      {deliveryLabel(row.delivery_status)}
-                    </span>
+                    <span className={deliveryClass(delivery)}>{deliveryLabel(delivery, row)}</span>
                     <span className="admin-muted"> · {formatTime(row.created_at)}</span>
                   </p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="admin-pager">

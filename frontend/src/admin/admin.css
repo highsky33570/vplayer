@@ -792,6 +792,17 @@
   color: var(--muted);
 }
 
+.admin-badge.is-danger {
+  background: color-mix(in srgb, #d4534b 18%, transparent);
+  color: #d4534b;
+  font-weight: 650;
+}
+
+.admin-badge.is-warn {
+  background: color-mix(in srgb, #c9851a 18%, transparent);
+  color: #c9851a;
+}
+
 .admin-batch-bar {
   display: flex;
   flex-wrap: wrap;
