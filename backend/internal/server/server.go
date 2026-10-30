@@ -87,6 +87,7 @@ func New(cfg config.Config) (*Server, error) {
 		Resolver:   &play.Resolver{Cfg: cfg, Store: mysql},
 		SyncRunner: runner,
 		MediaBase:  cfg.OleHdTvMediaPublicBase,
+		Objects:    objStore,
 	}
 	api.StartMembershipReconcile()
 	// Mail is optional at process start so login/admin keep working if SMTP is unset.
@@ -166,11 +167,14 @@ func New(cfg config.Config) (*Server, error) {
 		v1.PATCH("/admin/videos/membership", api.RequireUser, api.RequireAdmin, api.AdminBatchSetVideoMembership)
 		v1.GET("/admin/videos/:id", api.RequireUser, api.RequireAdmin, api.AdminGetVideo)
 		v1.PATCH("/admin/videos/:id", api.RequireUser, api.RequireAdmin, api.AdminUpdateVideo)
+		v1.POST("/admin/videos/:id/poster", api.RequireUser, api.RequireAdmin, api.AdminUploadVideoPoster)
 		v1.PATCH("/admin/videos/:id/membership", api.RequireUser, api.RequireAdmin, api.AdminSetVideoMembership)
 		v1.GET("/admin/categories", api.RequireUser, api.RequireAdmin, api.AdminListCategories)
+		v1.POST("/admin/categories", api.RequireUser, api.RequireAdmin, api.AdminCreateCategory)
 		v1.POST("/admin/categories/cleanup-duplicates", api.RequireUser, api.RequireAdmin, api.AdminCleanupDuplicateCategories)
 		v1.GET("/admin/categories/:id", api.RequireUser, api.RequireAdmin, api.AdminGetCategory)
 		v1.PATCH("/admin/categories/:id", api.RequireUser, api.RequireAdmin, api.AdminUpdateCategory)
+		v1.DELETE("/admin/categories/:id", api.RequireUser, api.RequireAdmin, api.AdminDeleteCategory)
 		v1.GET("/admin/users", api.RequireUser, api.RequireAdmin, api.AdminListUsers)
 		v1.GET("/admin/users/:id", api.RequireUser, api.RequireAdmin, api.AdminGetUser)
 		v1.PATCH("/admin/users/:id", api.RequireUser, api.RequireAdmin, api.AdminUpdateUser)

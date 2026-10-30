@@ -30,6 +30,10 @@ type AdminPaymentDTO struct {
 	AmountUSDT             float64    `json:"amount_usdt"`
 	Currency               string     `json:"currency"`
 	Status                 string     `json:"status"`
+	GatewayStatus          string     `json:"gateway_status"`
+	// DeliveryStatus: success = paid + membership granted; fail = paid without grant;
+	// pending / none for unpaid terminal states.
+	DeliveryStatus         string     `json:"delivery_status"`
 	GatewayProvider        string     `json:"gateway_provider"`
 	GatewayTradeID         string     `json:"gateway_trade_id"`
 	PayAddress             string     `json:"pay_address"`
@@ -39,6 +43,23 @@ type AdminPaymentDTO struct {
 	PaidAt                 *time.Time `json:"paid_at,omitempty"`
 	MembershipGrantedUntil *time.Time `json:"membership_granted_until,omitempty"`
 	CreatedAt              time.Time  `json:"created_at"`
+}
+
+// paymentDeliveryStatus reports whether VIP membership was delivered after payment.
+func paymentDeliveryStatus(o store.MembershipOrder) string {
+	switch strings.TrimSpace(o.Status) {
+	case store.MembershipOrderPaid:
+		if o.MembershipGrantedUntil != nil {
+			return "success"
+		}
+		return "fail"
+	case store.MembershipOrderPending:
+		return "pending"
+	case store.MembershipOrderExpired, store.MembershipOrderCancel:
+		return "none"
+	default:
+		return "none"
+	}
 }
 
 func adminPaymentDTO(row store.AdminMembershipOrderRow) AdminPaymentDTO {
@@ -56,6 +77,8 @@ func adminPaymentDTO(row store.AdminMembershipOrderRow) AdminPaymentDTO {
 		AmountUSDT:             o.AmountUSDT,
 		Currency:               o.Currency,
 		Status:                 o.Status,
+		GatewayStatus:          o.GatewayStatus,
+		DeliveryStatus:         paymentDeliveryStatus(o),
 		GatewayProvider:        o.GatewayProvider,
 		GatewayTradeID:         o.GatewayTradeID,
 		PayAddress:             o.PayAddress,

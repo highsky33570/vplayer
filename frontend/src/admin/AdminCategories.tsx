@@ -1,24 +1,16 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ApiError,
-  cleanupAdminCategoryDuplicates,
+  createAdminCategory,
+  deleteAdminCategory,
   fetchAdminCategories,
   updateAdminCategory,
   type AdminCategory,
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
-import { activeLabel, ownershipLabel, syncStatusLabel } from './adminLabels';
-import { buildAdminCategoryTree, orphanAdminCategories } from './adminCategoryTree';
-import { categoryOwnership } from './categoryOwnership';
-
-function formatTime(value?: string) {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
-}
+import { buildAdminCategoryTree } from './adminCategoryTree';
 
 export function AdminCategories() {
   const { token, logout } = useAuth();
@@ -29,20 +21,45 @@ export function AdminCategories() {
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const [selectedMainId, setSelectedMainId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
   const [editName, setEditName] = useState('');
   const [editSort, setEditSort] = useState(0);
   const [editActive, setEditActive] = useState(true);
-  const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
+  const [editParentId, setEditParentId] = useState(0);
 
-  async function load() {
+  const [adding, setAdding] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+
+  async function load(preferSelectId?: number) {
     setLoading(true);
     setError(null);
     setForbidden(false);
     try {
       const next = await fetchAdminCategories(token);
-      setRows([...next].sort((a, b) => a.id - b.id));
-      setExpanded(new Set(buildAdminCategoryTree(next).map((n) => n.main.id)));
+      setRows(next);
+      const tree = buildAdminCategoryTree(next);
+      const prefer =
+        preferSelectId != null
+          ? next.find((c) => c.id === preferSelectId)
+          : selectedId != null
+            ? next.find((c) => c.id === selectedId)
+            : undefined;
+      if (prefer) {
+        const mainId =
+          prefer.parent_id != null && prefer.parent_id > 0 ? prefer.parent_id : prefer.id;
+        setSelectedMainId(mainId);
+        setSelectedId(prefer.id);
+        applyEditFields(prefer);
+      } else if (tree.length > 0) {
+        const first = tree[0].main;
+        setSelectedMainId(first.id);
+        setSelectedId(first.id);
+        applyEditFields(first);
+      }
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.status === 401) {
@@ -70,350 +87,333 @@ export function AdminCategories() {
   }, [token]);
 
   const tree = useMemo(() => buildAdminCategoryTree(rows), [rows]);
-  const orphans = useMemo(() => orphanAdminCategories(rows), [rows]);
-  const duplicateNames = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const row of rows) {
-      const key = row.name.trim();
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    const dups = new Set<string>();
-    for (const [name, count] of counts) {
-      if (count > 1) dups.add(name);
-    }
-    return dups;
-  }, [rows]);
+  const byId = useMemo(() => new Map(rows.map((c) => [c.id, c])), [rows]);
+  const selectedMain = selectedMainId != null ? byId.get(selectedMainId) : undefined;
+  const selected = selectedId != null ? byId.get(selectedId) : undefined;
+  const selectedIsSub = Boolean(selected?.parent_id && selected.parent_id > 0);
 
-  function toggleExpand(id: number) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  const children = useMemo(() => {
+    if (selectedMainId == null) return [];
+    const node = tree.find((n) => n.main.id === selectedMainId);
+    const list = node?.children ?? [];
+    return showInactive ? list : list.filter((c) => c.is_active);
+  }, [tree, selectedMainId, showInactive]);
 
-  function startEdit(row: AdminCategory) {
-    setEditingId(row.id);
+  function applyEditFields(row: AdminCategory) {
     setEditName(row.name);
     setEditSort(row.sort);
     setEditActive(row.is_active);
+    setEditParentId(row.parent_id && row.parent_id > 0 ? row.parent_id : 0);
+    setAdding(false);
+    setAddName('');
+  }
+
+  function selectMain(main: AdminCategory) {
+    setSelectedMainId(main.id);
+    setSelectedId(main.id);
+    applyEditFields(main);
     setOkMsg(null);
     setError(null);
   }
 
-  async function saveEdit() {
-    if (editingId == null) return;
-    setBusy(true);
+  function selectSub(sub: AdminCategory) {
+    setSelectedMainId(sub.parent_id && sub.parent_id > 0 ? sub.parent_id : selectedMainId);
+    setSelectedId(sub.id);
+    applyEditFields(sub);
+    setOkMsg(null);
     setError(null);
-    try {
-      const updated = await updateAdminCategory(token, editingId, {
-        name: editName.trim(),
-        sort: editSort,
-        is_active: editActive,
-      });
-      setRows((prev) =>
-        [...prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r))].sort(
-          (a, b) => a.id - b.id,
-        ),
-      );
-      setEditingId(null);
-      setOkMsg('分类已更新');
-    } catch (e) {
-      if (e instanceof ApiError) {
-        if (e.status === 401) {
-          logout();
-          navigate(loginWithNext('/admin/categories'), { replace: true });
-          return;
-        }
-        setError(e.message);
-      } else {
-        setError(e instanceof Error ? e.message : '保存失败');
-      }
-    } finally {
-      setBusy(false);
-    }
   }
 
-  async function onCleanup() {
-    if (!window.confirm('将合并同名分类：保留视频最多的一条，停用其余并迁移视频。继续？')) {
+  async function onSave(e: FormEvent) {
+    e.preventDefault();
+    if (!selected || busy) return;
+    const name = editName.trim();
+    if (!name) {
+      setError('名称不能为空');
       return;
     }
     setBusy(true);
     setError(null);
     setOkMsg(null);
     try {
-      const result = await cleanupAdminCategoryDuplicates(token);
-      setOkMsg(
-        `清理完成：合并组 ${result.merged} · 停用 ${result.deactivated} · 迁移视频 ${result.videos_moved}`,
-      );
-      await load();
-    } catch (e) {
-      if (e instanceof ApiError) {
-        if (e.status === 401) {
-          logout();
-          navigate(loginWithNext('/admin/categories'), { replace: true });
-          return;
-        }
-        setError(e.message);
-      } else {
-        setError(e instanceof Error ? e.message : '清理失败');
+      const input: {
+        name: string;
+        sort: number;
+        is_active: boolean;
+        parent_id?: number;
+      } = {
+        name,
+        sort: editSort,
+        is_active: editActive,
+      };
+      if (selectedIsSub && editParentId > 0 && editParentId !== selected.parent_id) {
+        input.parent_id = editParentId;
       }
+      const updated = await updateAdminCategory(token, selected.id, input);
+      setOkMsg('已保存');
+      await load(updated.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '保存失败');
     } finally {
       setBusy(false);
     }
   }
 
-  function renderRow(row: AdminCategory, depth: 0 | 1) {
-    const ownership = categoryOwnership(row);
-    const isDup = duplicateNames.has(row.name.trim());
-    const editing = editingId === row.id;
+  async function onAdd(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedMain || busy) return;
+    const name = addName.trim();
+    if (!name) {
+      setError('子分类名称不能为空');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const created = await createAdminCategory(token, {
+        name,
+        parent_id: selectedMain.id,
+      });
+      setOkMsg('已添加子分类');
+      setAdding(false);
+      setAddName('');
+      await load(created.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '添加失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRemove() {
+    if (!selected || !selectedIsSub || busy) return;
+    if (!window.confirm(`停用子分类「${selected.name}」？可稍后在编辑里重新启用。`)) return;
+    setBusy(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      await deleteAdminCategory(token, selected.id);
+      setOkMsg('已停用子分类');
+      const parentId = selected.parent_id ?? selectedMainId;
+      await load(parentId ?? undefined);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '删除失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (forbidden) {
     return (
-      <tr
-        key={row.id}
-        className={`${isDup ? 'admin-row-dup' : ''} ${depth === 1 ? 'admin-cat-child-row' : 'admin-cat-main-row'}`.trim()}
-      >
-        <td className="admin-cat-tree-cell">
-          {depth === 1 ? <span className="admin-cat-branch" aria-hidden /> : null}
-          {depth === 0 ? (
-            <button
-              type="button"
-              className="admin-cat-toggle"
-              aria-expanded={expanded.has(row.id)}
-              onClick={() => toggleExpand(row.id)}
-              title={expanded.has(row.id) ? '收起子分类' : '展开子分类'}
-            >
-              {expanded.has(row.id) ? '▾' : '▸'}
-            </button>
-          ) : (
-            <span className="admin-cat-toggle-spacer" aria-hidden />
-          )}
-          <span className="admin-mono">#{row.id}</span>
-        </td>
-        <td>
-          {editing ? (
-            <input
-              className="admin-input"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-            />
-          ) : (
-            <>
-              <Link className="admin-title-link" to={`/admin/categories/${row.id}`}>
-                {depth === 1 ? `└ ${row.name}` : row.name}
-              </Link>
-              {isDup ? <span className="admin-badge admin-dup-badge">同名</span> : null}
-            </>
-          )}
-        </td>
-        <td>
-          <span className="admin-mono">{row.slug}</span>
-        </td>
-        <td>{row.video_count}</td>
-        <td>
-          {editing ? (
-            <input
-              className="admin-input"
-              type="number"
-              value={editSort}
-              onChange={(e) => setEditSort(Number(e.target.value) || 0)}
-            />
-          ) : (
-            row.sort
-          )}
-        </td>
-        <td>
-          {editing ? (
-            <select
-              className="admin-input"
-              value={editActive ? '1' : '0'}
-              onChange={(e) => setEditActive(e.target.value === '1')}
-            >
-              <option value="1">启用</option>
-              <option value="0">停用</option>
-            </select>
-          ) : (
-            <span className={row.is_active ? 'admin-badge is-ok' : 'admin-badge is-off'}>
-              {activeLabel(row.is_active)}
-            </span>
-          )}
-        </td>
-        <td>
-          <span className="admin-mono">
-            {ownership === 'Synced'
-              ? `${row.source_system} / ${row.source_id}`
-              : ownershipLabel(ownership)}
-          </span>
-        </td>
-        <td>
-          {syncStatusLabel(row.sync_status)}
-          {row.has_error ? (
-            <span className="admin-badge is-off" style={{ marginLeft: 6 }}>
-              错误
-            </span>
-          ) : null}
-        </td>
-        <td>{formatTime(row.created_at)}</td>
-        <td>
-          {editing ? (
-            <div className="admin-pager-actions">
-              <button
-                type="button"
-                className="admin-btn-primary"
-                disabled={busy}
-                onClick={() => void saveEdit()}
-              >
-                保存
-              </button>
-              <button
-                type="button"
-                className="admin-btn-ghost"
-                disabled={busy}
-                onClick={() => setEditingId(null)}
-              >
-                取消
-              </button>
-            </div>
-          ) : (
-            <button type="button" className="admin-btn-ghost" onClick={() => startEdit(row)}>
-              编辑
-            </button>
-          )}
-        </td>
-      </tr>
+      <div className="admin-page">
+        <div className="admin-panel">
+          <p className="admin-error">{error || '需要管理员权限'}</p>
+          <Link to="/">返回首页</Link>
+        </div>
+      </div>
     );
   }
 
   return (
-    <section className="admin-page">
+    <div className="admin-page">
       <div className="admin-page-head">
-        <h1>分类管理</h1>
-        <p className="admin-muted">
-          主分类与子分类树形展示（电影 / 连续剧 / 综艺 / 动漫 / 午夜影院 / VIP蓝光影院）。
-        </p>
+        <div>
+          <h1>分类管理</h1>
+          <p className="admin-muted">仅展示主分类及其子分类。点选左侧主分类，右侧查看子分类；点选任意分类可编辑。</p>
+        </div>
+        <div className="admin-page-actions">
+          <label className="admin-inline-check">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+            显示已停用
+          </label>
+          <button type="button" className="admin-btn" disabled={loading || busy} onClick={() => void load()}>
+            刷新
+          </button>
+        </div>
       </div>
 
-      <div className="admin-form-actions" style={{ marginTop: 0, marginBottom: 14 }}>
-        <button
-          type="button"
-          className="admin-btn-primary"
-          disabled={busy || duplicateNames.size === 0}
-          onClick={() => void onCleanup()}
-        >
-          清理同名分类
-        </button>
-        <span className="admin-muted">
-          {duplicateNames.size > 0
-            ? `检测到 ${duplicateNames.size} 组同名分类`
-            : '当前无同名分类'}
-        </span>
-      </div>
+      {error ? <p className="admin-error">{error}</p> : null}
+      {okMsg ? <p className="admin-ok">{okMsg}</p> : null}
 
-      {loading ? <p className="admin-muted">加载中…</p> : null}
-      {forbidden ? (
-        <div className="admin-alert is-danger" role="alert">
-          无权访问分类管理（403）。
-        </div>
-      ) : null}
-      {!forbidden && error ? (
-        <div className="admin-alert is-danger" role="alert">
-          {error}
-        </div>
-      ) : null}
-      {okMsg ? (
-        <div className="admin-alert is-ok" role="status">
-          {okMsg}
-        </div>
-      ) : null}
-      {!loading && !forbidden && !error && rows.length === 0 ? (
-        <p className="admin-empty">暂无分类。</p>
-      ) : null}
+      {loading && !rows.length ? (
+        <p className="admin-muted">加载中…</p>
+      ) : (
+        <div className="admin-cat-folder">
+          <aside className="admin-cat-folder-mains" aria-label="主分类">
+            <div className="admin-cat-folder-label">主分类</div>
+            <ul className="admin-cat-folder-list">
+              {tree.map((node) => {
+                const active = node.main.id === selectedMainId;
+                const childCount = showInactive
+                  ? node.children.length
+                  : node.children.filter((c) => c.is_active).length;
+                return (
+                  <li key={node.main.id}>
+                    <button
+                      type="button"
+                      className={`admin-cat-folder-item${active ? ' is-active' : ''}${!node.main.is_active ? ' is-inactive' : ''}`}
+                      onClick={() => selectMain(node.main)}
+                    >
+                      <span className="admin-cat-folder-item-name">{node.main.name}</span>
+                      <span className="admin-cat-folder-item-meta">{childCount}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </aside>
 
-      {!loading && !forbidden && rows.length > 0 ? (
-        <>
-          <div className="admin-table-wrap">
-            <table className="admin-table admin-cat-tree-table">
-              <thead>
-                <tr>
-                  <th>结构 / ID</th>
-                  <th>名称</th>
-                  <th>别名</th>
-                  <th>视频数</th>
-                  <th>排序</th>
-                  <th>启用状态</th>
-                  <th>来源</th>
-                  <th>同步</th>
-                  <th>创建时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tree.map((node) => (
-                  <Fragment key={node.main.id}>
-                    {renderRow(node.main, 0)}
-                    {expanded.has(node.main.id)
-                      ? node.children.map((child) => renderRow(child, 1))
-                      : null}
-                    {expanded.has(node.main.id) && node.children.length === 0 ? (
-                      <tr key={`${node.main.id}-empty`} className="admin-cat-child-row">
-                        <td colSpan={10} className="admin-muted">
-                          <span className="admin-cat-branch" aria-hidden />
-                          暂无子分类
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                ))}
-                {orphans.length > 0 ? (
-                  <Fragment key="orphans">
-                    <tr className="admin-cat-orphan-head">
-                      <td colSpan={10}>
-                        <strong>其他分类</strong>
-                        <span className="admin-muted">（未挂在六大主频道下）</span>
-                      </td>
-                    </tr>
-                    {orphans.map((row) => renderRow(row, 0))}
-                  </Fragment>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="admin-card-list" aria-label="分类树（移动端）">
-            {tree.map((node) => (
-              <div key={node.main.id} className="admin-cat-mobile-block">
-                <Link className="admin-card-item" to={`/admin/categories/${node.main.id}`}>
-                  <div>
-                    <strong>
-                      {node.main.name} · #{node.main.id}
-                    </strong>
-                    <p>
-                      视频 {node.main.video_count} · {activeLabel(node.main.is_active)} · 子分类{' '}
-                      {node.children.length}
-                    </p>
-                  </div>
-                </Link>
-                {node.children.map((child) => (
-                  <Link
-                    key={child.id}
-                    className="admin-card-item admin-cat-mobile-child"
-                    to={`/admin/categories/${child.id}`}
-                  >
-                    <div>
-                      <strong>
-                        └ {child.name} · #{child.id}
-                      </strong>
-                      <p>
-                        视频 {child.video_count} · {activeLabel(child.is_active)}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
+          <section className="admin-cat-folder-subs" aria-label="子分类">
+            <div className="admin-cat-folder-subs-head">
+              <div className="admin-cat-folder-label">
+                {selectedMain ? `${selectedMain.name} · 子分类` : '子分类'}
               </div>
-            ))}
-          </div>
-        </>
-      ) : null}
-    </section>
+              <button
+                type="button"
+                className="admin-btn admin-btn-sm"
+                disabled={!selectedMain || busy || selectedMain.slug === 'home'}
+                onClick={() => {
+                  setAdding(true);
+                  setAddName('');
+                  setOkMsg(null);
+                  setError(null);
+                }}
+                title={selectedMain?.slug === 'home' ? '首页下不添加子分类' : undefined}
+              >
+                添加子分类
+              </button>
+            </div>
+
+            {adding && selectedMain ? (
+              <form className="admin-cat-add-form" onSubmit={(e) => void onAdd(e)}>
+                <input
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="新子分类名称"
+                  maxLength={64}
+                  autoFocus
+                  disabled={busy}
+                />
+                <button type="submit" className="admin-btn" disabled={busy}>
+                  创建
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    setAdding(false);
+                    setAddName('');
+                  }}
+                >
+                  取消
+                </button>
+              </form>
+            ) : null}
+
+            {!selectedMain ? (
+              <p className="admin-muted">请选择左侧主分类</p>
+            ) : children.length === 0 ? (
+              <p className="admin-muted">暂无子分类</p>
+            ) : (
+              <ul className="admin-cat-folder-list admin-cat-folder-sublist">
+                {children.map((sub) => (
+                  <li key={sub.id}>
+                    <button
+                      type="button"
+                      className={`admin-cat-folder-item${sub.id === selectedId ? ' is-active' : ''}${!sub.is_active ? ' is-inactive' : ''}`}
+                      onClick={() => selectSub(sub)}
+                    >
+                      <span className="admin-cat-folder-item-name">{sub.name}</span>
+                      <span className="admin-cat-folder-item-meta">#{sub.id}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="admin-cat-folder-editor" aria-label="编辑分类">
+            <div className="admin-cat-folder-label">编辑</div>
+            {!selected ? (
+              <p className="admin-muted">点选分类以编辑</p>
+            ) : (
+              <form className="admin-cat-edit-form" onSubmit={(e) => void onSave(e)}>
+                <div className="admin-cat-edit-meta">
+                  <span>ID #{selected.id}</span>
+                  <span>{selectedIsSub ? '子分类' : '主分类'}</span>
+                </div>
+                <label>
+                  名称
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    maxLength={64}
+                    disabled={busy}
+                    required
+                  />
+                </label>
+                <label>
+                  排序
+                  <input
+                    type="number"
+                    value={editSort}
+                    onChange={(e) => setEditSort(Number(e.target.value) || 0)}
+                    disabled={busy}
+                  />
+                </label>
+                <label className="admin-inline-check">
+                  <input
+                    type="checkbox"
+                    checked={editActive}
+                    onChange={(e) => setEditActive(e.target.checked)}
+                    disabled={busy}
+                  />
+                  启用
+                </label>
+                {selectedIsSub ? (
+                  <label>
+                    所属主分类
+                    <select
+                      value={editParentId || selected.parent_id || ''}
+                      onChange={(e) => setEditParentId(Number(e.target.value) || 0)}
+                      disabled={busy}
+                    >
+                      {tree
+                        .filter((n) => n.main.slug !== 'home')
+                        .map((n) => (
+                          <option key={n.main.id} value={n.main.id}>
+                            {n.main.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                ) : null}
+                <div className="admin-cat-edit-actions">
+                  <button type="submit" className="admin-btn" disabled={busy}>
+                    保存
+                  </button>
+                  {selectedIsSub ? (
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-danger"
+                      disabled={busy}
+                      onClick={() => void onRemove()}
+                    >
+                      停用
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,16 +1,18 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ApiError,
   fetchAdminCategories,
   fetchAdminVideo,
   updateAdminVideo,
+  uploadAdminVideoPoster,
   type AdminCategory,
   type AdminVideoDetail as AdminVideoDetailData,
 } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { loginWithNext } from '../auth/paths';
 import { syncStatusLabel } from './adminLabels';
+import { DEFAULT_POSTER_ASPECT, cropImageFileToAspect, loadImageNaturalSize } from './posterCrop';
 
 function formatTime(value?: string) {
   if (!value) return '—';
@@ -43,6 +45,9 @@ export function AdminVideoDetail() {
   const [status, setStatus] = useState('ready');
   const [membershipRequired, setMembershipRequired] = useState(false);
   const [isHot, setIsHot] = useState(false);
+  const [posterBusy, setPosterBusy] = useState(false);
+  const [posterAspect, setPosterAspect] = useState(DEFAULT_POSTER_ASPECT);
+  const posterInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +89,8 @@ export function AdminVideoDetail() {
         setStatus(next.status || 'ready');
         setMembershipRequired(Boolean(next.membership_required));
         setIsHot(Boolean(next.is_hot));
+        const size = await loadImageNaturalSize(next.cover_url ?? '');
+        if (!cancelled) setPosterAspect(size);
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError) {
@@ -110,6 +117,42 @@ export function AdminVideoDetail() {
       cancelled = true;
     };
   }, [id, token, logout, navigate]);
+
+  async function onPosterFile(file: File | null) {
+    if (!file || !data || posterBusy) return;
+    if (!file.type.startsWith('image/')) {
+      setError('请选择图片文件');
+      return;
+    }
+    setPosterBusy(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const aspect = posterAspect.w > 0 && posterAspect.h > 0 ? posterAspect : DEFAULT_POSTER_ASPECT;
+      const cropped = await cropImageFileToAspect(file, aspect.w, aspect.h);
+      const updated = await uploadAdminVideoPoster(token, data.id, cropped, aspect, 'poster.jpg');
+      setData(updated);
+      setCoverURL(updated.cover_url ?? '');
+      const size = await loadImageNaturalSize(updated.cover_url ?? '');
+      setPosterAspect(size);
+      setOkMsg('封面已上传并替换');
+      window.setTimeout(() => setOkMsg((cur) => (cur === '封面已上传并替换' ? null : cur)), 1800);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          logout();
+          navigate(loginWithNext(`/admin/videos/${id}`), { replace: true });
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : '封面上传失败');
+      }
+    } finally {
+      setPosterBusy(false);
+      if (posterInputRef.current) posterInputRef.current.value = '';
+    }
+  }
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
@@ -158,7 +201,7 @@ export function AdminVideoDetail() {
           <Link to="/admin/videos">视频管理</Link> / 详情
         </p>
         <h1>{data?.title ?? '视频详情'}</h1>
-        <p className="admin-muted">可编辑标题、分类、状态、封面与会员设置 · 播放密钥只读</p>
+        <p className="admin-muted">可编辑标题、分类、状态、封面（上传至 R2，按原海报比例裁切）与会员设置 · 播放密钥只读</p>
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}
@@ -182,10 +225,42 @@ export function AdminVideoDetail() {
         <form className="admin-detail-grid" onSubmit={onSave}>
           <div className="admin-detail-cover">
             {coverURL ? (
-              <img src={coverURL} alt="" />
+              <img
+                src={coverURL}
+                alt=""
+                onLoad={(e) => {
+                  const el = e.currentTarget;
+                  if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+                    setPosterAspect({ w: el.naturalWidth, h: el.naturalHeight });
+                  }
+                }}
+              />
             ) : (
               <div className="admin-thumb is-empty is-large" />
             )}
+            <div className="admin-detail-cover-actions">
+              <input
+                ref={posterInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                hidden
+                onChange={(e) => void onPosterFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                type="button"
+                className="admin-btn admin-btn-sm"
+                disabled={posterBusy || saving}
+                onClick={() => posterInputRef.current?.click()}
+              >
+                {posterBusy ? '上传中…' : '上传替换封面'}
+              </button>
+              <p className="admin-muted admin-detail-cover-hint">
+                按当前海报比例裁切后上传到 R2
+                {posterAspect.w > 0 && posterAspect.h > 0
+                  ? `（${posterAspect.w}×${posterAspect.h}）`
+                  : ''}
+              </p>
+            </div>
           </div>
 
           <div>

@@ -41,6 +41,28 @@ function statusClass(status: string) {
   return 'admin-badge is-off';
 }
 
+function deliveryLabel(status: string) {
+  switch (status) {
+    case 'success':
+      return '开通成功';
+    case 'fail':
+      return '开通失败';
+    case 'pending':
+      return '待开通';
+    case 'none':
+      return '—';
+    default:
+      return status || '—';
+  }
+}
+
+function deliveryClass(status: string) {
+  if (status === 'success') return 'admin-badge is-ok';
+  if (status === 'fail') return 'admin-badge is-off';
+  if (status === 'pending') return 'admin-badge';
+  return 'admin-muted';
+}
+
 function parsePaymentsSearch(params: URLSearchParams) {
   const pageSize = 24;
   const q = (params.get('q') ?? '').trim();
@@ -230,7 +252,8 @@ export function AdminPayments() {
                   <th>用户</th>
                   <th>套餐</th>
                   <th>金额</th>
-                  <th>状态</th>
+                  <th>支付状态</th>
+                  <th>开通结果</th>
                   <th>网关 / 网络</th>
                   <th>交易号</th>
                   <th>支付时间</th>
@@ -257,6 +280,11 @@ export function AdminPayments() {
                     <td>{formatMoney(row.amount_usd, row.amount_usdt)}</td>
                     <td>
                       <span className={statusClass(row.status)}>{statusLabel(row.status)}</span>
+                    </td>
+                    <td>
+                      <span className={deliveryClass(row.delivery_status)}>
+                        {deliveryLabel(row.delivery_status)}
+                      </span>
                     </td>
                     <td>
                       <span className="admin-mono">
@@ -291,6 +319,10 @@ export function AdminPayments() {
                   </p>
                   <p>
                     <span className={statusClass(row.status)}>{statusLabel(row.status)}</span>
+                    {' · '}
+                    <span className={deliveryClass(row.delivery_status)}>
+                      {deliveryLabel(row.delivery_status)}
+                    </span>
                     <span className="admin-muted"> · {formatTime(row.created_at)}</span>
                   </p>
                 </div>

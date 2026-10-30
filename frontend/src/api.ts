@@ -1076,6 +1076,9 @@ export type AdminPayment = {
   amount_usdt: number;
   currency: string;
   status: string;
+  /** success | fail | pending | none — VIP membership delivery after payment. */
+  delivery_status: 'success' | 'fail' | 'pending' | 'none' | string;
+  gateway_status?: string;
   gateway_provider: string;
   gateway_trade_id: string;
   pay_address: string;
@@ -1130,6 +1133,13 @@ export type AdminUpdateCategoryInput = {
   name?: string;
   sort?: number;
   is_active?: boolean;
+  parent_id?: number;
+};
+
+export type AdminCreateCategoryInput = {
+  name: string;
+  parent_id: number;
+  sort?: number;
 };
 
 export type AdminCleanupDuplicatesResult = {
@@ -1290,6 +1300,36 @@ export async function updateAdminVideo(
   return json.data;
 }
 
+/** Upload a replacement poster; server crops to aspect_w:aspect_h and stores on R2. */
+export async function uploadAdminVideoPoster(
+  token: string | null | undefined,
+  id: number,
+  file: Blob,
+  aspect: { w: number; h: number },
+  filename = 'poster.jpg',
+): Promise<AdminVideoDetail> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const body = new FormData();
+  body.append('file', file, filename);
+  body.append('aspect_w', String(aspect.w > 0 ? aspect.w : 2));
+  body.append('aspect_h', String(aspect.h > 0 ? aspect.h : 3));
+  const res = await fetch(`${API_BASE}/api/v1/admin/videos/${id}/poster`, {
+    method: 'POST',
+    headers,
+    body,
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminVideoDetail;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
 export async function updateAdminCategory(
   token: string | null | undefined,
   id: number,
@@ -1311,6 +1351,47 @@ export async function updateAdminCategory(
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
   }
   return json.data;
+}
+
+export async function createAdminCategory(
+  token: string | null | undefined,
+  input: AdminCreateCategoryInput,
+): Promise<AdminCategory> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/categories`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    data?: AdminCategory;
+  };
+  if (!res.ok || json.ok === false || !json.data) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
+  return json.data;
+}
+
+export async function deleteAdminCategory(
+  token: string | null | undefined,
+  id: number,
+): Promise<void> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/v1/admin/categories/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+  };
+  if (!res.ok || json.ok === false) {
+    throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
+  }
 }
 
 export async function cleanupAdminCategoryDuplicates(

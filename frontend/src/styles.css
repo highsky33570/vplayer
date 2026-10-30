@@ -10250,78 +10250,90 @@ html:not(.dark) .cookie-gate-card {
     justify-content: center;
   }
 
-  /* Magnifier-only search — stay horizontally centered like the full search bar.
-     Expands when .is-expanded / shell is-search-open. */
-  .banner-shell .search--desktop {
+  /* Mid-width: only the red search button, centered — never the full form
+     (beats cinematic .banner-shell:not(.banner-shell--app) .search width).
+     Click expands via .is-expanded / is-search-open. */
+  .banner-shell .search--desktop,
+  .banner-shell:not(.banner-shell--app) .search--desktop,
+  .banner-shell--app .search--desktop {
     position: absolute !important;
     left: 50% !important;
     top: 50% !important;
     transform: translate(-50%, -50%) !important;
     z-index: 4;
-    width: 36px;
-    max-width: 36px;
-    min-width: 36px;
-    height: 36px;
-    flex: none;
-    margin: 0;
-    border-radius: 4px;
-    overflow: hidden;
+    width: 36px !important;
+    max-width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    flex: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 4px !important;
+    background: transparent !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
   }
 
-  .banner-shell .search--desktop input {
-    display: none;
-    width: 0;
-    padding: 0;
-    opacity: 0;
+  .banner-shell .search--desktop input,
+  .banner-shell:not(.banner-shell--app) .search--desktop input {
+    display: none !important;
+    width: 0 !important;
+    padding: 0 !important;
+    opacity: 0 !important;
   }
 
-  .banner-shell .search--desktop button {
+  .banner-shell .search--desktop button,
+  .banner-shell:not(.banner-shell--app) .search--desktop button {
     width: 36px !important;
     min-width: 36px !important;
     height: 36px !important;
     padding: 0 !important;
-    border-radius: 4px;
+    border-radius: 4px !important;
     background: var(--brand) !important;
     color: #fff !important;
   }
 
-  .banner-shell .search--desktop button span {
+  .banner-shell .search--desktop button span,
+  .banner-shell:not(.banner-shell--app) .search--desktop button span {
     display: none !important;
   }
 
-  .banner-shell .search--desktop button svg {
+  .banner-shell .search--desktop button svg,
+  .banner-shell:not(.banner-shell--app) .search--desktop button svg {
     display: block !important;
-    width: 18px;
-    height: 18px;
+    width: 18px !important;
+    height: 18px !important;
   }
 
   .banner-shell .search--desktop.is-expanded,
-  .banner-shell.is-search-open .search--desktop {
-    position: absolute !important;
-    left: 50% !important;
-    top: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    width: min(320px, 52vw);
-    max-width: 320px;
-    min-width: 200px;
-    flex: none;
-    display: flex;
-    align-items: center;
+  .banner-shell.is-search-open .search--desktop,
+  .banner-shell:not(.banner-shell--app) .search--desktop.is-expanded,
+  .banner-shell.is-search-open:not(.banner-shell--app) .search--desktop {
+    width: min(320px, 52vw) !important;
+    max-width: 320px !important;
+    min-width: 200px !important;
+    border: 1px solid rgba(255, 255, 255, 0.55) !important;
+    display: flex !important;
+    align-items: center !important;
   }
 
   .banner-shell .search--desktop.is-expanded input,
-  .banner-shell.is-search-open .search--desktop input {
-    display: block;
-    flex: 1 1 auto;
-    width: auto;
-    min-width: 0;
-    height: 36px;
-    padding: 0 12px;
-    opacity: 1;
+  .banner-shell.is-search-open .search--desktop input,
+  .banner-shell:not(.banner-shell--app) .search--desktop.is-expanded input,
+  .banner-shell.is-search-open:not(.banner-shell--app) .search--desktop input {
+    display: block !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    padding: 0 12px !important;
+    opacity: 1 !important;
   }
 
   .banner-shell .search--desktop.is-expanded button,
-  .banner-shell.is-search-open .search--desktop button {
+  .banner-shell.is-search-open .search--desktop button,
+  .banner-shell:not(.banner-shell--app) .search--desktop.is-expanded button,
+  .banner-shell.is-search-open:not(.banner-shell--app) .search--desktop button {
     width: auto !important;
     min-width: 44px !important;
     padding: 0 10px !important;

@@ -21,13 +21,15 @@ function cat(
 }
 
 describe('adminCategoryTree', () => {
-  it('nests subcategories under canonical mains', () => {
+  it('nests subcategories under canonical mains and includes 首页', () => {
     const rows = [
+      cat({ id: 1, name: '推荐', slug: 'home', source_id: '0' }),
       cat({ id: 2, name: '电影', slug: 'movie', source_id: '1' }),
       cat({ id: 100, name: '动作片', slug: 'type-101', parent_id: 2, source_id: '101' }),
       cat({ id: 999, name: '杂项', slug: 'misc', source_id: '99' }),
     ];
     const tree = buildAdminCategoryTree(rows);
+    assert.equal(tree[0]?.main.slug, 'home');
     const movie = tree.find((n) => n.main.slug === 'movie');
     assert.ok(movie);
     assert.equal(movie!.children.length, 1);

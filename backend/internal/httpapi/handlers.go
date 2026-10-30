@@ -33,6 +33,8 @@ type API struct {
 	Resolver    *play.Resolver
 	SyncRunner  *scheduler.OleHdTvRunner
 	MediaBase   string
+	// Objects is the poster/object store (R2 or local). Used for admin poster upload.
+	Objects media.ObjectStore
 	// MediaOpener overrides private object reads (tests). Nil uses R2 or the local object dir.
 	MediaOpener MediaOpener
 	// PublicVideos optionally overrides Store for public video list/count (tests).

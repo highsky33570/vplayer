@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 )
@@ -75,9 +76,19 @@ type AdminCategoryUpdate struct {
 	Name     *string
 	Sort     *int
 	IsActive *bool
+	ParentID *uint64 // move subcategory under another top-level main
 }
 
-// UpdateAdminCategory updates name / sort / is_active. Returns false when id does not exist.
+// AdminCategoryCreate is the input for inserting a subcategory under a main.
+type AdminCategoryCreate struct {
+	Name     string
+	ParentID uint64
+	Sort     int
+	Slug     string
+	SourceID string
+}
+
+// UpdateAdminCategory updates name / sort / is_active / parent_id. Returns false when id does not exist.
 func (m *MySQL) UpdateAdminCategory(id uint64, u AdminCategoryUpdate) (bool, error) {
 	if id == 0 {
 		return false, nil
@@ -96,6 +107,10 @@ func (m *MySQL) UpdateAdminCategory(id uint64, u AdminCategoryUpdate) (bool, err
 		sets = append(sets, `is_active=?`)
 		args = append(args, boolToInt(*u.IsActive))
 	}
+	if u.ParentID != nil {
+		sets = append(sets, `parent_id=?`)
+		args = append(args, *u.ParentID)
+	}
 	if len(sets) > 0 {
 		args = append(args, id)
 		if _, err := m.DB.Exec(`UPDATE categories SET `+strings.Join(sets, ", ")+` WHERE id=?`, args...); err != nil {
@@ -104,6 +119,62 @@ func (m *MySQL) UpdateAdminCategory(id uint64, u AdminCategoryUpdate) (bool, err
 	}
 	var n int
 	if err := m.DB.QueryRow(`SELECT COUNT(*) FROM categories WHERE id=?`, id).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// CreateAdminCategory inserts a subcategory. Caller must validate parent is top-level.
+func (m *MySQL) CreateAdminCategory(in AdminCategoryCreate) (uint64, error) {
+	if in.ParentID == 0 || strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Slug) == "" {
+		return 0, errors.New("invalid category create")
+	}
+	res, err := m.DB.Exec(`
+		INSERT INTO categories (name, slug, sort, source_system, source_id, parent_id, sync_status, is_active)
+		VALUES (?, ?, ?, 'admin', ?, ?, 'ok', 1)`,
+		strings.TrimSpace(in.Name), strings.TrimSpace(in.Slug), in.Sort, strings.TrimSpace(in.SourceID), in.ParentID)
+	if err != nil {
+		return 0, err
+	}
+	lid, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return uint64(lid), nil
+}
+
+// CategoryParentID returns the parent_id of a category (nil = top-level), or ok=false if missing.
+func (m *MySQL) CategoryParentID(id uint64) (parentID *uint64, ok bool, err error) {
+	if id == 0 {
+		return nil, false, nil
+	}
+	var p sql.NullInt64
+	err = m.DB.QueryRow(`SELECT parent_id FROM categories WHERE id=?`, id).Scan(&p)
+	if err == sql.ErrNoRows {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if p.Valid && p.Int64 > 0 {
+		v := uint64(p.Int64)
+		return &v, true, nil
+	}
+	return nil, true, nil
+}
+
+// DeactivateAdminSubcategory sets is_active=0 for a child category only.
+// Returns false when id is missing or is a top-level main.
+func (m *MySQL) DeactivateAdminSubcategory(id uint64) (bool, error) {
+	if id == 0 {
+		return false, nil
+	}
+	res, err := m.DB.Exec(`UPDATE categories SET is_active=0 WHERE id=? AND parent_id IS NOT NULL`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
 		return false, err
 	}
 	return n > 0, nil
