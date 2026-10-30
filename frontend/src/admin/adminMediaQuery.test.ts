@@ -51,54 +51,16 @@ describe('adminMediaQuery', () => {
 });
 
 describe('admin media UI boundaries', () => {
-  it('protects media routes under AdminGuard and enables Media nav', () => {
+  it('removes media section from admin nav and routes', () => {
     const app = readFileSync(join(here, '../App.tsx'), 'utf8');
     assert.match(app, /path="\/admin"\s+element=\{<AdminGuard\s*\/>\}/);
-    assert.match(app, /path="media"\s+element=\{<AdminMedia\s*\/>\}/);
-    assert.match(app, /path="media\/episodes\/:id"\s+element=\{<AdminMediaEpisodeDetail\s*\/>\}/);
+    assert.equal(app.includes('AdminMedia'), false);
+    assert.equal(/path="media"/.test(app), false);
 
     const layout = readFileSync(join(here, 'AdminLayout.tsx'), 'utf8');
-    assert.match(layout, /to:\s*'\/admin\/media',\s*label:\s*'媒体管理',\s*enabled:\s*true/);
+    assert.equal(layout.includes('/admin/media'), false);
+    assert.equal(layout.includes('媒体管理'), false);
     assert.match(layout, /to:\s*'\/admin\/videos'/);
     assert.match(layout, /to:\s*'\/admin\/sync'/);
-  });
-
-  it('has no migration write controls or unsafe fields in media UI', () => {
-    const list = readFileSync(join(here, 'AdminMedia.tsx'), 'utf8');
-    const detail = readFileSync(join(here, 'AdminMediaEpisodeDetail.tsx'), 'utf8');
-    const api = readFileSync(join(here, '../api.ts'), 'utf8');
-    const mediaApiSlice = api.slice(
-      api.indexOf('export type AdminMediaOverview'),
-      api.indexOf('export function fetchAdminMediaEpisode') + 200,
-    );
-    const combined = `${list}\n${detail}\n${mediaApiSlice}`;
-
-    for (const needle of [
-      'Migrate Now',
-      'Batch Migrate',
-      'Retry',
-      'Delete Media',
-      'Change Provider',
-      'Repair',
-      'Re-fetch',
-      'Play URL',
-      'ADMIN_API_TOKEN',
-      'X-Admin-Token',
-      'playback_url',
-      'play_page_url',
-      'hls_object_key',
-      'migration_error',
-      'sync_error',
-      'poster_source_url',
-    ]) {
-      assert.equal(combined.includes(needle), false, `must not contain ${needle}`);
-    }
-
-    assert.match(list, /可迁移/);
-    assert.match(list, /按当前迁移规则符合条件/);
-    assert.match(list, /应用尚未记录媒体迁移的运行历史/);
-    assert.match(detail, /HLS 对象/);
-    assert.equal(/Play\s*URL|>\s*Play\s*</.test(detail), false);
-    assert.equal(detail.includes('migratemedia'), false);
   });
 });

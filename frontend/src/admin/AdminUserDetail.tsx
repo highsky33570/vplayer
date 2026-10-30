@@ -79,7 +79,7 @@ export function AdminUserDetail() {
         setData(next);
         setNickname(next.nickname || '');
         setIsAdmin(Boolean(next.is_admin));
-        setIsMember(Boolean(next.is_member || next.is_admin));
+        setIsMember(Boolean(next.is_member));
         setExpiresLocal(toDatetimeLocal(next.membership_expires_at));
         setPlanSlug(next.latest_plan_slug || '');
       } catch (e) {
@@ -129,7 +129,7 @@ export function AdminUserDetail() {
       setData(updated);
       setNickname(updated.nickname || '');
       setIsAdmin(Boolean(updated.is_admin));
-      setIsMember(Boolean(updated.is_member || updated.is_admin));
+      setIsMember(Boolean(updated.is_member));
       setExpiresLocal(toDatetimeLocal(updated.membership_expires_at));
       setOkMsg('用户资料已保存');
     } catch (err) {
@@ -204,13 +204,11 @@ export function AdminUserDetail() {
     }
   }
 
-  const vipLabel = data?.is_admin
-    ? '管理员（默认可用）'
-    : data?.is_member
-      ? data.membership_expires_at
-        ? `会员至 ${formatTime(data.membership_expires_at)}`
-        : '终身会员'
-      : '非会员';
+  const vipLabel = data?.is_member
+    ? data.membership_expires_at
+      ? `VIP 会员 · 至 ${formatTime(data.membership_expires_at)}`
+      : 'VIP 会员 · 终身'
+    : '非会员';
 
   return (
     <section className="admin-page">
@@ -219,7 +217,6 @@ export function AdminUserDetail() {
           <Link to="/admin/users">用户管理</Link> / 详情
         </p>
         <h1>{data?.email ?? '用户详情'}</h1>
-        <p className="admin-muted">可编辑昵称、角色与会员；可删除账号（不含密码与会话密钥）</p>
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}

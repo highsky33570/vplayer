@@ -163,12 +163,15 @@ func (a *API) AdminListPayments(c *gin.Context) {
 	for _, row := range rows {
 		out = append(out, adminPaymentDTO(row))
 	}
+	revenueUSD, revenueUSDT, _ := a.Store.SumPaidMembershipRevenue()
 	c.JSON(http.StatusOK, gin.H{
-		"ok":       true,
-		"data":     out,
-		"total":    total,
-		"limit":    q.Limit,
-		"offset":   q.Offset,
-		"has_more": q.Offset+len(out) < total,
+		"ok":                true,
+		"data":              out,
+		"total":             total,
+		"limit":             q.Limit,
+		"offset":            q.Offset,
+		"has_more":          q.Offset+len(out) < total,
+		"revenue_paid_usd":  revenueUSD,
+		"revenue_paid_usdt": revenueUSDT,
 	})
 }

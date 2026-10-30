@@ -34,6 +34,8 @@ type AdminDashboardStats struct {
 	MembersTotal     int                  `json:"members_total"`
 	VideosMembership int                  `json:"videos_membership"`
 	OrdersPaidTotal  int                  `json:"orders_paid_total"`
+	RevenuePaidUSD   float64              `json:"revenue_paid_usd"`
+	RevenuePaidUSDT  float64              `json:"revenue_paid_usdt"`
 	LatestSync       *AdminSyncRunSummary `json:"latest_sync"`
 }
 
@@ -63,6 +65,12 @@ func (m *MySQL) AdminDashboardStats() (*AdminDashboardStats, error) {
 	if err := m.DB.QueryRow(`SELECT COUNT(*) FROM membership_orders WHERE status=?`, MembershipOrderPaid).Scan(&out.OrdersPaidTotal); err != nil {
 		return nil, err
 	}
+	usd, usdt, err := m.SumPaidMembershipRevenue()
+	if err != nil {
+		return nil, err
+	}
+	out.RevenuePaidUSD = usd
+	out.RevenuePaidUSDT = usdt
 	sync, err := m.latestSyncRunSummary()
 	if err != nil {
 		return nil, err

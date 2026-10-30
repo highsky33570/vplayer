@@ -322,7 +322,6 @@ export function AdminSync() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>同步 / 采集</h1>
-        <p className="admin-muted">片库同步观测、运行审计与有界管理操作</p>
       </div>
 
       <div className="admin-alert is-info" role="note">
@@ -418,9 +417,6 @@ export function AdminSync() {
 
           <div className="admin-page-head" style={{ marginTop: 28 }}>
             <h2>同步历史</h2>
-            <p className="admin-muted">
-              来自 <span className="admin-mono">sync_runs</span> 的片库同步历史 · 按时间倒序
-            </p>
           </div>
 
           <div className="admin-filters">
@@ -537,10 +533,6 @@ export function AdminSync() {
 
           <div className="admin-page-head" style={{ marginTop: 36 }}>
             <h2>运行记录</h2>
-            <p className="admin-muted">
-              增量同步、待补全与媒体迁移的工作进程执行历史，来自{' '}
-              <span className="admin-mono">operational_runs</span> · 按时间倒序
-            </p>
           </div>
 
           <div className="admin-filters">

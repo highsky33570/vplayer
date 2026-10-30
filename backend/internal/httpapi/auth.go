@@ -65,6 +65,9 @@ func (a *API) Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "登录失败，请稍后重试"})
 		return
 	}
+	if a.Store != nil {
+		_ = a.Store.TouchUserLastLogin(user.ID)
+	}
 	token, err := auth.IssueToken(a.authSecret(), user.ID, user.Email, 30*24*time.Hour)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "message": "签发登录凭证失败"})

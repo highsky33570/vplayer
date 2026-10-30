@@ -416,6 +416,15 @@ func (m *MySQL) ListAdminMembershipOrders(status, query string, limit, offset in
 	return out, rows.Err()
 }
 
+// SumPaidMembershipRevenue returns total paid order amounts (all paid rows).
+func (m *MySQL) SumPaidMembershipRevenue() (usd float64, usdt float64, err error) {
+	err = m.DB.QueryRow(`
+		SELECT COALESCE(SUM(amount_usd),0), COALESCE(SUM(COALESCE(amount_usdt,0)),0)
+		FROM membership_orders
+		WHERE status=?`, MembershipOrderPaid).Scan(&usd, &usdt)
+	return usd, usdt, err
+}
+
 // CountAdminMembershipOrders counts rows matching ListAdminMembershipOrders filters.
 func (m *MySQL) CountAdminMembershipOrders(status, query string) (int, error) {
 	q := `SELECT COUNT(*) FROM membership_orders o LEFT JOIN users u ON u.id = o.user_id WHERE 1=1`

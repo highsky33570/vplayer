@@ -65,6 +65,8 @@ export type AdminDashboardData = {
   members_total: number;
   videos_membership: number;
   orders_paid_total: number;
+  revenue_paid_usd: number;
+  revenue_paid_usdt: number;
   latest_sync: AdminSyncRunSummary | null;
 };
 
@@ -1061,6 +1063,7 @@ export type AdminUser = {
   latest_plan_slug?: string;
   latest_plan_name?: string;
   created_at: string;
+  last_login_at?: string | null;
 };
 
 export type AdminPayment = {
@@ -1096,6 +1099,8 @@ export type AdminPaymentPage = {
   limit: number;
   offset: number;
   has_more: boolean;
+  revenue_paid_usd?: number;
+  revenue_paid_usdt?: number;
 };
 
 export type AdminMembershipPlan = {
@@ -1443,6 +1448,8 @@ export async function fetchAdminPayments(
     limit?: number;
     offset?: number;
     has_more?: boolean;
+    revenue_paid_usd?: number;
+    revenue_paid_usdt?: number;
   };
   if (!res.ok || json.ok === false) {
     throw new ApiError(json.message ?? `请求失败（${res.status}）`, res.status);
@@ -1453,6 +1460,8 @@ export async function fetchAdminPayments(
     limit: Number(json.limit ?? limit),
     offset: Number(json.offset ?? offset),
     has_more: Boolean(json.has_more),
+    revenue_paid_usd: Number(json.revenue_paid_usd ?? 0),
+    revenue_paid_usdt: Number(json.revenue_paid_usdt ?? 0),
   };
 }
 

@@ -84,7 +84,6 @@ export function AdminOperationalRunDetail() {
           <Link to="/admin/sync">同步 / 采集</Link> / 运行记录
         </p>
         <h1>{data ? `运行记录 #${data.id}` : '运行记录详情'}</h1>
-        <p className="admin-muted">只读工作进程审计记录 · 不含错误原文与内部诊断</p>
       </div>
 
       <div className="admin-alert is-info" role="note">

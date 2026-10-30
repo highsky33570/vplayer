@@ -19,10 +19,11 @@ type AdminUser struct {
 	LatestPlanSlug      string
 	LatestPlanName      string
 	CreatedAt           time.Time
+	LastLoginAt         *time.Time
 }
 
 const adminUserSelect = `
-		SELECT id, email, COALESCE(nickname,''), COALESCE(is_admin,0), COALESCE(is_member,0), membership_expires_at, created_at
+		SELECT id, email, COALESCE(nickname,''), COALESCE(is_admin,0), COALESCE(is_member,0), membership_expires_at, created_at, last_login_at
 		FROM users`
 
 // ListAdminUsersFiltered lists users for admin with optional q / is_admin filters.
@@ -135,8 +136,8 @@ type adminUserScannable interface {
 func scanAdminUser(row adminUserScannable) (*AdminUser, error) {
 	var u AdminUser
 	var isAdmin, isMember int
-	var exp sql.NullTime
-	err := row.Scan(&u.ID, &u.Email, &u.Nickname, &isAdmin, &isMember, &exp, &u.CreatedAt)
+	var exp, lastLogin sql.NullTime
+	err := row.Scan(&u.ID, &u.Email, &u.Nickname, &isAdmin, &isMember, &exp, &u.CreatedAt, &lastLogin)
 	if err != nil {
 		return nil, err
 	}
@@ -145,8 +146,21 @@ func scanAdminUser(row adminUserScannable) (*AdminUser, error) {
 		t := exp.Time
 		u.MembershipExpiresAt = &t
 	}
+	if lastLogin.Valid {
+		t := lastLogin.Time
+		u.LastLoginAt = &t
+	}
 	u.IsMember = adminEffectiveMember(isMember == 1, u.MembershipExpiresAt, time.Now())
 	return &u, nil
+}
+
+// TouchUserLastLogin records a successful login timestamp.
+func (m *MySQL) TouchUserLastLogin(userID uint64) error {
+	if userID == 0 {
+		return nil
+	}
+	_, err := m.DB.Exec(`UPDATE users SET last_login_at=? WHERE id=?`, time.Now().UTC(), userID)
+	return err
 }
 
 // adminEffectiveMember mirrors EffectiveMember without the admin override:

@@ -7,8 +7,6 @@ import { AdminDashboard } from './admin/AdminDashboard';
 import { AdminGuard } from './admin/AdminGuard';
 import { AdminLayout } from './admin/AdminLayout';
 import { AdminLoginPage } from './admin/AdminLoginPage';
-import { AdminMedia } from './admin/AdminMedia';
-import { AdminMediaEpisodeDetail } from './admin/AdminMediaEpisodeDetail';
 import { AdminOperationalRunDetail } from './admin/AdminOperationalRunDetail';
 import { AdminPayments } from './admin/AdminPayments';
 import { AdminSync } from './admin/AdminSync';
@@ -79,8 +77,6 @@ export default function App() {
                 <Route path="sync" element={<AdminSync />} />
                 <Route path="sync/runs/:id" element={<AdminSyncRunDetail />} />
                 <Route path="sync/operations/:id" element={<AdminOperationalRunDetail />} />
-                <Route path="media" element={<AdminMedia />} />
-                <Route path="media/episodes/:id" element={<AdminMediaEpisodeDetail />} />
               </Route>
             </Route>
             <Route element={<ConsumerShell />}>

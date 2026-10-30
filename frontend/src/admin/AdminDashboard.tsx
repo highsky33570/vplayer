@@ -85,7 +85,6 @@ export function AdminDashboard() {
       <section className="admin-page">
         <div className="admin-page-head">
           <h1>控制台</h1>
-          <p className="admin-muted">正在加载运营数据…</p>
         </div>
       </section>
     );
@@ -125,10 +124,21 @@ export function AdminDashboard() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>控制台</h1>
-        <p className="admin-muted">运营概览 · API {apiStatusLabel(data.status)}</p>
       </div>
 
       <div className="admin-stat-grid">
+        <article className="admin-stat-card">
+          <span>总收入 (USD)</span>
+          <strong>${Number(data.revenue_paid_usd ?? 0).toFixed(2)}</strong>
+        </article>
+        <article className="admin-stat-card">
+          <span>总收入 (USDT)</span>
+          <strong>{Number(data.revenue_paid_usdt ?? 0).toFixed(2)}</strong>
+        </article>
+        <article className="admin-stat-card">
+          <span>已付订单</span>
+          <strong>{data.orders_paid_total ?? 0}</strong>
+        </article>
         <article className="admin-stat-card">
           <span>用户总数</span>
           <strong>{data.users_total}</strong>
@@ -152,10 +162,6 @@ export function AdminDashboard() {
         <article className="admin-stat-card">
           <span>分类</span>
           <strong>{data.categories_total}</strong>
-        </article>
-        <article className="admin-stat-card">
-          <span>已付订单</span>
-          <strong>{data.orders_paid_total ?? 0}</strong>
         </article>
         <article className="admin-stat-card">
           <span>API 状态</span>

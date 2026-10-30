@@ -220,7 +220,6 @@ export function AdminCategories() {
       <div className="admin-page-head">
         <div>
           <h1>分类管理</h1>
-          <p className="admin-muted">仅展示主分类及其子分类。点选左侧主分类，右侧查看子分类；点选任意分类可编辑。</p>
         </div>
         <div className="admin-page-actions">
           <label className="admin-inline-check">

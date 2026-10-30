@@ -18,8 +18,10 @@ func (a *API) AdminDashboard(c *gin.Context) {
 		"categories_total":  0,
 		"members_total":     0,
 		"videos_membership": 0,
-		"orders_paid_total": 0,
-		"latest_sync":       nil,
+		"orders_paid_total":  0,
+		"revenue_paid_usd":   0,
+		"revenue_paid_usdt":  0,
+		"latest_sync":        nil,
 	}
 	if a.Store != nil {
 		stats, err := a.Store.AdminDashboardStats()
@@ -34,6 +36,8 @@ func (a *API) AdminDashboard(c *gin.Context) {
 		data["members_total"] = stats.MembersTotal
 		data["videos_membership"] = stats.VideosMembership
 		data["orders_paid_total"] = stats.OrdersPaidTotal
+		data["revenue_paid_usd"] = stats.RevenuePaidUSD
+		data["revenue_paid_usdt"] = stats.RevenuePaidUSDT
 		if stats.LatestSync != nil {
 			data["latest_sync"] = syncRunJSON(stats.LatestSync)
 		}

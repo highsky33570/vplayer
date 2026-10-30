@@ -388,9 +388,6 @@ export function AdminVideos() {
       ) : null}
       <div className="admin-page-head">
         <h1>视频管理</h1>
-        <p className="admin-muted">
-          片库列表与筛选 · 可添加本地 VIP 视频。分类会立即写入 URL 并刷新列表。
-        </p>
       </div>
 
       <form className="admin-create-form admin-panel" onSubmit={onCreateSubmit}>

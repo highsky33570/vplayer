@@ -201,7 +201,6 @@ export function AdminVideoDetail() {
           <Link to="/admin/videos">视频管理</Link> / 详情
         </p>
         <h1>{data?.title ?? '视频详情'}</h1>
-        <p className="admin-muted">可编辑标题、分类、状态、封面（上传至 R2，按原海报比例裁切）与会员设置 · 播放密钥只读</p>
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}

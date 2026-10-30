@@ -107,6 +107,8 @@ export function AdminPayments() {
   const [qInput, setQInput] = useState(parsed.q);
   const [rows, setRows] = useState<AdminPayment[]>([]);
   const [total, setTotal] = useState(0);
+  const [revenueUSD, setRevenueUSD] = useState(0);
+  const [revenueUSDT, setRevenueUSDT] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
@@ -131,6 +133,8 @@ export function AdminPayments() {
         if (!cancelled) {
           setRows(page.data);
           setTotal(page.total);
+          setRevenueUSD(Number(page.revenue_paid_usd ?? 0));
+          setRevenueUSDT(Number(page.revenue_paid_usdt ?? 0));
         }
       } catch (e) {
         if (cancelled) return;
@@ -184,27 +188,28 @@ export function AdminPayments() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>支付记录</h1>
-        <p className="admin-muted">
-          大会员订单与链上支付流水 · 支持按订单号 / 用户邮箱搜索与状态筛选
-        </p>
       </div>
 
-      <div className="admin-pay-summary" aria-label="本页摘要">
+      <div className="admin-pay-summary" aria-label="收入摘要">
         <div className="admin-pay-stat">
-          <span className="admin-muted">本页订单</span>
-          <strong>{rows.length}</strong>
+          <span className="admin-muted">总收入 (USD)</span>
+          <strong>${revenueUSD.toFixed(2)}</strong>
         </div>
         <div className="admin-pay-stat">
-          <span className="admin-muted">已支付</span>
+          <span className="admin-muted">总收入 (USDT)</span>
+          <strong>{revenueUSDT.toFixed(2)}</strong>
+        </div>
+        <div className="admin-pay-stat">
+          <span className="admin-muted">本页已付</span>
+          <strong>${paidAmount.toFixed(2)}</strong>
+        </div>
+        <div className="admin-pay-stat">
+          <span className="admin-muted">本页已支付</span>
           <strong>{paidCount}</strong>
         </div>
         <div className="admin-pay-stat">
-          <span className="admin-muted">待支付</span>
+          <span className="admin-muted">本页待支付</span>
           <strong>{pendingCount}</strong>
-        </div>
-        <div className="admin-pay-stat">
-          <span className="admin-muted">本页已付金额</span>
-          <strong>${paidAmount.toFixed(2)}</strong>
         </div>
         <div className="admin-pay-stat">
           <span className="admin-muted">全部匹配</span>

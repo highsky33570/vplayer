@@ -21,10 +21,33 @@ function formatTime(value?: string) {
   return d.toLocaleString();
 }
 
-function membershipRemainingLabel(row: AdminUser): string {
-  if (row.is_admin) return '—';
+function membershipStatusLabel(row: AdminUser): string {
+  return row.is_member ? 'VIP 会员' : '非会员';
+}
+
+function membershipExpiresLabel(row: AdminUser): string {
   if (!row.is_member) return '—';
-  const days = row.membership_remaining_days;
+  if (row.membership_expires_at) return formatTime(row.membership_expires_at);
+  return '终身';
+}
+
+function daysFromExpiresAt(expiresAt?: string | null): number | null {
+  if (!expiresAt) return null;
+  const exp = new Date(expiresAt).getTime();
+  if (Number.isNaN(exp)) return null;
+  const ms = exp - Date.now();
+  if (ms <= 0) return 0;
+  return Math.max(1, Math.ceil(ms / 86_400_000));
+}
+
+function membershipRemainingLabel(row: AdminUser): string {
+  if (!row.is_member) return '—';
+  let days = row.membership_remaining_days;
+  // Fallback: compute from expiry when API omitted/zeroed remaining for members.
+  if ((days == null || days === 0) && row.membership_expires_at) {
+    const computed = daysFromExpiresAt(row.membership_expires_at);
+    if (computed != null) days = computed;
+  }
   if (days == null) {
     if (!row.membership_expires_at) return '终身';
     return '—';
@@ -119,7 +142,6 @@ export function AdminUsers() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>用户管理</h1>
-        <p className="admin-muted">账号、角色与会员状态 · 点击进入详情可编辑 / 删除 / 开通套餐</p>
       </div>
 
       <form className="admin-filters admin-panel" onSubmit={onSearchSubmit}>
@@ -179,9 +201,10 @@ export function AdminUsers() {
                   <th>角色</th>
                   <th>会员</th>
                   <th>剩余天数</th>
-                  <th>最近套餐</th>
+                  <th>套餐</th>
                   <th>到期</th>
-                  <th>创建时间</th>
+                  <th>注册时间</th>
+                  <th>最后登录</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,26 +227,15 @@ export function AdminUsers() {
                       </span>
                     </td>
                     <td>
-                      <span
-                        className={
-                          row.is_admin || row.is_member ? 'admin-badge is-ok' : 'admin-badge is-off'
-                        }
-                      >
-                        {row.is_admin ? '管理员' : row.is_member ? 'VIP 会员' : '非会员'}
+                      <span className={row.is_member ? 'admin-badge is-ok' : 'admin-badge is-off'}>
+                        {membershipStatusLabel(row)}
                       </span>
                     </td>
                     <td>{membershipRemainingLabel(row)}</td>
                     <td>{row.latest_plan_name || row.latest_plan_slug || '—'}</td>
-                    <td>
-                      {row.is_admin
-                        ? '—'
-                        : row.membership_expires_at
-                          ? formatTime(row.membership_expires_at)
-                          : row.is_member
-                            ? '终身'
-                            : '—'}
-                    </td>
+                    <td>{membershipExpiresLabel(row)}</td>
                     <td>{formatTime(row.created_at)}</td>
+                    <td>{formatTime(row.last_login_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -238,12 +250,13 @@ export function AdminUsers() {
                     #{row.id} {row.email}
                   </strong>
                   <p>
-                    {row.nickname || '—'} · {roleLabel(row.is_admin)} ·{' '}
-                    {row.is_admin || row.is_member ? 'VIP 会员' : '非会员'}
+                    {row.nickname || '—'} · {roleLabel(row.is_admin)} · {membershipStatusLabel(row)}
                     {` · 剩余 ${membershipRemainingLabel(row)}`}
                     {row.latest_plan_name ? ` · ${row.latest_plan_name}` : ''}
                   </p>
-                  <p className="admin-muted">{formatTime(row.created_at)}</p>
+                  <p className="admin-muted">
+                    注册 {formatTime(row.created_at)} · 登录 {formatTime(row.last_login_at)}
+                  </p>
                 </div>
               </Link>
             ))}

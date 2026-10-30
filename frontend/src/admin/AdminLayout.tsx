@@ -8,7 +8,7 @@ type AdminNavItem = {
   to: string;
   label: string;
   end?: boolean;
-  icon: 'dashboard' | 'videos' | 'categories' | 'users' | 'sync' | 'media' | 'billing' | 'payments';
+  icon: 'dashboard' | 'videos' | 'categories' | 'users' | 'sync' | 'billing' | 'payments';
 };
 
 const NAV: AdminNavItem[] = [
@@ -19,7 +19,6 @@ const NAV: AdminNavItem[] = [
   { to: '/admin/billing', label: '会员套餐', icon: 'billing' },
   { to: '/admin/payments', label: '支付记录', icon: 'payments' },
   { to: '/admin/sync', label: '同步 / 采集', icon: 'sync' },
-  { to: '/admin/media', label: '媒体管理', icon: 'media' },
 ];
 
 const COLLAPSE_KEY = 'vplayer.admin.sidebarCollapsed';
@@ -180,13 +179,6 @@ function NavIcon({
         <svg {...common}>
           <path d="M4 12a8 8 0 0 1 13.5-5.8M20 12a8 8 0 0 1-13.5 5.8" {...stroke} />
           <path d="M17 3v4h4M7 21v-4H3" {...stroke} />
-        </svg>
-      );
-    case 'media':
-      return (
-        <svg {...common}>
-          <path d="M4 7h11l5 5v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" {...stroke} />
-          <path d="M14 7v5h5" {...stroke} />
         </svg>
       );
     case 'home':

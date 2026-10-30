@@ -77,7 +77,6 @@ export function AdminCategoryDetail() {
           <Link to="/admin/categories">分类管理</Link> / 详情
         </p>
         <h1>{data?.name ?? '分类详情'}</h1>
-        <p className="admin-muted">只读详情 · 不含同步错误原文</p>
       </div>
 
       {loading ? <p className="admin-muted">加载中…</p> : null}

@@ -74,7 +74,6 @@ export function AdminSyncRunDetail() {
           <Link to="/admin/sync">同步 / 采集</Link> / 记录详情
         </p>
         <h1>{data ? `同步记录 #${data.id}` : '同步记录详情'}</h1>
-        <p className="admin-muted">只读记录 · 不含错误原文与内部摘要</p>
       </div>
 
       <div className="admin-alert is-info" role="note">

@@ -155,7 +155,6 @@ export function AdminBilling() {
     <section className="admin-page">
       <div className="admin-page-head">
         <h1>会员套餐</h1>
-        <p className="admin-muted">控制 VIP 购买页展示的价格、时长与上下架。Slug 创建后不可修改。</p>
       </div>
 
       {forbidden ? (
