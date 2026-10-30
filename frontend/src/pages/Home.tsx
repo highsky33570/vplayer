@@ -6,6 +6,7 @@ import { ContentSection } from '../components/ContentSection';
 import { resolveNavCategories } from '../components/DiscoveryNav';
 import { FeaturedGrid } from '../components/FeaturedGrid';
 import { FEATURED_POOL_LIMIT } from '../components/featuredLayout';
+import { HomeAdBanners } from '../components/HomeAdBanners';
 import { VideoCard } from '../components/VideoCard';
 
 const PAGE_SIZE = 30;
@@ -227,6 +228,7 @@ export function Home() {
     return (
       <>
         {featured.length > 0 && <FeaturedGrid videos={featured} />}
+        <HomeAdBanners placement="page" />
 
         {HOME_SECTIONS.map((section) => {
           const items = section.slug

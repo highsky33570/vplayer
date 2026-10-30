@@ -53,7 +53,7 @@ export function accountOwnedUploadVideos(_userId: number): Video[] {
 export function accountOwnedUploadsEmptyCopy(): { title: string; hint: string } {
   return {
     title: '暂无投稿视频',
-    hint: '天涯欧乐 暂未开放用户投稿，此区域不会展示片库内容。',
+    hint: '天涯影视 暂未开放用户投稿，此区域不会展示片库内容。',
   };
 }
 

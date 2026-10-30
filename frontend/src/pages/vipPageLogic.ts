@@ -5,7 +5,7 @@ export const VIP_CHANNEL_NAME = 'VIP蓝光影院';
 
 /** Hero copy on /vip — about premium membership, not a single film. */
 export const VIP_HERO_COPY = {
-  kicker: '天涯欧乐 · 大会员',
+  kicker: '天涯影视 · 大会员',
   title: '开通大会员，畅看专属影库',
   desc: '升级大会员即可解锁 VIP蓝光影院专属内容。支持 USDT 加密货币支付，开通后可在账户查看徽章与剩余天数。',
 } as const;

@@ -105,7 +105,7 @@ func (a *API) notificationJSON(n store.Notification) notificationJSON {
 }
 
 const (
-	welcomeTitle = "欢迎加入天涯欧乐！"
+	welcomeTitle = "欢迎加入天涯影视！"
 	welcomeBody  = "恭喜你成功注册！海量影视内容已为你准备好。点击本条消息可随时查看系统通知；也可在「查找用户」中按用户 ID 发送私信。祝你观影愉快！"
 )
 

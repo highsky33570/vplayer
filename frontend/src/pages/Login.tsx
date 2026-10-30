@@ -44,9 +44,9 @@ export function LoginPage() {
     <div className="page auth-page">
       <div className="auth-page-card">
         <div className="auth-modal-brand">
-          <img className="auth-modal-logo" src={logoUrl} alt="天涯欧乐" width={140} height={36} decoding="async" />
+          <img className="auth-modal-logo" src={logoUrl} alt="天涯影视" width={140} height={36} decoding="async" />
           <div>
-            <h2>登录 天涯欧乐</h2>
+            <h2>登录 天涯影视</h2>
             <p>高清点播 · 畅享精彩影视</p>
           </div>
         </div>

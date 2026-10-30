@@ -134,7 +134,7 @@ describe('comment section', () => {
   it('covers guest, composer, errors, load more, and safe text', () => {
     assert.match(comments, /<h3>评论<\/h3>/);
     assert.match(comments, /原站评论 \{sourceTotal\}/);
-    assert.match(comments, /天涯欧乐 评论 \{total\}/);
+    assert.match(comments, /天涯影视 评论 \{total\}/);
     assert.match(comments, /登录后发表评论/);
     assert.match(comments, /暂无评论，来说两句吧/);
     assert.match(comments, /暂无原站评论/);

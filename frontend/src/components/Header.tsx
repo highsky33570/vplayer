@@ -257,9 +257,9 @@ export function Header() {
               setCategoryOpen(false);
               setSearchOpen(false);
             }}
-            aria-label="天涯欧乐"
+            aria-label="天涯影视"
           >
-            <img className="brand-logo" src={logoUrl} alt="天涯欧乐" width={120} height={32} decoding="async" />
+            <img className="brand-logo" src={logoUrl} alt="天涯影视" width={120} height={32} decoding="async" />
           </Link>
           <div className="banner-channels" ref={setChannelHost} />
         </div>

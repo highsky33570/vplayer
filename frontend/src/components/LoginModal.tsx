@@ -29,7 +29,7 @@ export function LoginModal() {
   if (!authRequired || !loginOpen) return null;
 
   const title =
-    flow === 'forgot' ? '找回密码' : authMode === 'register' ? '注册 天涯欧乐' : '登录 天涯欧乐';
+    flow === 'forgot' ? '找回密码' : authMode === 'register' ? '注册 天涯影视' : '登录 天涯影视';
 
   return createPortal(
     <div className="auth-overlay" role="presentation" onMouseDown={closeLogin}>
@@ -45,7 +45,7 @@ export function LoginModal() {
         </button>
 
         <div className="auth-modal-brand">
-          <img className="auth-modal-logo" src={logoUrl} alt="天涯欧乐" width={140} height={36} decoding="async" />
+          <img className="auth-modal-logo" src={logoUrl} alt="天涯影视" width={140} height={36} decoding="async" />
           <div>
             <h2 id="auth-modal-title">{title}</h2>
             <p>{flow === 'forgot' ? '通过邮箱验证码重置密码' : '高清点播 · 畅享精彩影视'}</p>

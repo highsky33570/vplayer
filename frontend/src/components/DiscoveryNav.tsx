@@ -14,6 +14,7 @@ import {
   toggleMainExpansion,
   toggleSubcategoryShowAll,
 } from './discoveryNavLogic';
+import { HomeAdBanners } from './HomeAdBanners';
 
 export {
   activeCategoryScrollOptions,
@@ -244,6 +245,8 @@ export function DiscoveryNav({ channelHost = null }: { channelHost?: HTMLElement
   return (
     <div className={`discovery${onHome ? ' discovery--home' : ''}`} ref={discoveryRef}>
       {wide && channelHost ? createPortal(channelRail, channelHost) : channelRail}
+
+      {onHome ? <HomeAdBanners placement="nav" /> : null}
 
       {onHome && catalogSubs.length > 0 ? (
         <div className="discovery-catalog-wrap">

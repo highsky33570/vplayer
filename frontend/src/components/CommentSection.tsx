@@ -269,8 +269,8 @@ export function CommentSection({
           </button>
         )}
       </section>
-      <section className="watch-vplayer-comments" aria-label="天涯欧乐 评论">
-        <h4>天涯欧乐 评论 {total}</h4>
+      <section className="watch-vplayer-comments" aria-label="天涯影视 评论">
+        <h4>天涯影视 评论 {total}</h4>
         {authRequired && token ? (
           <form
             className="watch-composer"

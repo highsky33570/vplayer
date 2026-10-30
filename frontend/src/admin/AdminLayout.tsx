@@ -52,7 +52,7 @@ export function AdminLayout() {
     <div className={`admin-shell${collapsed ? ' is-collapsed' : ''}`}>
       <aside className="admin-sidebar" aria-label="管理侧栏">
         <div className="admin-brand">
-          <img className="admin-brand-logo" src={logoUrl} alt="天涯欧乐" width={120} height={32} decoding="async" />
+          <img className="admin-brand-logo" src={logoUrl} alt="天涯影视" width={120} height={32} decoding="async" />
           {!collapsed ? (
             <div className="admin-brand-copy">
               <strong>管理后台</strong>
